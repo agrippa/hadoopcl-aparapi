@@ -1,0 +1,361 @@
+Index: KernelWriter.java
+===================================================================
+--- KernelWriter.java	(revision 1042)
++++ KernelWriter.java	(working copy)
+@@ -42,6 +42,8 @@
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Map;
++import java.util.LinkedList;
++import java.util.Stack;
+ 
+ import com.amd.aparapi.ClassModel.AttributePool.RuntimeAnnotationsEntry;
+ import com.amd.aparapi.ClassModel.AttributePool.RuntimeAnnotationsEntry.AnnotationInfo;
+@@ -65,6 +67,9 @@
+ 
+ abstract class KernelWriter extends BlockWriter{
+ 
++   protected abstract String removePreviousLine();
++   protected abstract List<String> getStringList();
++
+    final String cvtBooleanToChar = "char ";
+ 
+    final String cvtBooleanArrayToCharStar = "char* ";
+@@ -475,6 +480,7 @@
+          write(line);
+          writeln(";");
+       }
++      write("int iter;\n");
+       write("int passid");
+       out();
+       writeln(";");
+@@ -493,9 +499,34 @@
+       write("}");
+       newLine();
+ 
++      final String mapreducePrefix = "org_apache_hadoop_mapreduce_";
++      final String mapperWritePost = "HadoopCLMapperKernel__write";
++      final String reducerWritePost = "HadoopCLReducerKernel__write";
++      final String mapperRunPost = "HadoopCLMapperKernel__run";
++      final String reducerRunPost = "HadoopCLReducerKernel__run";
++      final String mapperCallPost = "HadoopCLMapperKernel__callMap";
++      final String reducerCallPost = "HadoopCLReducerKernel__callReduce";
++
+       for (MethodModel mm : _entryPoint.getCalledMethods()) {
+          // write declaration :)
+ 
++         boolean isMapWrite = false;
++         boolean isReduceWrite = false;
++         boolean isCallMap = false;
++         boolean isCallReduce = false;
++
++         if(mm.getName().indexOf(mapreducePrefix) == 0) {
++             if(mm.getName().indexOf(mapperWritePost) != -1) {
++                 isMapWrite = true;
++             } else if(mm.getName().indexOf(reducerWritePost) != -1) {
++                 isReduceWrite = true;
++             } else if(mm.getName().indexOf(mapperCallPost) != -1) {
++                 isCallMap = true;
++             } else if(mm.getName().indexOf(reducerCallPost) != -1) {
++                 isCallReduce = true;
++             }
++         }
++
+          String returnType = mm.getReturnType();
+          // Arrays always map to __global arrays
+          if (returnType.startsWith("[")) {
+@@ -545,55 +576,182 @@
+             }
+          }
+          write(")");
+-         writeMethodBody(mm);
+-         newLine();
+-      }
++         
++         if(isReduceWrite || isMapWrite) {
++             //TODO
++             try {
++                 writeMethodBody(mm);
++             } catch(Exception ex) {
++             }
+ 
+-      write("__kernel void " + _entryPoint.getMethodModel().getSimpleName() + "(");
++             String className = _entryPoint.getClassModel().getClassWeAreModelling().toString();
++             className = className.split(" ")[1];
++             String getPairsLine = className+"__getOutputPairsPerInput(this)";
+ 
+-      in();
+-      boolean first = true;
+-      for (String line : argLines) {
++             String funcDeclString = removePreviousLine();
++             while(funcDeclString.indexOf("Kernel__write") == -1) {
++                 funcDeclString = removePreviousLine();
++             }
++             write(funcDeclString);
+ 
+-         if (first) {
+-            first = false;
++             String arguments = funcDeclString.substring(funcDeclString.indexOf("(")+1);
++             arguments = arguments.substring(0, arguments.indexOf(")"));
++             String[] argTokens = arguments.split(",");
++
++             write("   int pastWrites = this->output_nWrites[this->iter]++;\n");
++             if(isMapWrite) {
++                 write("   int index = (this->nPairs * pastWrites) + (this->iter);\n");
++                 write("   if(this->isGPU == 0) {\n");
++                 write("      index = ((this->iter) * "+getPairsLine+") + pastWrites;\n");
++                 write("   }\n");
++             } else {
++                 write("   int index = -1;\n");
++                 write("   if(this->isGPU > 0) {\n");
++                 write("      index = (this->nKeys * pastWrites) + (this->iter);\n");
++                 write("   } else {\n");
++                 write("      index = (this->iter) * "+getPairsLine+" + pastWrites;\n");
++                 write("   }\n");
++             }
++
++             for(int i = 1; i < argTokens.length; i++) {
++                 String[] tokens = argTokens[i].split(" ");
++                 String varname = tokens[2];
++                 char[] chars = varname.toCharArray();
++                 chars[0] = Character.toUpperCase(chars[0]);
++                 String capitalizedVarname = null;
++                 if(Character.isDigit(chars[chars.length-1])) {
++                     char save = chars[chars.length-1];
++                     chars[chars.length-1] = 's';
++                     capitalizedVarname = String.valueOf(chars);
++                     capitalizedVarname += save;
++                 } else {
++                     capitalizedVarname = String.valueOf(chars);
++                     capitalizedVarname += "s";
++                 }
++
++                 write("   this->output"+capitalizedVarname+"[index] = "+varname+";\n");
++             }
++             write("   return;\n");
++             write("}\n\n");
++
++
++         } else if (isCallMap) {
++             writeMethodBody(mm);
++
++             String closeBrace = removePreviousLine();
++             String returnStmt = removePreviousLine();
++             String mapCall = removePreviousLine();
++
++             mapCall = mapCall.replaceAll("0", "this->iter");
++
++             write(mapCall);
++             write(returnStmt);
++             write(closeBrace);
++
++         } else if (isCallReduce) {
++             writeMethodBody(mm);
++
++             String closeBrace = removePreviousLine();
++             String returnStmt = removePreviousLine();
++             String reduceCall = removePreviousLine();
++
++             reduceCall = reduceCall.replaceAll("0", "this->iter");
++
++             write(reduceCall);
++             write(returnStmt);
++             write(closeBrace);
+          } else {
+-            write(", ");
++             writeMethodBody(mm);
+          }
+-
+          newLine();
+-         write(line);
+       }
+ 
+-      if (first) {
+-         first = false;
+-      } else {
+-         write(", ");
++      boolean isMapRun = false;
++      boolean isReduceRun = false;
++      if(_entryPoint.getMethodModel().getName().indexOf(mapreducePrefix) == 0) {
++         if(_entryPoint.getMethodModel().getName().indexOf(mapperRunPost) != -1) {
++            isMapRun = true;
++         } else if(_entryPoint.getMethodModel().getName().indexOf(reducerRunPost) != -1) {
++            isReduceRun = true;
++         }
+       }
+-      newLine();
+-      write("int passid");
+-      out();
+-      newLine();
+-      write("){");
+-      in();
+-      newLine();
+-      writeln("This thisStruct;");
+-      writeln("This* this=&thisStruct;");
+-      for (String line : assigns) {
+-         write(line);
+-         writeln(";");
+-      }
+-      write("this->passid = passid");
+-      writeln(";");
+ 
+-      writeMethodBody(_entryPoint.getMethodModel());
+-      out();
+-      newLine();
+-      writeln("}");
+-      out();
++          write("__kernel void " + _entryPoint.getMethodModel().getSimpleName() + "(");
+ 
+-   }
++          in();
++          boolean first = true;
++          for (String line : argLines) {
+ 
++              if (first) {
++                  first = false;
++              } else {
++                  write(", ");
++              }
++
++              newLine();
++              write(line);
++          }
++
++          if (first) {
++              first = false;
++          } else {
++              write(", ");
++          }
++          newLine();
++          write("int passid");
++          out();
++          newLine();
++          write("){");
++          in();
++          newLine();
++          writeln("This thisStruct;");
++          writeln("This* this=&thisStruct;");
++          for (String line : assigns) {
++              write(line);
++              writeln(";");
++          }
++          write("this->passid = passid");
++          writeln(";");
++
++          if(isMapRun) {
++
++             writeMethodBody(_entryPoint.getMethodModel());
++             Stack<String> removedStrings = new Stack<String>();
++             String lastLine = removePreviousLine();
++             while(lastLine.indexOf("for (int iter = start; iter<end; iter = iter + increment){") == -1) {
++                 removedStrings.push(lastLine);
++                 lastLine = removePreviousLine();
++             }
++             write("      for (this->iter = start; this->iter < end; this->iter += increment){\n");
++
++             while(!removedStrings.empty()) {
++                 write(removedStrings.pop().replace("iter", "(this->iter)"));
++             }
++
++          } else if(isReduceRun) {
++             writeMethodBody(_entryPoint.getMethodModel());
++             Stack<String> removedStrings = new Stack<String>();
++             String lastLine = removePreviousLine();
++             while(lastLine.indexOf("for (int iter = start; iter<end; iter = iter + increment){") == -1) {
++                 removedStrings.push(lastLine);
++                 lastLine = removePreviousLine();
++             }
++             write("      for (this->iter = start; this->iter<end; this->iter += increment){\n");
++
++             while(!removedStrings.empty()) {
++                 write(removedStrings.pop().replace("iter", "(this->iter)"));
++             }
++
++          } else {
++             writeMethodBody(_entryPoint.getMethodModel());
++          }
++          out();
++          newLine();
++          writeln("}");
++          out();
++
++      }
++
+    @Override protected void writeThisRef() {
+ 
+       write("this->");
+@@ -635,12 +793,73 @@
+       }
+    }
+ 
++   public static class StringList {
++       private LinkedList<String> strings = new LinkedList<String>();
++       private int mark = -1;
++
++       public void append(String s) {
++           strings.add(s);
++       }
++
++       @Override
++       public String toString() {
++           StringBuilder builder = new StringBuilder();
++           for(String s : strings) {
++               builder.append(s);
++           }
++           return builder.toString();
++       }
++
++       public List<String> getList() {
++           return strings;
++       }
++
++       public String removePreviousLine() {
++           String acc = "";
++           String lastString = strings.pollLast();
++           while(lastString.length() == 0) {
++               lastString = strings.pollLast();
++           }
++
++           boolean appendNewLine = false;
++           if(lastString.charAt(lastString.length()-1) == '\n') {
++               appendNewLine = true;
++               lastString = lastString.substring(0, lastString.length()-1);
++           }
++
++           while(lastString.lastIndexOf('\n') == -1 && strings.size() > 1) {
++              acc = lastString + acc;
++              lastString = strings.pollLast();
++           }
++
++           if(lastString.lastIndexOf('\n') != lastString.length()-1) {
++               int lastIndex = lastString.lastIndexOf('\n');
++
++               strings.add(lastString.substring(0, lastIndex+1));
++               acc = lastString.substring(lastIndex+1)+acc;
++           } else {
++               strings.add(lastString);
++           }
++           if(appendNewLine) {
++               acc = acc + "\n";
++           }
++           return acc;
++       }
++   }
++
+    static String writeToString(Entrypoint _entrypoint) throws CodeGenException {
+-      final StringBuilder openCLStringBuilder = new StringBuilder();
++      //final StringBuilder openCLStringBuilder = new StringBuilder();
++      final StringList openCLStringBuilder = new StringList();
+       KernelWriter openCLWriter = new KernelWriter(){
+          @Override void write(String _string) {
+             openCLStringBuilder.append(_string);
+          }
++         @Override protected List<String> getStringList() {
++             return openCLStringBuilder.getList();
++         }
++         @Override protected String removePreviousLine() {
++             return openCLStringBuilder.removePreviousLine();
++         }
+       };
+       try {
+          openCLWriter.write(_entrypoint);
