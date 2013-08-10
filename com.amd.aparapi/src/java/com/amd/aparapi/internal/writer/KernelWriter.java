@@ -903,7 +903,7 @@ public abstract class KernelWriter extends BlockWriter{
              String mapCall = removePreviousLine();
              String callMapSig = removePreviousLine();
 
-             System.out.println("mapCall=\""+mapCall+"\"");
+             // System.out.println("mapCall=\""+mapCall+"\"");
 
              int openingIndex = mapCall.indexOf('(') + 1;
              int closingIndex = mapCall.lastIndexOf(')') - 1;
@@ -914,10 +914,10 @@ public abstract class KernelWriter extends BlockWriter{
                  String arguments = mapCall.substring(mapCall.indexOf("("));
                  arguments = arguments.substring(0, arguments.lastIndexOf(")"));
                  String[] splitArgs = arguments.split(",");
-                 System.out.println("Arguments:");
-                 for(int i =0 ; i < splitArgs.length; i++) {
-                     System.out.println("   "+splitArgs[i]);
-                 }
+                 // System.out.println("Arguments:");
+                 // for(int i =0 ; i < splitArgs.length; i++) {
+                 //     System.out.println("   "+splitArgs[i]);
+                 // }
                  StringBuffer rebuildCall = new StringBuffer();
                  rebuildCall.append(mapCall.substring(0, mapCall.indexOf("(")));
 
