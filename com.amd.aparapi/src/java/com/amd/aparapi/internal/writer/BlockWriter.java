@@ -41,6 +41,8 @@ import java.util.Stack;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
 import com.amd.aparapi.Config;
 import com.amd.aparapi.internal.exception.CodeGenException;
@@ -105,6 +107,17 @@ import com.amd.aparapi.internal.model.ClassModel.LocalVariableInfo;
  */
 
 public abstract class BlockWriter{
+
+   protected final Set<VarAlias> aliases = new HashSet<VarAlias>();
+   protected final HashMap<String, MethodArgumentList> methodsToArgs =
+       new HashMap<String, MethodArgumentList>();
+   protected String currentMethodBody;
+
+   protected void resolveAliases() {
+       for(VarAlias alias : aliases) {
+          alias.getBeingPassedAs().resolve(methodsToArgs);
+       }
+   }
 
    public final static String arrayLengthMangleSuffix = "__javaArrayLength";
    public final static String arrayDimMangleSuffix = "__javaArrayDimension";
@@ -503,7 +516,8 @@ public abstract class BlockWriter{
             write("(&");
          }
          writeInstruction(arrayLoadInstruction.getArrayRef());
-         write("[");
+         // Correct place to modify array reads from mapper inputs
+         write("[!ARRAY_REF!");
          writeInstruction(arrayLoadInstruction.getArrayIndex());
 
          //object array, find the size of each object in the array
@@ -818,7 +832,6 @@ public abstract class BlockWriter{
    }
 
    public void writeMethod(MethodCall _methodCall, MethodEntry _methodEntry) throws CodeGenException {
-
       if (_methodCall instanceof VirtualMethodCall) {
          final Instruction instanceInstruction = ((VirtualMethodCall) _methodCall).getInstanceReference();
          if (!(instanceInstruction instanceof I_ALOAD_0)) {
@@ -832,11 +845,14 @@ public abstract class BlockWriter{
       write(_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8());
       write("(");
 
+      System.out.print("Method "+_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8()+" takes arguments ");
       for (int arg = 0; arg < argc; arg++) {
          if (arg != 0) {
             write(", ");
          }
-         writeInstruction(_methodCall.getArg(arg));
+         Instruction argObj = _methodCall.getArg(arg);
+         System.out.print("\""+argObj.toString()+"\" ");
+         writeInstruction(argObj);
       }
       write(")");
 
@@ -847,10 +863,171 @@ public abstract class BlockWriter{
    }
 
    public void writeMethodBody(MethodModel _methodModel) throws CodeGenException {
+      this.currentMethodBody = _methodModel.getName();
       writeBlock(_methodModel.getExprHead(), null);
+      this.currentMethodBody = null;
    }
 
    public abstract void write(Entrypoint entryPoint) throws CodeGenException;
 
-  
+   public Set<VarAlias> getAliases() {
+       return this.aliases;
+   }
+
+   public HashMap<String, MethodArgumentList> getMethodArgs() {
+       return this.methodsToArgs;
+   }
+
+   public static class LocalVar {
+       private final String methodName;
+       private String varName;
+       private int argOffset;
+       private boolean shouldBeStrided;
+
+       public LocalVar(String setMethod, String setVar) {
+           this.methodName = setMethod;
+           this.varName = setVar;
+           this.argOffset = -1;
+           this.shouldBeStrided = false;
+       }
+
+       public LocalVar(String setMethod, int setArg) {
+           this.methodName = setMethod;
+           this.argOffset = setArg;
+           this.varName = null;
+           this.shouldBeStrided = false;
+       }
+
+       public void setStrided() {
+           this.shouldBeStrided = true;
+       }
+       public boolean getStrided() {
+           return this.shouldBeStrided;
+       }
+       public String methodName() { return this.methodName; }
+       public String varName() { return this.varName; }
+       public int argOffset() { return this.argOffset; }
+       public void resolve(HashMap<String, MethodArgumentList> methodsToArgs) {
+           if (argOffset == -1) return;
+           MethodArgumentList args = methodsToArgs.get(methodName);
+           if (args == null) {
+               return;
+               // throw new RuntimeException("Missing argument info for "+methodName);
+           }
+           String argName = args.getArg(this.argOffset);
+           this.varName = argName;
+           this.argOffset = -1;
+       }
+
+       public boolean isMapLocal() {
+           final String mapSuffix = "__map";
+           return this.methodName.indexOf(mapSuffix) ==
+                   this.methodName.length() - mapSuffix.length();
+       }
+
+       public boolean isMapParameter(HashMap<String, MethodArgumentList> methodArgs) {
+           if (this.isMapLocal()) {
+               MethodArgumentList allArgs = methodArgs.get(this.methodName);
+               return allArgs.contains(this.varName);
+           } else {
+               return false;
+           }
+       }
+
+       @Override
+       public int hashCode() {
+           return this.methodName.hashCode();
+       }
+       @Override
+       public boolean equals(Object obj) {
+           if (obj instanceof LocalVar) {
+               LocalVar other = (LocalVar)obj;
+               if (this.methodName.equals(other.methodName)) {
+                   if (this.varName == null) {
+                       return this.argOffset == other.argOffset;
+                   } else {
+                       return other.varName != null &&
+                           this.varName.equals(other.varName);
+                   }
+               }
+           }
+           return false;
+       }
+       @Override
+       public String toString() {
+           return "["+this.methodName+":"+
+               (this.varName == null ? this.argOffset : this.varName)+":"+
+               (this.shouldBeStrided ? "strided" : "unstrided")+"]";
+       }
+   }
+
+   public static class VarAlias {
+       private final LocalVar passedToFunc;
+       private final LocalVar funcArg;
+
+       public VarAlias(LocalVar passed, LocalVar arg) {
+           this.passedToFunc = passed;
+           this.funcArg = arg;
+       }
+
+       public LocalVar getBeingPassed() {
+           return passedToFunc;
+       }
+
+       public LocalVar getBeingPassedAs() {
+           return this.funcArg;
+       }
+
+       @Override
+       public int hashCode() {
+           return this.passedToFunc.hashCode();
+       }
+       @Override
+       public boolean equals(Object obj) {
+           if (obj instanceof VarAlias) {
+               VarAlias other = (VarAlias)obj;
+               return other.passedToFunc.equals(this.passedToFunc) &&
+                   other.funcArg.equals(this.funcArg);
+           }
+           return false;
+       }
+       @Override
+       public String toString() {
+           return "{ "+passedToFunc.toString()+" -> "+funcArg.toString()+" }";
+       }
+   }
+
+   public static class MethodArgumentList {
+       private final String methodName;
+       private final List<String> methodArguments;
+
+       public MethodArgumentList(String methodName, List<String> setMethodArguments) {
+           this.methodName = methodName;
+           this.methodArguments = setMethodArguments;
+       }
+
+       public String getArg(int index) {
+           return this.methodArguments.get(index);
+       }
+
+       public boolean contains(String argName) {
+           return this.methodArguments.contains(argName);
+       }
+
+       @Override
+       public String toString() {
+           StringBuffer sb = new StringBuffer();
+           sb.append(this.methodName);
+           sb.append("(");
+           boolean first = true;
+           for(String arg : this.methodArguments) {
+               if (!first) sb.append(",");
+               sb.append(" ");
+               sb.append(arg);
+               first = false;
+           }
+           sb.append(")");
+           return sb.toString();
+       }
+   }
 }

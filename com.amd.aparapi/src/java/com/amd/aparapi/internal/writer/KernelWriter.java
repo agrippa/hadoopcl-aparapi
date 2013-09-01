@@ -53,6 +53,7 @@ import com.amd.aparapi.Kernel;
 import com.amd.aparapi.internal.exception.CodeGenException;
 import com.amd.aparapi.internal.instruction.Instruction;
 import com.amd.aparapi.internal.instruction.InstructionSet;
+import com.amd.aparapi.internal.instruction.InstructionSet.AccessLocalVariable;
 import com.amd.aparapi.internal.instruction.InstructionSet.AccessArrayElement;
 import com.amd.aparapi.internal.instruction.InstructionSet.AccessField;
 import com.amd.aparapi.internal.instruction.InstructionSet.AssignToArrayElement;
@@ -281,11 +282,35 @@ public abstract class KernelWriter extends BlockWriter{
          if( modifiableMethods.contains(methodName)) {
              write("this");
          }
+
          for (int arg = 0; arg < argc; arg++) {
             if (((intrinsicMapping == null) && (_methodCall instanceof VirtualMethodCall) && (!isIntrinsic)) || (arg != 0) || (modifiableMethods.contains(methodName))) {
                write(", ");
             }
-            writeInstruction(_methodCall.getArg(arg));
+            Instruction argObj = _methodCall.getArg(arg);
+            if (argObj instanceof AccessLocalVariable) {
+                final AccessLocalVariable localVariableLoadInstruction = (AccessLocalVariable) argObj;
+                final LocalVariableInfo localVariable = localVariableLoadInstruction.getLocalVariableInfo();
+                if(localVariable.isArray()) {
+                    final boolean isSpecial = _methodCall instanceof I_INVOKESPECIAL;
+                    final MethodModel m =
+                        entryPoint.getCallTarget(_methodEntry, isSpecial);
+                    LocalVar beingPassed = new LocalVar(this.currentMethodBody,
+                            localVariable.getVariableName());
+                    LocalVar argument = new LocalVar(m == null ? methodName : m.getName(),
+                            arg);
+                    VarAlias newAlias = new VarAlias(beingPassed, argument);
+                    aliases.add(newAlias);
+                }
+                /*
+                System.out.println("      \""+localVariable.getVariableName()+"\" "+argObj.getClass().toString());
+                */
+            } else {
+                /*
+                System.out.println("      \""+argObj.toString()+"\" "+argObj.getClass().toString());
+                */
+            }
+            writeInstruction(argObj);
          }
          write(")");
       }
@@ -807,6 +832,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean alreadyHasFirstArg = !mm.getMethod().isStatic();
 
          final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
+         List<String> gatherArgumentNames = new ArrayList<String>();
          for (final LocalVariableInfo lvi : lvte) {
             if ((lvi.getStart() == 0) && ((lvi.getVariableIndex() != 0) || mm.getMethod().isStatic())) { // full scope but skip this
                final String descriptor = lvi.getVariableDescriptor();
@@ -821,10 +847,14 @@ public abstract class KernelWriter extends BlockWriter{
 
                write(convertType(descriptor, true));
                write(lvi.getVariableName());
+               gatherArgumentNames.add(lvi.getVariableName());
                alreadyHasFirstArg = true;
             }
          }
          write(")");
+
+         this.methodsToArgs.put(mm.getName(),
+                 new MethodArgumentList(mm.getName(), gatherArgumentNames));
 
          if(isReduceWrite || isMapWrite) {
              try {
@@ -1357,6 +1387,85 @@ public abstract class KernelWriter extends BlockWriter{
       //    reserveCall.append("\n\nvoid reserveOutput(This *this) {\n   this->reservedOffset = atomic_add(this->memIncr, 1);\n}\n");
       //    openCLStringBuilder.insertAfter(reserveCall.toString(), "}This;");
       //}
+
+      HashMap<String, MethodArgumentList> methodArgs = openCLWriter.getMethodArgs();
+      System.out.println("Uncovered arguments for "+
+              methodArgs.size()+" methods:");
+      for(String methodName : methodArgs.keySet()) {
+          MethodArgumentList args = methodArgs.get(methodName);
+          System.out.println("  "+args.toString());
+      }
+
+      openCLWriter.resolveAliases();
+
+      Set<LocalVar> allStrided = new HashSet<LocalVar>();
+      Set<LocalVar> allUnstrided = new HashSet<LocalVar>();
+
+      Set<VarAlias> aliases = openCLWriter.getAliases();
+      for(VarAlias al : aliases) {
+          LocalVar var = al.getBeingPassed();
+          if (var.isMapLocal()) {
+              if (var.isMapParameter(methodArgs)) {
+                  allStrided.add(var);
+              } else {
+                  allUnstrided.add(var);
+              }
+          }
+      }
+
+      boolean changed;
+      do {
+          changed = false;
+
+          for(VarAlias al : aliases) {
+              if (allStrided.contains(al.getBeingPassed()) && 
+                      !allStrided.contains(al.getBeingPassedAs())) {
+                  allStrided.add(al.getBeingPassedAs());
+                  changed = true;
+              } 
+              if (allUnstrided.contains(al.getBeingPassed()) &&
+                      !allUnstrided.contains(al.getBeingPassedAs())) {
+                  allUnstrided.add(al.getBeingPassedAs());
+                  changed = true;
+              }
+          }
+      } while(changed);
+
+      // System.out.println("Strided:");
+      // for(LocalVar strided : allStrided) {
+      //     System.out.println("  "+strided.toString());
+      // }
+      // System.out.println("Unstrided:");
+      // for(LocalVar unstrided : allUnstrided) {
+      //     System.out.println("  "+unstrided.toString());
+      // }
+
+      Set<LocalVar> intersection = new HashSet<LocalVar>(allStrided);
+      intersection.retainAll(allUnstrided);
+      if (intersection.isEmpty()) {
+          System.out.println("Intersection Empty!");
+      } else {
+          System.out.println("Intersection:");
+          for(LocalVar both : intersection) {
+              System.out.println("  "+both.toString());
+          }
+      }
+
+      Set<LocalVar> allVars = new HashSet<LocalVar>();
+      System.out.println("Uncovered "+aliases.size()+ " aliases");
+      for(VarAlias al : aliases) {
+          if (allStrided.contains(al.getBeingPassed())) {
+              al.getBeingPassed().setStrided();
+          }
+          allVars.add(al.getBeingPassed());
+
+          if (allStrided.contains(al.getBeingPassedAs())) {
+              al.getBeingPassedAs().setStrided();
+          }
+          allVars.add(al.getBeingPassedAs());
+
+          System.out.println("  "+al.toString());
+      }
 
       return (openCLStringBuilder.toString());
    }
