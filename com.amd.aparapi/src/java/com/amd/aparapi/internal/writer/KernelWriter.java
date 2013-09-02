@@ -553,7 +553,7 @@ public abstract class KernelWriter extends BlockWriter{
          newLine();
       }
 
-      if (Config.enableDoubles || _entryPoint.requiresDoublePragma()) {
+      if (true /*Config.enableDoubles || _entryPoint.requiresDoublePragma()*/) {
          writePragma("cl_khr_fp64", true);
          newLine();
       }
@@ -953,7 +953,9 @@ public abstract class KernelWriter extends BlockWriter{
                      rebuildCall.append(", ");
                  }
                  rebuildCall.append("this->inputValIndices + (this->inputValLookAsideBuffer[this->iter]), ");
+                 // rebuildCall.append("this->inputValIndices + (this->iter), ");
                  rebuildCall.append("this->inputValVals + (this->inputValLookAsideBuffer[this->iter]), ");
+                 // rebuildCall.append("this->inputValVals + (this->iter), ");
                  rebuildCall.append("((this->iter == this->nPairs-1 ? this->individualInputValsCount : this->inputValLookAsideBuffer[this->iter+1]) - this->inputValLookAsideBuffer[this->iter])");
 
                  rebuildCall.append(");\n");
@@ -1392,9 +1394,10 @@ public abstract class KernelWriter extends BlockWriter{
           System.out.println("Running on "+(isGPU ? "GPU" : "CPU"));
       }
 
-      if (types.hadoopType() != HADOOPTYPE.MAPPER ||
-              !types.inputValType().equals("svec") ||
-              !isGPU) {
+      if (true) {
+      // if (types.hadoopType() != HADOOPTYPE.MAPPER ||
+      //         !types.inputValType().equals("svec") ||
+      //         !isGPU) {
           return tmpOpenCLWriter.toString();
       }
 
