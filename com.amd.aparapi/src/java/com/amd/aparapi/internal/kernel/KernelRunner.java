@@ -956,13 +956,15 @@ public class KernelRunner extends KernelRunnerJNI{
                   return warnFallBackAndExecute(_entrypointName, _range, _passes, exception);
                }
 
+               OpenCLDevice openCLDevice;
+
                if ((entryPoint != null) && !entryPoint.shouldFallback()) {
                   synchronized (Kernel.class) { // This seems to be needed because of a race condition uncovered with issue #68 http://code.google.com/p/aparapi/issues/detail?id=68
                      if (device != null && !(device instanceof OpenCLDevice)) {
                         throw new IllegalStateException("range's device is not suitable for OpenCL ");
                      }
 
-                     OpenCLDevice openCLDevice = (OpenCLDevice) device; // still might be null! 
+                     openCLDevice = (OpenCLDevice) device; // still might be null! 
 
                      int jniFlags = 0;
                      if (openCLDevice == null) {
@@ -993,7 +995,6 @@ public class KernelRunner extends KernelRunnerJNI{
                      // Init the device to check capabilities before emitting the
                      // code that requires the capabilities.
 
-                     // synchronized(Kernel.class){
                      jniContextHandle = initJNI(kernel, openCLDevice, jniFlags); // openCLDevice will not be null here
                   } // end of synchronized! issue 68
 
@@ -1033,7 +1034,8 @@ public class KernelRunner extends KernelRunnerJNI{
 
                   String openCL = null;
                   try {
-                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy);
+                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
+                             openCLDevice.getType() == Device.TYPE.GPU);
                   } catch (final CodeGenException codeGenException) {
                      System.out.println("Exception during kernel generation");
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException);

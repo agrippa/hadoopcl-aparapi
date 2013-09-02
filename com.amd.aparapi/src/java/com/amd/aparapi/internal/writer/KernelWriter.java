@@ -1375,9 +1375,11 @@ public abstract class KernelWriter extends BlockWriter{
        }
    }
 
-   public static String writeToString(Entrypoint _entrypoint, Entrypoint _entrypointcopy) throws CodeGenException {
+   public static String writeToString(Entrypoint _entrypoint,
+           Entrypoint _entrypointcopy, boolean isGPU) throws CodeGenException {
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
 
+      final boolean VERBOSE = false;
       try {
          tmpOpenCLWriter.write(_entrypoint);
       } catch (final CodeGenException codeGenException) {
@@ -1385,18 +1387,25 @@ public abstract class KernelWriter extends BlockWriter{
       }
 
       HadoopTypes types = KernelWriter.types;
-      System.out.println(types.toString());
+      if (VERBOSE) {
+          System.out.println(types.toString());
+          System.out.println("Running on "+(isGPU ? "GPU" : "CPU"));
+      }
+
       if (types.hadoopType() != HADOOPTYPE.MAPPER ||
-              !types.inputValType().equals("svec")) {
+              !types.inputValType().equals("svec") ||
+              !isGPU) {
           return tmpOpenCLWriter.toString();
       }
 
       HashMap<String, MethodArgumentList> methodArgs = tmpOpenCLWriter.getMethodArgs();
-      System.out.println("Uncovered arguments for "+
-              methodArgs.size()+" methods:");
-      for(String methodName : methodArgs.keySet()) {
-          MethodArgumentList args = methodArgs.get(methodName);
-          System.out.println("  "+args.toString());
+      if (VERBOSE) {
+          System.out.println("Uncovered arguments for "+
+                  methodArgs.size()+" methods:");
+          for(String methodName : methodArgs.keySet()) {
+              MethodArgumentList args = methodArgs.get(methodName);
+              System.out.println("  "+args.toString());
+          }
       }
 
       tmpOpenCLWriter.resolveAliases();
@@ -1437,26 +1446,37 @@ public abstract class KernelWriter extends BlockWriter{
       Set<LocalVar> intersection = new HashSet<LocalVar>(allStrided);
       intersection.retainAll(allUnstrided);
       if (intersection.isEmpty()) {
-          System.out.println("Intersection Empty!");
-      } else {
-          System.out.println("Intersection:");
-          for(LocalVar both : intersection) {
-              System.out.println("  "+both.toString());
+          if (VERBOSE) {
+              System.out.println("Intersection Empty!");
           }
+      } else {
+          if (VERBOSE) {
+              System.out.println("Intersection:");
+              for(LocalVar both : intersection) {
+                  System.out.println("  "+both.toString());
+              }
+          }
+          throw new RuntimeException("Intersection between strided and unstrided variables");
       }
 
       HashMap<LocalVar, Boolean> allVars = new HashMap<LocalVar, Boolean>();
-      System.out.println("Uncovered "+aliases.size()+ " aliases");
+      if (VERBOSE) {
+          System.out.println("Uncovered "+aliases.size()+ " aliases");
+      }
       for(VarAlias al : aliases) {
           allVars.put(al.getBeingPassed(), allStrided.contains(al.getBeingPassed()));
           allVars.put(al.getBeingPassedAs(), allStrided.contains(al.getBeingPassedAs()));
 
-          System.out.println("  "+al.toString());
+          if (VERBOSE) {
+              System.out.println("  "+al.toString());
+          }
       }
 
-      System.out.println("Variables:");
-      for (LocalVar v : allVars.keySet()) {
-          System.out.println("  "+v.toString()+" -> "+allVars.get(v));
+      if (VERBOSE) {
+          System.out.println("Variables:");
+          for (LocalVar v : allVars.keySet()) {
+              System.out.println("  "+v.toString()+" -> "+allVars.get(v));
+          }
       }
 
       final OpenCLKernelWriter openCLWriter = new OpenCLKernelWriter();
