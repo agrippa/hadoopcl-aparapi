@@ -98,6 +98,7 @@ public class KernelRunner extends KernelRunnerJNI{
    private final Kernel kernel;
 
    private Entrypoint entryPoint;
+   private Entrypoint entryPointCopy;
 
    private int argc;
    
@@ -115,8 +116,9 @@ public class KernelRunner extends KernelRunnerJNI{
        return entryPoint;
    }
 
-   public void setEntryPoint(Entrypoint ep) {
+   public void setEntryPoint(Entrypoint ep, Entrypoint copy) {
        entryPoint = ep;
+       entryPointCopy = copy;
    }
 
    /**
@@ -949,8 +951,8 @@ public class KernelRunner extends KernelRunnerJNI{
                try {
                   final ClassModel classModel = new ClassModel(kernel.getClass());
                   entryPoint = classModel.getEntrypoint(_entrypointName, kernel);
+                  entryPointCopy = classModel.getEntrypoint(_entrypointName, kernel);
                } catch (final Exception exception) {
-                  System.out.println("Exception during entrypoint creation");
                   return warnFallBackAndExecute(_entrypointName, _range, _passes, exception);
                }
 
@@ -1031,7 +1033,7 @@ public class KernelRunner extends KernelRunnerJNI{
 
                   String openCL = null;
                   try {
-                     openCL = KernelWriter.writeToString(entryPoint);
+                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy);
                   } catch (final CodeGenException codeGenException) {
                      System.out.println("Exception during kernel generation");
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException);

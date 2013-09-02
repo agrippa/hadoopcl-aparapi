@@ -81,9 +81,8 @@ import com.amd.aparapi.opencl.OpenCL.Constant;
 import com.amd.aparapi.opencl.OpenCL.Local;
 
 public abstract class KernelWriter extends BlockWriter{
-   private static HadoopTypes types = null;
+   public static HadoopTypes types = null;
    protected abstract String removePreviousLine();
-   protected abstract List<String> getStringList();
 
    private final String cvtBooleanToChar = "char ";
 
@@ -111,9 +110,6 @@ public abstract class KernelWriter extends BlockWriter{
 
    private Entrypoint entryPoint = null;
 
-   public static enum HADOOPTYPE {
-       UNKNOWN, MAPPER, REDUCER
-   }
 
    public final static Map<String, String> javaToCLIdentifierMap = new HashMap<String, String>();
    {
@@ -300,7 +296,7 @@ public abstract class KernelWriter extends BlockWriter{
                     LocalVar argument = new LocalVar(m == null ? methodName : m.getName(),
                             arg);
                     VarAlias newAlias = new VarAlias(beingPassed, argument);
-                    aliases.add(newAlias);
+                    this.addAlias(newAlias);
                 }
                 /*
                 System.out.println("      \""+localVariable.getVariableName()+"\" "+argObj.getClass().toString());
@@ -392,7 +388,8 @@ public abstract class KernelWriter extends BlockWriter{
       outputKeyType = types[2];
       outputValType = types[3];
 
-      this.types = new HadoopTypes(inputKeyType, inputValType, outputKeyType, outputValType);
+      KernelWriter.types = new HadoopTypes(isMapper ? HADOOPTYPE.MAPPER : HADOOPTYPE.REDUCER, 
+              inputKeyType, inputValType, outputKeyType, outputValType);
 
       //System.out.println("class=\""+enclosingClassName+"\"");
       //System.out.println("super class=\""+enclosingSuperClassName+"\"");
@@ -853,7 +850,7 @@ public abstract class KernelWriter extends BlockWriter{
          }
          write(")");
 
-         this.methodsToArgs.put(mm.getName(),
+         this.addMethodArgs(mm.getName(),
                  new MethodArgumentList(mm.getName(), gatherArgumentNames));
 
          if(isReduceWrite || isMapWrite) {
@@ -1256,7 +1253,6 @@ public abstract class KernelWriter extends BlockWriter{
       newLine();
       writeln("}");
       out();
-
    }
 
    @Override public void writeThisRef() {
@@ -1300,7 +1296,6 @@ public abstract class KernelWriter extends BlockWriter{
 
    public static class StringList {
        private LinkedList<String> strings = new LinkedList<String>();
-       private int mark = -1;
 
        public void append(String s) {
            strings.add(s);
@@ -1360,35 +1355,43 @@ public abstract class KernelWriter extends BlockWriter{
        }
    }
 
-   public static String writeToString(Entrypoint _entrypoint) throws CodeGenException {
-      final StringList openCLStringBuilder = new StringList();
-      final KernelWriter openCLWriter = new KernelWriter(){
-         @Override public void write(String _string) {
-             //System.out.println("writing: \""+_string+"\"");
-            openCLStringBuilder.append(_string);
-         }
-         @Override protected List<String> getStringList() {
-             return openCLStringBuilder.getList();
-         }
-         @Override protected String removePreviousLine() {
-             return openCLStringBuilder.removePreviousLine();
-         }
-      };
+   public static class OpenCLKernelWriter extends KernelWriter {
+       private final StringList openCLStringBuilder;
+
+       public OpenCLKernelWriter() {
+           this.openCLStringBuilder = new StringList();
+       }
+
+       @Override public void write(String _string) {
+           openCLStringBuilder.append(_string);
+       }
+
+       @Override protected String removePreviousLine() {
+           return openCLStringBuilder.removePreviousLine();
+       }
+
+       @Override public String toString() {
+           return openCLStringBuilder.toString();
+       }
+   }
+
+   public static String writeToString(Entrypoint _entrypoint, Entrypoint _entrypointcopy) throws CodeGenException {
+      final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
 
       try {
-         openCLWriter.write(_entrypoint);
+         tmpOpenCLWriter.write(_entrypoint);
       } catch (final CodeGenException codeGenException) {
          throw new RuntimeException(codeGenException);
-      }/* catch (final Throwable t) {
-         throw new CodeGenException(t);
-      }*/
-      //if(types != null) {
-      //    StringBuffer reserveCall = new StringBuffer();
-      //    reserveCall.append("\n\nvoid reserveOutput(This *this) {\n   this->reservedOffset = atomic_add(this->memIncr, 1);\n}\n");
-      //    openCLStringBuilder.insertAfter(reserveCall.toString(), "}This;");
-      //}
+      }
 
-      HashMap<String, MethodArgumentList> methodArgs = openCLWriter.getMethodArgs();
+      HadoopTypes types = KernelWriter.types;
+      System.out.println(types.toString());
+      if (types.hadoopType() != HADOOPTYPE.MAPPER ||
+              !types.inputValType().equals("svec")) {
+          return tmpOpenCLWriter.toString();
+      }
+
+      HashMap<String, MethodArgumentList> methodArgs = tmpOpenCLWriter.getMethodArgs();
       System.out.println("Uncovered arguments for "+
               methodArgs.size()+" methods:");
       for(String methodName : methodArgs.keySet()) {
@@ -1396,12 +1399,12 @@ public abstract class KernelWriter extends BlockWriter{
           System.out.println("  "+args.toString());
       }
 
-      openCLWriter.resolveAliases();
+      tmpOpenCLWriter.resolveAliases();
 
       Set<LocalVar> allStrided = new HashSet<LocalVar>();
       Set<LocalVar> allUnstrided = new HashSet<LocalVar>();
 
-      Set<VarAlias> aliases = openCLWriter.getAliases();
+      Set<VarAlias> aliases = tmpOpenCLWriter.getAliases();
       for(VarAlias al : aliases) {
           LocalVar var = al.getBeingPassed();
           if (var.isMapLocal()) {
@@ -1431,15 +1434,6 @@ public abstract class KernelWriter extends BlockWriter{
           }
       } while(changed);
 
-      // System.out.println("Strided:");
-      // for(LocalVar strided : allStrided) {
-      //     System.out.println("  "+strided.toString());
-      // }
-      // System.out.println("Unstrided:");
-      // for(LocalVar unstrided : allUnstrided) {
-      //     System.out.println("  "+unstrided.toString());
-      // }
-
       Set<LocalVar> intersection = new HashSet<LocalVar>(allStrided);
       intersection.retainAll(allUnstrided);
       if (intersection.isEmpty()) {
@@ -1451,32 +1445,53 @@ public abstract class KernelWriter extends BlockWriter{
           }
       }
 
-      Set<LocalVar> allVars = new HashSet<LocalVar>();
+      HashMap<LocalVar, Boolean> allVars = new HashMap<LocalVar, Boolean>();
       System.out.println("Uncovered "+aliases.size()+ " aliases");
       for(VarAlias al : aliases) {
-          if (allStrided.contains(al.getBeingPassed())) {
-              al.getBeingPassed().setStrided();
-          }
-          allVars.add(al.getBeingPassed());
-
-          if (allStrided.contains(al.getBeingPassedAs())) {
-              al.getBeingPassedAs().setStrided();
-          }
-          allVars.add(al.getBeingPassedAs());
+          allVars.put(al.getBeingPassed(), allStrided.contains(al.getBeingPassed()));
+          allVars.put(al.getBeingPassedAs(), allStrided.contains(al.getBeingPassedAs()));
 
           System.out.println("  "+al.toString());
       }
 
-      return (openCLStringBuilder.toString());
+      System.out.println("Variables:");
+      for (LocalVar v : allVars.keySet()) {
+          System.out.println("  "+v.toString()+" -> "+allVars.get(v));
+      }
+
+      final OpenCLKernelWriter openCLWriter = new OpenCLKernelWriter();
+      openCLWriter.setAllVars(allVars);
+      openCLWriter.setAliases(aliases);
+      openCLWriter.setMethodArgs(methodArgs);
+
+      try {
+         openCLWriter.write(_entrypointcopy);
+      } catch (final CodeGenException codeGenException) {
+         throw new RuntimeException(codeGenException);
+      }
+
+      // String result = openCLWriter.toString();
+      // System.out.println("Got result with length "+result.length());
+      // System.out.println("---------------------------");
+      // System.out.println(result);
+      // System.out.println("---------------------------");
+      return openCLWriter.toString();
+   }
+
+   public static enum HADOOPTYPE {
+       UNKNOWN, MAPPER, REDUCER
    }
 
    public static class HadoopTypes {
+       private final HADOOPTYPE hadoopType;
        private final String inputKeyType;
        private final String inputValType;
        private final String outputKeyType;
        private final String outputValType;
 
-       public HadoopTypes(String ikt, String ivt, String okt, String ovt) {
+       public HadoopTypes(HADOOPTYPE hadoopType,
+               String ikt, String ivt, String okt, String ovt) {
+           this.hadoopType = hadoopType;
            this.inputKeyType = ikt;
            this.inputValType = ivt;
            this.outputKeyType = okt;
@@ -1487,5 +1502,19 @@ public abstract class KernelWriter extends BlockWriter{
        public String inputValType() { return this.inputValType; }
        public String outputKeyType() { return this.outputKeyType; }
        public String outputValType() { return this.outputValType; }
-   }  
+       public HADOOPTYPE hadoopType() { return this.hadoopType; }
+       @Override
+       public String toString() {
+           String hadoopStr;
+           if (hadoopType == HADOOPTYPE.MAPPER) {
+               hadoopStr = "MAPPER";
+           } else if (hadoopType == HADOOPTYPE.REDUCER) {
+               hadoopStr = "REDUCER";
+           } else {
+               hadoopStr = "UNKNOWN";
+           }
+           return hadoopStr+"("+inputKeyType+", "+inputValType+") -> ("+
+               outputKeyType+", "+outputValType+")";
+       }
+   }
 }

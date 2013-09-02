@@ -108,14 +108,48 @@ import com.amd.aparapi.internal.model.ClassModel.LocalVariableInfo;
 
 public abstract class BlockWriter{
 
-   protected final Set<VarAlias> aliases = new HashSet<VarAlias>();
-   protected final HashMap<String, MethodArgumentList> methodsToArgs =
+   private HashMap<LocalVar, Boolean> allVars = null;
+   private Set<VarAlias> aliases = new HashSet<VarAlias>();
+   private HashMap<String, MethodArgumentList> methodsToArgs =
        new HashMap<String, MethodArgumentList>();
    protected String currentMethodBody;
+   private boolean aliasesReadOnly = false;
+
+   protected void setAliases(Set<VarAlias> aliases) {
+       this.aliasesReadOnly = true;
+       this.aliases = aliases;
+   }
+   protected Set<VarAlias> getAliases() { return this.aliases; }
+
+   protected void setMethodArgs(HashMap<String, MethodArgumentList> methodArgs) {
+       this.aliasesReadOnly = true;
+       this.methodsToArgs = methodArgs;
+   }
+   protected HashMap<String, MethodArgumentList> getMethodArgs() {
+       return this.methodsToArgs;
+   }
+
+   protected void setAllVars(HashMap<LocalVar, Boolean> allVars) {
+       this.aliasesReadOnly = true;
+       this.allVars = allVars;
+   }
+   protected HashMap<LocalVar, Boolean> getAllVars() { return this.allVars; }
 
    protected void resolveAliases() {
        for(VarAlias alias : aliases) {
           alias.getBeingPassedAs().resolve(methodsToArgs);
+       }
+   }
+
+   protected void addAlias(VarAlias newAlias) {
+       if (!aliasesReadOnly) {
+           this.aliases.add(newAlias);
+       }
+   }
+
+   protected void addMethodArgs(String methodName, MethodArgumentList methodArgs) {
+       if (!aliasesReadOnly) {
+           this.methodsToArgs.put(methodName, methodArgs);
        }
    }
 
@@ -515,10 +549,23 @@ public abstract class BlockWriter{
          if(arrayLoadInstruction instanceof I_AALOAD) {
             write("(&");
          }
-         writeInstruction(arrayLoadInstruction.getArrayRef());
+         Instruction refInstruction = arrayLoadInstruction.getArrayRef();
+         boolean strided = false;
+         if (this.allVars != null && refInstruction instanceof AccessLocalVariable) {
+            final AccessLocalVariable localVariableLoadInstruction = (AccessLocalVariable) refInstruction;
+            final LocalVariableInfo localVariable = localVariableLoadInstruction.getLocalVariableInfo();
+            if(localVariable.isArray()) {
+                String varName = localVariable.getVariableName();
+                LocalVar var = new LocalVar(this.currentMethodBody, varName);
+                strided = allVars.get(var);
+            }
+         }
+         writeInstruction(refInstruction);
+         write("[");
+         if (strided) write("(");
+         Instruction indexInstruction = arrayLoadInstruction.getArrayIndex();
          // Correct place to modify array reads from mapper inputs
-         write("[!ARRAY_REF!");
-         writeInstruction(arrayLoadInstruction.getArrayIndex());
+         writeInstruction(indexInstruction);
 
          //object array, find the size of each object in the array
          //for 2D arrays, this size is the size of a row.
@@ -535,6 +582,9 @@ public abstract class BlockWriter{
             //write(" * this->" + arrayName + arrayDimMangleSuffix+dim);
          }
 
+         if (strided) {
+             write(") * this->nPairs");
+         }
          write("]");
 
          //object array, close parentheses
@@ -870,40 +920,23 @@ public abstract class BlockWriter{
 
    public abstract void write(Entrypoint entryPoint) throws CodeGenException;
 
-   public Set<VarAlias> getAliases() {
-       return this.aliases;
-   }
-
-   public HashMap<String, MethodArgumentList> getMethodArgs() {
-       return this.methodsToArgs;
-   }
-
    public static class LocalVar {
        private final String methodName;
        private String varName;
        private int argOffset;
-       private boolean shouldBeStrided;
 
        public LocalVar(String setMethod, String setVar) {
            this.methodName = setMethod;
            this.varName = setVar;
            this.argOffset = -1;
-           this.shouldBeStrided = false;
        }
 
        public LocalVar(String setMethod, int setArg) {
            this.methodName = setMethod;
            this.argOffset = setArg;
            this.varName = null;
-           this.shouldBeStrided = false;
        }
 
-       public void setStrided() {
-           this.shouldBeStrided = true;
-       }
-       public boolean getStrided() {
-           return this.shouldBeStrided;
-       }
        public String methodName() { return this.methodName; }
        public String varName() { return this.varName; }
        public int argOffset() { return this.argOffset; }
@@ -956,8 +989,7 @@ public abstract class BlockWriter{
        @Override
        public String toString() {
            return "["+this.methodName+":"+
-               (this.varName == null ? this.argOffset : this.varName)+":"+
-               (this.shouldBeStrided ? "strided" : "unstrided")+"]";
+               (this.varName == null ? this.argOffset : this.varName)+"]";
        }
    }
 
