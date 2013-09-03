@@ -147,7 +147,15 @@ import com.amd.aparapi.internal.util.UnsafeWrapper;
  */
 public abstract class Kernel implements Cloneable {
 
+   private boolean enableStrided = false;
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
+
+   public void setStrided(boolean set) {
+       this.enableStrided = set;
+   }
+   public boolean getStrided() {
+       return this.enableStrided;
+   }
 
    /**
     *  We can use this Annotation to 'tag' intended local buffers. 
@@ -1994,15 +2002,15 @@ public abstract class Kernel implements Cloneable {
          kernelRunner = new KernelRunner(this);
 
       }
-      return (kernelRunner.execute(_entrypoint, _range, _passes, 1));
+      return (kernelRunner.execute(_entrypoint, _range, _passes, 1, enableStrided));
    }
 
-   public synchronized Kernel asyncExecute(Range r) {
-       if(kernelRunner == null) {
-           kernelRunner = new KernelRunner(this);
-       }
-       return kernelRunner.execute("run", r, 1, 0);
-   }
+   // public synchronized Kernel asyncExecute(Range r) {
+   //     if(kernelRunner == null) {
+   //         kernelRunner = new KernelRunner(this);
+   //     }
+   //     return kernelRunner.execute("run", r, 1, 0);
+   // }
 
 
    /**

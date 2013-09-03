@@ -108,6 +108,7 @@ import com.amd.aparapi.internal.model.ClassModel.LocalVariableInfo;
 
 public abstract class BlockWriter{
 
+   private boolean enableStrided = false;
    private HashMap<LocalVar, Boolean> allVars = null;
    private Set<VarAlias> aliases = new HashSet<VarAlias>();
    private HashMap<String, MethodArgumentList> methodsToArgs =
@@ -115,6 +116,10 @@ public abstract class BlockWriter{
    protected String currentMethodBody;
    private boolean aliasesReadOnly = false;
 
+   protected void setStrided(boolean set) {
+       this.enableStrided = set;
+   }
+   protected boolean getStrided() { return this.enableStrided; }
    protected void setAliases(Set<VarAlias> aliases) {
        this.aliasesReadOnly = true;
        this.aliases = aliases;
@@ -550,13 +555,15 @@ public abstract class BlockWriter{
             write("(&");
          }
          Instruction refInstruction = arrayLoadInstruction.getArrayRef();
+
          boolean strided = false;
-         if (this.allVars != null && refInstruction instanceof AccessLocalVariable) {
+         if (this.getStrided() && this.allVars != null && refInstruction instanceof AccessLocalVariable) {
             final AccessLocalVariable localVariableLoadInstruction = (AccessLocalVariable) refInstruction;
             final LocalVariableInfo localVariable = localVariableLoadInstruction.getLocalVariableInfo();
             if(localVariable.isArray()) {
                 String varName = localVariable.getVariableName();
                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
+                System.out.println("Getting "+var.toString());
                 strided = allVars.get(var);
             }
          }
@@ -1040,6 +1047,10 @@ public abstract class BlockWriter{
 
        public String getArg(int index) {
            return this.methodArguments.get(index);
+       }
+
+       public int size() { 
+           return this.methodArguments.size();
        }
 
        public boolean contains(String argName) {

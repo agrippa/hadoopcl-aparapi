@@ -952,27 +952,23 @@ public abstract class KernelWriter extends BlockWriter{
                      rebuildCall.append(splitArgs[i]);
                      rebuildCall.append(", ");
                  }
-                 rebuildCall.append("this->inputValIndices + (this->inputValLookAsideBuffer[this->iter]), ");
-                 // rebuildCall.append("this->inputValIndices + (this->iter), ");
-                 rebuildCall.append("this->inputValVals + (this->inputValLookAsideBuffer[this->iter]), ");
-                 // rebuildCall.append("this->inputValVals + (this->iter), ");
-                 rebuildCall.append("((this->iter == this->nPairs-1 ? this->individualInputValsCount : this->inputValLookAsideBuffer[this->iter+1]) - this->inputValLookAsideBuffer[this->iter])");
+
+                 if (this.getStrided()) {
+                     rebuildCall.append("this->inputValIndices + (this->iter), ");
+                 } else {
+                     rebuildCall.append("this->inputValIndices + (this->inputValLookAsideBuffer[this->iter]), ");
+                 }
+
+                 if (this.getStrided()) {
+                     rebuildCall.append("this->inputValVals + (this->iter), ");
+                 } else {
+                     rebuildCall.append("this->inputValVals + (this->inputValLookAsideBuffer[this->iter]), ");
+                 }
+                 rebuildCall.append("((this->iter == this->nPairs-1 ? "+
+                         "this->individualInputValsCount : this->inputValLookAsideBuffer[this->iter+1]) "+
+                         "- this->inputValLookAsideBuffer[this->iter])");
 
                  rebuildCall.append(");\n");
-
-                 //String lengthArg = splitArgs[splitArgs.length-1];
-                 //lengthArg = lengthArg.trim();
-                 //lengthArg = lengthArg.substring(1, lengthArg.length() - 1);
-                 //String[] lengthTokens = lengthArg.split(" ");
-                 //String replacement = "this->iter+1 >= this->nPairs ? "+lengthTokens[2]+" : this->inputValLookAsideBuffer[this->iter+1]";
-                 //String rebuildCall = mapCall.substring(0, mapCall.indexOf("("));
-                 //for(int i = 0; i < splitArgs.length-1; i++) {
-                 //    rebuildCall = rebuildCall + splitArgs[i];
-                 //    rebuildCall = rebuildCall + ", ";
-                 //}
-                 //rebuildCall = rebuildCall + replacement;
-                 //rebuildCall = rebuildCall + ");\n";
-                 //mapCall = rebuildCall;
                  mapCall = rebuildCall.toString();
              }
 
@@ -1211,13 +1207,6 @@ public abstract class KernelWriter extends BlockWriter{
       writeln(";");
       write("this->reservedOffset = -1");
       writeln(";");
-      //write("this->localGlobalIndices = (__local int *)allLocal;\n");
-      //write("   int tocopy = this->nGlobals < localMemSize / sizeof(int) ? this->nGlobals : localMemSize / sizeof(int);\n");
-      //write("   int i;\n");
-      //write("   for(i = get_local_id(0); i < tocopy; i += get_local_size(0)) {\n");
-      //write("      this->localGlobalIndices[i] = this->globalIndices[i];\n");
-      //write("   }\n");
-      //write("   barrier(CLK_LOCAL_MEM_FENCE);\n");
 
        if(isMapRun) {
 
@@ -1378,10 +1367,11 @@ public abstract class KernelWriter extends BlockWriter{
    }
 
    public static String writeToString(Entrypoint _entrypoint,
-           Entrypoint _entrypointcopy, boolean isGPU) throws CodeGenException {
+           Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided)
+               throws CodeGenException {
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
 
-      final boolean VERBOSE = false;
+      final boolean VERBOSE = true;
       try {
          tmpOpenCLWriter.write(_entrypoint);
       } catch (final CodeGenException codeGenException) {
@@ -1394,10 +1384,10 @@ public abstract class KernelWriter extends BlockWriter{
           System.out.println("Running on "+(isGPU ? "GPU" : "CPU"));
       }
 
-      if (true) {
-      // if (types.hadoopType() != HADOOPTYPE.MAPPER ||
-      //         !types.inputValType().equals("svec") ||
-      //         !isGPU) {
+      // if (true) {
+      if (!enableStrided || types.hadoopType() != HADOOPTYPE.MAPPER ||
+              !types.inputValType().equals("svec") ||
+              !isGPU) {
           return tmpOpenCLWriter.toString();
       }
 
@@ -1427,6 +1417,8 @@ public abstract class KernelWriter extends BlockWriter{
               }
           }
       }
+
+      
 
       boolean changed;
       do {
@@ -1475,6 +1467,20 @@ public abstract class KernelWriter extends BlockWriter{
           }
       }
 
+      for (String methodName : methodArgs.keySet()) {
+          final String mapSuffix = "__map";
+          int index = methodName.indexOf(mapSuffix);
+          if (index == -1 || index != methodName.length() - mapSuffix.length()) {
+              continue;
+          }
+          MethodArgumentList args = methodArgs.get(methodName);
+          for (int i = 0; i < args.size(); i++) {
+              String varName = args.getArg(i);
+              allVars.put(new LocalVar(methodName, varName), true);
+          }
+          break;
+      }
+
       if (VERBOSE) {
           System.out.println("Variables:");
           for (LocalVar v : allVars.keySet()) {
@@ -1486,6 +1492,7 @@ public abstract class KernelWriter extends BlockWriter{
       openCLWriter.setAllVars(allVars);
       openCLWriter.setAliases(aliases);
       openCLWriter.setMethodArgs(methodArgs);
+      openCLWriter.setStrided(enableStrided);
 
       try {
          openCLWriter.write(_entrypointcopy);
