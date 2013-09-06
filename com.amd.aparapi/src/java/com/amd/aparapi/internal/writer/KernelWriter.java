@@ -1371,7 +1371,7 @@ public abstract class KernelWriter extends BlockWriter{
                throws CodeGenException {
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
 
-      final boolean VERBOSE = true;
+      final boolean VERBOSE = false;
       try {
          tmpOpenCLWriter.write(_entrypoint);
       } catch (final CodeGenException codeGenException) {

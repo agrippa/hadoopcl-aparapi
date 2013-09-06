@@ -563,7 +563,6 @@ public abstract class BlockWriter{
             if(localVariable.isArray()) {
                 String varName = localVariable.getVariableName();
                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
-                System.out.println("Getting "+var.toString());
                 strided = allVars.get(var);
             }
          }
@@ -902,13 +901,13 @@ public abstract class BlockWriter{
       write(_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8());
       write("(");
 
-      System.out.print("Method "+_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8()+" takes arguments ");
+      // System.out.print("Method "+_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8()+" takes arguments ");
       for (int arg = 0; arg < argc; arg++) {
          if (arg != 0) {
             write(", ");
          }
          Instruction argObj = _methodCall.getArg(arg);
-         System.out.print("\""+argObj.toString()+"\" ");
+         // System.out.print("\""+argObj.toString()+"\" ");
          writeInstruction(argObj);
       }
       write(")");
