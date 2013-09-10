@@ -1968,7 +1968,7 @@ public abstract class Kernel implements Cloneable {
          kernelRunner = new KernelRunner(this);
       }
 
-      return (kernelRunner.execute(_entry, _range, 1, 1));
+      return (kernelRunner.execute(_entry, _range, 1));
    }
 
    /**
@@ -2002,7 +2002,7 @@ public abstract class Kernel implements Cloneable {
          kernelRunner = new KernelRunner(this);
 
       }
-      return (kernelRunner.execute(_entrypoint, _range, _passes, 1, enableStrided));
+      return (kernelRunner.execute(_entrypoint, _range, _passes, enableStrided));
    }
 
    // public synchronized Kernel asyncExecute(Range r) {

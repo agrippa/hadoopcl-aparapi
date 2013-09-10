@@ -826,7 +826,7 @@ public class KernelRunner extends KernelRunnerJNI{
 
    // private int numAvailableProcessors = Runtime.getRuntime().availableProcessors();
 
-   private Kernel executeOpenCL(final String _entrypointName, final Range _range, final int _passes, final int blocking,
+   private Kernel executeOpenCL(final String _entrypointName, final Range _range, final int _passes,
            final boolean enableStriding) throws AparapiException {
       /*
       if (_range.getDims() > getMaxWorkItemDimensionsJNI(jniContextHandle)) {
@@ -879,14 +879,10 @@ public class KernelRunner extends KernelRunnerJNI{
 
       // native side will reallocate array buffers if necessary
       int execID;
-      if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes, blocking)) != 0) {
+      if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes)) != 0) {
          logger.warning("### CL exec seems to have failed. Trying to revert to Java ###");
          kernel.setFallbackExecutionMode();
-         return execute(_entrypointName, _range, _passes, blocking, enableStriding);
-      }
-
-      if(blocking == 0) {
-          kernel.setID(execID);
+         return execute(_entrypointName, _range, _passes, enableStriding);
       }
 
       if (usesOopConversion == true) {
@@ -903,7 +899,7 @@ public class KernelRunner extends KernelRunnerJNI{
        waitForExecute(jniContextHandle, id);
    }
 
-   public synchronized Kernel execute(Kernel.Entry entry, final Range _range, final int _passes, final int blocking) {
+   public synchronized Kernel execute(Kernel.Entry entry, final Range _range, final int _passes) {
       System.out.println("execute(Kernel.Entry, size) not implemented");
       return (kernel);
    }
@@ -916,7 +912,7 @@ public class KernelRunner extends KernelRunnerJNI{
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, 0, enableStrided);
+      return execute(_entrypointName, _range, _passes, enableStrided);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
@@ -935,7 +931,7 @@ public class KernelRunner extends KernelRunnerJNI{
    }
 
    public synchronized Kernel execute(String _entrypointName, final Range _range,
-           final int _passes, final int blocking, final boolean enableStrided) {
+           final int _passes, final boolean enableStrided) {
 
       long executeStartTime = System.currentTimeMillis();
 
@@ -1191,7 +1187,7 @@ public class KernelRunner extends KernelRunnerJNI{
                   conversionTime = System.currentTimeMillis() - executeStartTime;
 
                   try {
-                     executeOpenCL(_entrypointName, _range, _passes, blocking, enableStrided);
+                     executeOpenCL(_entrypointName, _range, _passes, enableStrided);
                   } catch (final AparapiException e) {
                      System.out.println("Exception during execution");
                      warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
@@ -1201,7 +1197,7 @@ public class KernelRunner extends KernelRunnerJNI{
                }
             } else {
                try {
-                  executeOpenCL(_entrypointName, _range, _passes, blocking, enableStrided);
+                  executeOpenCL(_entrypointName, _range, _passes, enableStrided);
                } catch (final AparapiException e) {
                   System.out.println("Exception during execution");
                   warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);

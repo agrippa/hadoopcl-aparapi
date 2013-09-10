@@ -298,7 +298,7 @@ public abstract class KernelRunnerJNI{
 
    protected native int setArgsJNI(long _jniContextHandle, KernelArgJNI[] _args, int argc);
 
-   protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes, int blocking);
+   protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes);
 
    protected native int disposeJNI(long _jniContextHandle);
 

@@ -1068,7 +1068,7 @@ void checkEvents(JNIEnv* jenv, JNIContext* jniContext, int writeEventCount) {
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, runKernelJNI)
-   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range, jboolean needSync, jint passes, jint blocking) {
+   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range, jboolean needSync, jint passes) {
       if (config == NULL){
          config = new Config(jenv);
       }
