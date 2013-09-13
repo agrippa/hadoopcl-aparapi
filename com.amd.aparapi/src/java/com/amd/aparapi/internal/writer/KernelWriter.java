@@ -929,9 +929,15 @@ public abstract class KernelWriter extends BlockWriter{
              } else {
                  write("   int index;\n");
                  write("   int pastWrites = this->output_nWrites[this->iter]++;\n");
-                 write("   if (this->reservedOffset >= 0 ) {\n");
-                 write("      index = this->reservedOffset;\n");
-                 write("      this->reservedOffset = -1;\n");
+                 write("   if (this->outputsPerInput == -2) {\n");
+                 write("      index = atomic_add(this->memIncr, 1);\n");
+                 write("      if (index >= this->outputLength) {\n");
+                 write("         this->output_nWrites[this->iter] = -1;\n");
+                 write("         return 0;\n");
+                 write("      }\n");
+                 // write("   if (this->reservedOffset >= 0 ) {\n");
+                 // write("      index = this->reservedOffset;\n");
+                 // write("      this->reservedOffset = -1;\n");
                  write("   } else {\n");
                  if(isMapWrite) {
                      write("      index = (this->nPairs * pastWrites) + (this->iter);\n");
