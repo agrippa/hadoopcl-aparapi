@@ -625,7 +625,7 @@ public abstract class KernelWriter extends BlockWriter{
           write("   int currentValueIndex;\n");
           write("   int currentStartingValueIndex;\n");
           write("   int currentNumValues;\n");
-          if(inputValType.equals("svec")) {
+          if(inputValType.equals("svec") || inputValType.equals("ivec")) {
               write("   int currentNumAuxValues;\n");
           }
       }
@@ -707,6 +707,21 @@ public abstract class KernelWriter extends BlockWriter{
               write("\n");
               write("__global double *getValVals(This *this) {\n");
               write("   return this->inputValVals + this->inputValLookAsideBuffer[this->currentValueIndex];\n");
+              write("}\n");
+              write("\n");
+              write("int vectorLength(This *this, int index) {\n");
+              write("   int start = this->inputValLookAsideBuffer[index];\n");
+              write("   int end = (index == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[index+1]);\n");
+              write("   return end-start;\n");
+              write("}\n");
+              write("\n");
+              write("int currentVectorLength(This *this) {\n");
+              write("   return vectorLength(this, this->currentValueIndex);\n");
+              write("}\n");
+              write("\n");
+          } else if (inputValType.equals("ivec")) {
+              write("__global int *getVal(This *this) {\n");
+              write("   return this->inputVal + this->inputValLookAsideBuffer[this->currentValueIndex];\n");
               write("}\n");
               write("\n");
               write("int vectorLength(This *this, int index) {\n");
@@ -893,6 +908,24 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      return 1;\n");
                  write("   }\n");
                  write("}\n\n");
+             } else if (outputValType.equals("ivec")) {
+                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 write("   if (index >= this->outputLength) {\n");
+                 write("      this->output_nWrites[this->iter] = -1;\n");
+                 write("      return 0;\n");
+                 write("   } else {\n");
+                 write("      int pastWrites = this->output_nWrites[this->iter]++;\n");
+                 write("      this->outputValLookAsideBuffer[index] = vals - this->outputVals;\n");
+                 write("      this->outputValLengthBuffer[index] = len;\n");
+                 for(int i = 1; i < argTokens.length; i++) {
+                     if(argTokens[i].indexOf("key") != -1) {
+                         write("   ");
+                         hadoopOutputWrite(argTokens[i]);
+                     }
+                 }
+                 write("      return 1;\n");
+                 write("   }\n");
+                 write("}\n\n");
              } else {
                  write("   int index;\n");
                  write("   int pastWrites = this->output_nWrites[this->iter]++;\n");
@@ -970,6 +1003,34 @@ public abstract class KernelWriter extends BlockWriter{
 
                  rebuildCall.append(");\n");
                  mapCall = rebuildCall.toString();
+             } else if (inputValType.equals("ivec")){
+                 String arguments = mapCall.substring(mapCall.indexOf("("));
+                 arguments = arguments.substring(0, arguments.lastIndexOf(")"));
+                 String[] splitArgs = arguments.split(",");
+                 // System.out.println("Arguments:");
+                 // for(int i =0 ; i < splitArgs.length; i++) {
+                 //     System.out.println("   "+splitArgs[i]);
+                 // }
+                 StringBuffer rebuildCall = new StringBuffer();
+                 rebuildCall.append(mapCall.substring(0, mapCall.indexOf("(")));
+
+                 for(int i = 0; i < splitArgs.length-2; i++) {
+                     rebuildCall.append(splitArgs[i]);
+                     rebuildCall.append(", ");
+                 }
+
+                 if (this.getStrided()) {
+                     rebuildCall.append("this->inputVal + (this->iter), ");
+                 } else {
+                     rebuildCall.append("this->inputVal + (this->inputValLookAsideBuffer[this->iter]), ");
+                 }
+
+                 rebuildCall.append("((this->iter == this->nPairs-1 ? "+
+                         "this->individualInputValsCount : this->inputValLookAsideBuffer[this->iter+1]) "+
+                         "- this->inputValLookAsideBuffer[this->iter])");
+
+                 rebuildCall.append(");\n");
+                 mapCall = rebuildCall.toString();
              }
 
              write(callMapSig);
@@ -988,7 +1049,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("   this->currentValueIndex = startOffset;\n");
              write("   this->currentStartingValueIndex = startOffset;\n");
              write("   this->currentNumValues = stopOffset - startOffset;\n");
-             if(inputValType.equals("svec")) {
+             if(inputValType.equals("svec") || inputValType.equals("ivec")) {
                 write("   this->currentNumAuxValues = this->iter == this->nKeys-1 ?\n");
                 write("      (this->individualInputValsCount - this->inputValLookAsideBuffer[startOffset]) :\n");
                 write("      (this->inputValLookAsideBuffer[stopOffset] - this->inputValLookAsideBuffer[startOffset]);\n");
@@ -999,8 +1060,8 @@ public abstract class KernelWriter extends BlockWriter{
                  write("this->inputKeys1[this->iter], this->inputKeys2[this->iter]");
              } else if (inputKeyType.equals("upair")) {
                  write("this->inputKeyIds[this->iter], this->inputKeys1[this->iter], this->inputKeys2[this->iter]");
-             } else if (inputKeyType.equals("svec")) {
-                 throw new RuntimeException("Invalid input key type svec");
+             } else if (inputKeyType.equals("svec") || inputKeyType.equals("ivec")) {
+                 throw new RuntimeException("Invalid input key type "+inputKeyType);
              } else {
                  write("this->inputKeys[this->iter]");
              }
@@ -1028,8 +1089,7 @@ public abstract class KernelWriter extends BlockWriter{
              }
              write(line);
 
-             if(outputValType.equals("svec")) {
-
+             if(outputValType.equals("svec") || outputValType.equals("ivec")) {
                  write("   this->reservedAuxOffset = atomic_add(this->memAuxIncr, len);\n");
                  write("   if(this->reservedAuxOffset+len <= this->outputAuxLength) {\n");
                  write("      this->reservedOffset = atomic_add(this->memIncr, 1);\n");
@@ -1386,7 +1446,7 @@ public abstract class KernelWriter extends BlockWriter{
 
       // if (true) {
       if (!enableStrided || types.hadoopType() != HADOOPTYPE.MAPPER ||
-              !types.inputValType().equals("svec") ||
+              (!types.inputValType().equals("svec") && !types.inputValType().equals("ivec")) ||
               !isGPU) {
           return tmpOpenCLWriter.toString();
       }
