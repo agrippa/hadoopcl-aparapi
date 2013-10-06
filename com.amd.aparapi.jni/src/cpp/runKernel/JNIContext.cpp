@@ -2,6 +2,73 @@
 #include "OpenCLJNI.h"
 #include "List.h"
 
+hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
+    hadoopclParams = (hadoopclParameter *)realloc(hadoopclParams, sizeof(hadoopclParameter) * (nHadoopclParams + 1));
+    hadoopclParameter *current = hadoopclParams + nHadoopclParams;
+    nHadoopclParams++;
+
+    if (!arg->isArray()) {
+        fprintf(stderr,"Error: adding an arg that is not an array\n");
+        exit(1);
+    }
+
+    current->name = (char *)malloc(sizeof(char) * (strlen(arg->name)+1));
+    memcpy(current->name, arg->name, sizeof(char) * (strlen(arg->name)+1));
+    current->allocatedSize = (size_t)arg->arrayBuffer->lengthInBytes;
+    // TODO depending on whether name contains input/output we should be
+    // able to set more accurate flags here
+    cl_int err;
+    current->allocatedMem = clCreateBuffer(context,
+        CL_MEM_READ_WRITE, current->allocatedSize, NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "Error allocating buffer of size %llu for %s: %d\n",
+            current->allocatedSize, current->name, err);
+        exit(1);
+    }
+    return current;
+}
+
+hadoopclParameter* JNIContext::findHadoopclParam(KernelArg *arg) {
+    int i;
+    if (hadoopclParams == NULL) return NULL;
+
+    for (i = 0; i < nHadoopclParams; i++) {
+        hadoopclParameter *current = hadoopclParams + i;
+        if (strcmp(arg->name, current->name) == 0) {
+            return current;
+        }
+    }
+    return NULL;
+}
+
+void JNIContext::refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam) {
+    if (arg->arrayBuffer->lengthInBytes <= hadoopclParam->allocatedSize) return;
+
+    cl_int err = clReleaseMemObject(hadoopclParam->allocatedMem);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "Error releasing memory during refresh of object %s\n",arg->name);
+        exit(1);
+    }
+    hadoopclParam->allocatedMem = clCreateBuffer(context, CL_MEM_READ_WRITE,
+        arg->arrayBuffer->lengthInBytes, NULL, &err);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error allocating new memory buffer of size %llu during refresh of object %s\n",
+            arg->arrayBuffer->lengthInBytes, arg->name);
+        exit(1);
+    }
+    hadoopclParam->allocatedSize = arg->arrayBuffer->lengthInBytes;
+}
+
+cl_mem JNIContext::hadoopclRefresh(KernelArg *arg) {
+    if (!arg->isArray()) return 0x0;
+    hadoopclParameter *param = findHadoopclParam(arg);
+    if (param == NULL) {
+        param = addHadoopclParam(arg);
+    }
+    refreshHadoopclParam(arg, param);
+    return param->allocatedMem;
+}
+
 JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags): 
       kernelObject(jenv->NewGlobalRef(_kernelObject)),
       kernelClass((jclass)jenv->NewGlobalRef(jenv->GetObjectClass(_kernelObject))), 
@@ -29,6 +96,9 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDevic
    if (status == CL_SUCCESS){
       valid = JNI_TRUE;
    }
+
+   hadoopclParams = NULL;
+   nHadoopclParams = 0;
 }
 
 void JNIContext::dispose(JNIEnv *jenv, Config* config) {

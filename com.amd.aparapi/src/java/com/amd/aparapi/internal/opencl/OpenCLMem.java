@@ -10,7 +10,7 @@ public class OpenCLMem{
 
    public long bits; // dirty, copy, enqueued
 
-   public int sizeInBytes;
+   public long sizeInBytes;
 
    public long memId;
 

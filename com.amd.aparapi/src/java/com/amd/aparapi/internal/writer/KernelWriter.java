@@ -892,10 +892,10 @@ public abstract class KernelWriter extends BlockWriter{
              if(outputValType.equals("svec")) {
                  write("   int index = atomic_add(this->memIncr, 1);\n");
                  write("   if (index >= this->outputLength) {\n");
-                 write("      this->output_nWrites[this->iter] = -1;\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->output_nWrites[this->iter]++;\n");
+                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValDoubleLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
@@ -911,10 +911,10 @@ public abstract class KernelWriter extends BlockWriter{
              } else if (outputValType.equals("ivec")) {
                  write("   int index = atomic_add(this->memIncr, 1);\n");
                  write("   if (index >= this->outputLength) {\n");
-                 write("      this->output_nWrites[this->iter] = -1;\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->output_nWrites[this->iter]++;\n");
+                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
                  write("      this->outputValLookAsideBuffer[index] = vals - this->outputVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
                  for(int i = 1; i < argTokens.length; i++) {
@@ -928,11 +928,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("}\n\n");
              } else {
                  write("   int index;\n");
-                 write("   int pastWrites = this->output_nWrites[this->iter]++;\n");
+                 write("   int pastWrites = this->nWrites[this->iter]++;\n");
                  write("   if (this->outputsPerInput == -2) {\n");
                  write("      index = atomic_add(this->memIncr, 1);\n");
                  write("      if (index >= this->outputLength) {\n");
-                 write("         this->output_nWrites[this->iter] = -1;\n");
+                 write("         this->nWrites[this->iter] = -1;\n");
                  write("         return 0;\n");
                  write("      }\n");
                  // write("   if (this->reservedOffset >= 0 ) {\n");
@@ -1105,13 +1105,13 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValLengthBuffer[this->reservedOffset] = len;\n");
                  write("      return 1;\n");
                  write("   } else {\n");
-                 write("      this->output_nWrites[this->iter] = -1;\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   }\n");
              } else {
                  write("   this->reservedOffset = atomic_add(this->memIncr, 1);\n");
                  write("   if (this->reservedOffset >= this->outputLength) {\n");
-                 write("       this->output_nWrites[this->iter] = -1;\n");
+                 write("       this->nWrites[this->iter] = -1;\n");
                  write("   }\n");
                  write("   return this->reservedOffset < this->outputLength;\n");
              }
@@ -1171,6 +1171,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxIntIncr, len);\n");
              write("   if (offset + len > this->outputAuxLength) {\n");
+             write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
              write("   }\n");
              write("   return this->outputValIndices + offset;\n");
@@ -1179,6 +1180,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxDoubleIncr, len);\n");
              write("   if (offset + len > this->outputAuxLength) {\n");
+             write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
              write("   }\n");
              write("   return this->outputValVals + offset;\n");

@@ -794,7 +794,7 @@ public class KernelRunner extends KernelRunnerJNI{
                   // set up JNI fields for normal arrays
                   arg.setJavaArray(newArrayRef);
                   arg.setNumElements(Array.getLength(newArrayRef));
-                  arg.setSizeInBytes(arg.getNumElements() * arg.getPrimitiveSize());
+                  arg.setSizeInBytes((long)arg.getNumElements() * (long)arg.getPrimitiveSize());
 
                   if (((args[i].getType() & ARG_EXPLICIT) != 0) && puts.contains(newArrayRef)) {
                      args[i].setType(args[i].getType() | ARG_EXPLICIT_WRITE);
@@ -879,7 +879,8 @@ public class KernelRunner extends KernelRunnerJNI{
 
       // native side will reallocate array buffers if necessary
       int execID;
-      if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes)) != 0) {
+      // if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes)) != 0) {
+      if ((execID = hadoopclRunKernelJNI(jniContextHandle, _range)) != 0) {
          logger.warning("### CL exec seems to have failed. Trying to revert to Java ###");
          kernel.setFallbackExecutionMode();
          return execute(_entrypointName, _range, _passes, enableStriding);
@@ -1294,8 +1295,8 @@ public class KernelRunner extends KernelRunnerJNI{
       if (subBuffer.getClass().isAssignableFrom(short[].class)) {
          arg.setType(arg.getType() | ARG_SHORT);
       }
-      int primitiveSize = getPrimitiveSize(arg.getType());
-      int totalElements = 1;
+      long primitiveSize = getPrimitiveSize(arg.getType());
+      long totalElements = 1;
       for(int i = 0; i < numDims; i++) {
          totalElements *= dims[i];
       }

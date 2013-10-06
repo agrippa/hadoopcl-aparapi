@@ -55,7 +55,7 @@ public abstract class KernelArgJNI{
    /**
     * If this is an array or a buffer then the size (in bytes) is held here
     */
-   @UsedByJNICode protected int sizeInBytes;
+   @UsedByJNICode protected long sizeInBytes;
 
    /**
     * If this is an array buffer then the number of elements is stored here

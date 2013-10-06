@@ -45,7 +45,7 @@ class ArrayBuffer{
    public:
       jobject javaArray;        // The java array that this arg is mapped to 
       cl_uint length;           // the number of elements for arrays (used only when ARRAYLENGTH bit is set for this arg)
-      jint lengthInBytes;       // bytes in the array or directBuf
+      size_t lengthInBytes;       // bytes in the array or directBuf
       cl_mem mem;               // the opencl buffer 
       void *addr;               // the last address where we saw this java array object
       cl_uint memMask;          // the mask used for createBuffer

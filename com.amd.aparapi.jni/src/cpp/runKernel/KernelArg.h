@@ -182,7 +182,7 @@ class KernelArg{
          type = jenv->GetIntField(javaArg, typeFieldID);
       }
       void syncSizeInBytes(JNIEnv* jenv){
-         arrayBuffer->lengthInBytes = jenv->GetIntField(javaArg, sizeInBytesFieldID);
+         arrayBuffer->lengthInBytes = jenv->GetLongField(javaArg, sizeInBytesFieldID);
       }
       void syncJavaArrayLength(JNIEnv* jenv){
          arrayBuffer->length = jenv->GetIntField(javaArg, numElementsFieldID);

@@ -8,10 +8,17 @@
 #include "com_amd_aparapi_internal_jni_KernelRunnerJNI.h"
 #include "Config.h"
 
+typedef struct _hadoopclParameter {
+    char *name;
+    cl_mem allocatedMem;
+    size_t allocatedSize;
+} hadoopclParameter;
+
 class JNIContext {
 private: 
    jint flags;
    jboolean valid;
+
 public:
    jobject kernelObject;
    jobject openCLDeviceObject;
@@ -34,6 +41,16 @@ public:
    jint passes;
    ProfileInfo *exec;
    FILE* profileFile;
+
+   /*
+    * HadoopCL stuff
+    */
+   hadoopclParameter *hadoopclParams;
+   int nHadoopclParams;
+   cl_mem hadoopclRefresh(KernelArg *arg);
+   hadoopclParameter* addHadoopclParam(KernelArg *arg);
+   hadoopclParameter* findHadoopclParam(KernelArg *arg);
+   void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);
 
    JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags);
    

@@ -23,7 +23,7 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
          nameFieldID = JNIHelper::GetFieldID(jenv, c, "name", "Ljava/lang/String;");
          typeFieldID = JNIHelper::GetFieldID(jenv, c, "type", "I");
          javaArrayFieldID = JNIHelper::GetFieldID(jenv, c, "javaArray", "Ljava/lang/Object;");
-         sizeInBytesFieldID = JNIHelper::GetFieldID(jenv, c, "sizeInBytes", "I");
+         sizeInBytesFieldID = JNIHelper::GetFieldID(jenv, c, "sizeInBytes", "J");
          numElementsFieldID = JNIHelper::GetFieldID(jenv, c, "numElements", "I");
          argClazz  = c;
       }

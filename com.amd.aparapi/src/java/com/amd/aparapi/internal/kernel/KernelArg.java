@@ -166,14 +166,14 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the sizeInBytes
     */
-   protected int getSizeInBytes() {
+   protected long getSizeInBytes() {
       return sizeInBytes;
    }
 
    /**
     * @param sizeInBytes the sizeInBytes to set
     */
-   protected void setSizeInBytes(int sizeInBytes) {
+   protected void setSizeInBytes(long sizeInBytes) {
       this.sizeInBytes = sizeInBytes;
    }
 
