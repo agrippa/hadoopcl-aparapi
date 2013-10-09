@@ -1087,6 +1087,25 @@ static void unpinAll(KernelArg **toUnpin, int nToUnpin, JNIEnv *jenv) {
     if (toUnpin) free(toUnpin);
 }
 
+JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
+
+    if (config == NULL){
+       config = new Config(jenv);
+    }
+    JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+
+    cl_int status;
+    cl_int err;
+
+    err = clGetEventInfo(jniContext->exec_event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), &status, NULL);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error retrieving event info status: %d\n",err);
+        exit(1);
+    }
+    return status == CL_COMPLETE;
+}
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range) {
 
@@ -1203,10 +1222,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          cle.printError();
          unpinAll(toUnpin, nToUnpin, jenv);
          releaseAllEvents(write_events, nWriteEvents);
+         clReleaseEvent(jniContext->exec_event);
          return cle.status();
       }
       unpinAll(toUnpin, nToUnpin, jenv);
       releaseAllEvents(write_events, nWriteEvents);
+      clReleaseEvent(jniContext->exec_event);
       return err;
 }
 
@@ -1257,6 +1278,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
                  nReadEvents++;
              }
          }
+
          err = clWaitForEvents(nReadEvents, read_events);
          if (err != CL_SUCCESS) {
              fprintf(stderr, "Error waiting for %d read events\n",nReadEvents);
