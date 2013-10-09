@@ -299,7 +299,6 @@ public abstract class KernelRunnerJNI{
    protected native int setArgsJNI(long _jniContextHandle, KernelArgJNI[] _args, int argc);
 
    protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes);
-   protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
 
    protected native int disposeJNI(long _jniContextHandle);
 
@@ -308,4 +307,8 @@ public abstract class KernelRunnerJNI{
    protected native String getExtensionsJNI(long _jniContextHandle);
 
    protected native synchronized List<ProfileInfo> getProfileInfoJNI(long _jniContextHandle);
+
+   protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
+   protected native int hadoopclLaunchKernelJNI(long _jniContextHandle, Range _range);
+   protected native int hadoopclReadbackJNI(long _jniContextHandle);
 }

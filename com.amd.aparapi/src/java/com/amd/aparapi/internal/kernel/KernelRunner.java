@@ -880,8 +880,20 @@ public class KernelRunner extends KernelRunnerJNI{
       // native side will reallocate array buffers if necessary
       int execID;
       // if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes)) != 0) {
+      /*
       if ((execID = hadoopclRunKernelJNI(jniContextHandle, _range)) != 0) {
          logger.warning("### CL exec seems to have failed. Trying to revert to Java ###");
+         kernel.setFallbackExecutionMode();
+         return execute(_entrypointName, _range, _passes, enableStriding);
+      }
+      */
+      if ((execID = hadoopclLaunchKernelJNI(jniContextHandle, _range)) != 0) {
+         logger.warning("### CL launch seems to have failed. Trying to revert to Java ###");
+         kernel.setFallbackExecutionMode();
+         return execute(_entrypointName, _range, _passes, enableStriding);
+      }
+      if ((execID = hadoopclReadbackJNI(jniContextHandle)) != 0) {
+         logger.warning("### CL readback seems to have failed. Trying to revert to Java ###");
          kernel.setFallbackExecutionMode();
          return execute(_entrypointName, _range, _passes, enableStriding);
       }

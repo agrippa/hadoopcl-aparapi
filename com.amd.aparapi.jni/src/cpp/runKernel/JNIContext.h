@@ -51,6 +51,7 @@ public:
    hadoopclParameter* addHadoopclParam(KernelArg *arg);
    hadoopclParameter* findHadoopclParam(KernelArg *arg);
    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);
+   cl_event exec_event;
 
    JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags);
    

@@ -188,6 +188,12 @@ void JNIContext::dispose(JNIEnv *jenv, Config* config) {
       writeEventList.report(stderr); 
       fprintf(stderr, "}\n");
    }
+
+   for (int i = 0; i < nHadoopclParams; i++) {
+       hadoopclParameter *current = hadoopclParams + i;
+       clReleaseMemObject(current->allocatedMem);
+   }
+   if (hadoopclParams) free(hadoopclParams);
 }
 
 void JNIContext::unpinAll(JNIEnv* jenv) {
