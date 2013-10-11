@@ -69,6 +69,18 @@ cl_mem JNIContext::hadoopclRefresh(KernelArg *arg) {
     return param->allocatedMem;
 }
 
+void JNIContext::printOpenclMemChecks() {
+    int i;
+    unsigned int sum = 0;
+
+    fprintf(stderr,"Have allocated:\n");
+    for (i = 0; i < nHadoopclParams; i++) {
+        fprintf(stderr,"  %s: %llu bytes\n", hadoopclParams[i].name, hadoopclParams[i].allocatedSize);
+        sum += hadoopclParams[i].allocatedSize;
+    }
+    fprintf(stderr,"    Total = %u bytes\n",sum);
+}
+
 JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags): 
       kernelObject(jenv->NewGlobalRef(_kernelObject)),
       kernelClass((jclass)jenv->NewGlobalRef(jenv->GetObjectClass(_kernelObject))), 
@@ -80,18 +92,31 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDevic
       deviceType(((flags&com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)==com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)?CL_DEVICE_TYPE_GPU:CL_DEVICE_TYPE_CPU),
       profileFile(NULL), 
       valid(JNI_FALSE){
+   int i;
    cl_int status = CL_SUCCESS;
    jobject platformInstance = OpenCLDevice::getPlatformInstance(jenv, openCLDeviceObject);
    cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv, platformInstance);
    deviceId = OpenCLDevice::getDeviceId(jenv, openCLDeviceObject);
    cl_device_type returnedDeviceType;
    clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,  sizeof(returnedDeviceType), &returnedDeviceType, NULL);
-   //fprintf(stderr, "device[%d] CL_DEVICE_TYPE = %x\n", deviceId, returnedDeviceType);
+   // fprintf(stderr, "device[%d] CL_DEVICE_TYPE = %x\n", deviceId, returnedDeviceType);
 
+   // cl_uint num_devices;
+   // status = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
+   // cl_device_id *devices = (cl_device_id *)malloc(sizeof(cl_device_id) * num_devices);
+   // status = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_ALL, num_devices, devices, NULL);
+   // fprintf(stderr, "%d devices\n",num_devices);
+   // for (i = 0; i < num_devices; i++) {
+   //     cl_device_type type;
+   //     clGetDeviceInfo(devices[i], CL_DEVICE_TYPE, sizeof(type), &type, NULL);
+   //     fprintf(stderr,"Device %d : %s\n",i,(type == CL_DEVICE_TYPE_CPU ? "CPU" : (type == CL_DEVICE_TYPE_GPU ? "GPU" : "UNKNOWN")));
+   // }
+   // free(devices);
 
    cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM, (cl_context_properties)platformId, 0 };
    cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
-   context = clCreateContextFromType( cprops, returnedDeviceType, NULL, NULL, &status); 
+   context = clCreateContext( cprops, 1, &deviceId, NULL, NULL, &status);
+   // context = clCreateContextFromType( cprops, returnedDeviceType, NULL, NULL, &status); 
    CLException::checkCLError(status, "clCreateContextFromType()");
    if (status == CL_SUCCESS){
       valid = JNI_TRUE;

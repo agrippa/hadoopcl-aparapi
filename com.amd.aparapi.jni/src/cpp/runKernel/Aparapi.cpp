@@ -1100,9 +1100,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
 
     err = clGetEventInfo(jniContext->exec_event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), &status, NULL);
     if (err != CL_SUCCESS) {
-        fprintf(stderr,"Error retrieving event info status: %d\n",err);
+        fprintf(stderr,"Error retrieving event info: %d\n",err);
         exit(1);
+        // clWaitForEvents(1, &(jniContext->exec_event)); // should be a no-op
+        // clReleaseEvent(jniContext->exec_event);
     }
+    // return err;
     return status == CL_COMPLETE;
 }
 
@@ -1149,9 +1152,14 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                              0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL,
                              write_events + nWriteEvents);
                      if (err != CL_SUCCESS) {
-                         fprintf(stderr,"Error writing %s of size %llu to device: %d\n",
-                                 arg->name, arg->arrayBuffer->lengthInBytes, err);
-                         exit(1);
+                         clWaitForEvents(nWriteEvents, write_events);
+                         unpinAll(toUnpin, nToUnpin, jenv);
+                         releaseAllEvents(write_events, nWriteEvents);
+                         fprintf(stderr,"Reporting failure of write: %d\n",err);
+                         return err;
+                         // fprintf(stderr,"Error writing %s of size %llu to device: %d\n",
+                         //         arg->name, arg->arrayBuffer->lengthInBytes, err);
+                         // exit(1);
                      }
                      // arg->unpin(jenv);
                      nWriteEvents++;
@@ -1205,6 +1213,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 
          clWaitForEvents(nWriteEvents, write_events);
 
+         // jniContext->printOpenclMemChecks();
+
          err = clEnqueueNDRangeKernel(
                jniContext->commandQueue,
                jniContext->kernel,
@@ -1215,19 +1225,23 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                0, NULL,
                &(jniContext->exec_event));
          if (err != CL_SUCCESS) {
-             fprintf(stderr,"Error launching kernel: %d\n",err);
-             exit(1);
+             unpinAll(toUnpin, nToUnpin, jenv);
+             releaseAllEvents(write_events, nWriteEvents);
+             fprintf(stderr,"Reporting failure of kernel: %d\n",err);
+             return err;
+             // fprintf(stderr,"Error launching kernel: %d\n",err);
+             // exit(1);
          }
       } catch(CLException& cle) {
          cle.printError();
          unpinAll(toUnpin, nToUnpin, jenv);
          releaseAllEvents(write_events, nWriteEvents);
-         clReleaseEvent(jniContext->exec_event);
+         // clReleaseEvent(jniContext->exec_event);
          return cle.status();
       }
       unpinAll(toUnpin, nToUnpin, jenv);
       releaseAllEvents(write_events, nWriteEvents);
-      clReleaseEvent(jniContext->exec_event);
+      // clReleaseEvent(jniContext->exec_event);
       return err;
 }
 
@@ -1289,10 +1303,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
          cle.printError();
          unpinAll(toUnpin, nToUnpin, jenv);
          releaseAllEvents(read_events, nReadEvents);
+         clReleaseEvent(jniContext->exec_event);
          return cle.status();
       }
       unpinAll(toUnpin, nToUnpin, jenv);
       releaseAllEvents(read_events, nReadEvents);
+      clReleaseEvent(jniContext->exec_event);
 
       return err;
     }

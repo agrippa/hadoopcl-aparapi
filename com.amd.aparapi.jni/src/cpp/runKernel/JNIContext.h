@@ -47,11 +47,13 @@ public:
     */
    hadoopclParameter *hadoopclParams;
    int nHadoopclParams;
+   cl_event exec_event;
+
    cl_mem hadoopclRefresh(KernelArg *arg);
    hadoopclParameter* addHadoopclParam(KernelArg *arg);
    hadoopclParameter* findHadoopclParam(KernelArg *arg);
    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);
-   cl_event exec_event;
+   void printOpenclMemChecks();
 
    JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags);
    

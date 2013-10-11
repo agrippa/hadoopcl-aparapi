@@ -1907,6 +1907,14 @@ public abstract class Kernel implements Cloneable {
       return (execute(_range, 1));
    }
 
+   public synchronized int waitFor() {
+       return kernelRunner.waitForOpenCL();
+   }
+
+   public synchronized boolean isComplete() {
+       return kernelRunner.isOpenCLComplete();
+   }
+
    /**
     * Start execution of <code>_range</code> kernels.
     * <p>

@@ -879,7 +879,6 @@ public class KernelRunner extends KernelRunnerJNI{
 
       // native side will reallocate array buffers if necessary
       int execID;
-      // if ((execID = runKernelJNI(jniContextHandle, _range, needSync, _passes)) != 0) {
       /*
       if ((execID = hadoopclRunKernelJNI(jniContextHandle, _range)) != 0) {
          logger.warning("### CL exec seems to have failed. Trying to revert to Java ###");
@@ -888,15 +887,27 @@ public class KernelRunner extends KernelRunnerJNI{
       }
       */
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle, _range)) != 0) {
-         logger.warning("### CL launch seems to have failed. Trying to revert to Java ###");
-         kernel.setFallbackExecutionMode();
-         return execute(_entrypointName, _range, _passes, enableStriding);
+         System.err.println("Got error code "+execID+" from hadoopclLaunchKernelJNI, return null");
+         return null;
+         // logger.warning("### CL launch seems to have failed. Trying to revert to Java ###");
+         // kernel.setFallbackExecutionMode();
+         // return execute(_entrypointName, _range, _passes, enableStriding);
       }
+      System.err.println("hadoopclLaunchKernelJNI ran successfully");
+      /*
+      if (hadoopclKernelIsDoneJNI(jniContextHandle) == 0) {
+          System.err.println("Aparapi reporting kernel is RUNNING.");
+      } else {
+          System.err.println("Aparapi reporting kernel is DONE.");
+      }
+      */
+      /*
       if ((execID = hadoopclReadbackJNI(jniContextHandle)) != 0) {
          logger.warning("### CL readback seems to have failed. Trying to revert to Java ###");
          kernel.setFallbackExecutionMode();
          return execute(_entrypointName, _range, _passes, enableStriding);
       }
+      */
 
       if (usesOopConversion == true) {
          restoreObjects();
@@ -906,6 +917,14 @@ public class KernelRunner extends KernelRunnerJNI{
          logger.fine("executeOpenCL completed. " + _range);
       }
       return kernel;
+   }
+
+   public synchronized boolean isOpenCLComplete() {
+       return hadoopclKernelIsDoneJNI(jniContextHandle) != 0;
+   }
+
+   public synchronized int waitForOpenCL() {
+       return hadoopclReadbackJNI(jniContextHandle);
    }
 
    synchronized public void waitForEvent(int id) {
@@ -947,6 +966,7 @@ public class KernelRunner extends KernelRunnerJNI{
            final int _passes, final boolean enableStrided) {
 
       long executeStartTime = System.currentTimeMillis();
+      Kernel ret = kernel;
 
       if (_range == null) {
          throw new IllegalStateException("range can't be null");
@@ -961,6 +981,7 @@ public class KernelRunner extends KernelRunnerJNI{
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
             if (entryPoint == null) {
+               System.err.println("entryPoint is null, device is "+(device == null ? "null" : Long.toString(((OpenCLDevice)device).getDeviceId())));
                try {
                   final ClassModel classModel = new ClassModel(kernel.getClass());
                   entryPoint = classModel.getEntrypoint(_entrypointName, kernel);
@@ -1200,7 +1221,7 @@ public class KernelRunner extends KernelRunnerJNI{
                   conversionTime = System.currentTimeMillis() - executeStartTime;
 
                   try {
-                     executeOpenCL(_entrypointName, _range, _passes, enableStrided);
+                     ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided);
                   } catch (final AparapiException e) {
                      System.out.println("Exception during execution");
                      warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
@@ -1210,7 +1231,7 @@ public class KernelRunner extends KernelRunnerJNI{
                }
             } else {
                try {
-                  executeOpenCL(_entrypointName, _range, _passes, enableStrided);
+                  ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided);
                } catch (final AparapiException e) {
                   System.out.println("Exception during execution");
                   warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
@@ -1231,7 +1252,7 @@ public class KernelRunner extends KernelRunnerJNI{
       executionTime = System.currentTimeMillis() - executeStartTime;
       accumulatedExecutionTime += executionTime;
 
-      return kernel;
+      return ret;
    }
 
 
