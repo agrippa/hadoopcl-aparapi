@@ -41,6 +41,7 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
           dir = INOUT;
       }
       name = strdup(nameChars);
+      // fprintf(stderr,"Initializing %s\n",name);
       jenv->ReleaseStringUTFChars(nameString, nameChars);
       if (isArray()){
          arrayBuffer = new ArrayBuffer();

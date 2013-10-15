@@ -95,6 +95,7 @@ class KernelArg{
          //if  (value.ref.isPinned == JNI_FALSE){		 
          //     fprintf(stdout, "why are we unpinning buffer %s! isPinned = JNI_TRUE\n", name);
          //}
+         // fprintf(stderr,"Unpinning %s\n",name);
          if (isMutableByKernel()){
             // we only need to commit if the buffer has been written to
             // we use mode=0 in that case (rather than JNI_COMMIT) because that frees any copy buffer if it exists
@@ -104,8 +105,10 @@ class KernelArg{
             // fast path for a read_only buffer
             unpinAbort(jenv);
          }
+         // fprintf(stderr," Success!\n",name);
       }
       void pin(JNIEnv *jenv){
+         // fprintf(stderr,"Pinning %s\n",name);
          arrayBuffer->pin(jenv);
       }
 

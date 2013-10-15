@@ -781,6 +781,7 @@ public class KernelRunner extends KernelRunnerJNI{
          final KernelArg arg = args[i];
          try {
             if ((arg.getType() & ARG_ARRAY) != 0) {
+                // System.err.println("Looking at array "+arg.getName());
                Object newArrayRef;
                newArrayRef = arg.getField().get(kernel);
 
@@ -816,9 +817,9 @@ public class KernelRunner extends KernelRunnerJNI{
                assert arg.getArray() != null : "null array ref";
             }
          } catch (final IllegalArgumentException e) {
-            e.printStackTrace(); System.out.println("Hello");
+            e.printStackTrace();
          } catch (final IllegalAccessException e) {
-            e.printStackTrace(); System.out.println("Hello");
+            e.printStackTrace();
          }
       }
       return needsSync;
@@ -887,13 +888,13 @@ public class KernelRunner extends KernelRunnerJNI{
       }
       */
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle, _range)) != 0) {
-         System.err.println("Got error code "+execID+" from hadoopclLaunchKernelJNI, return null");
+         // System.err.println("Got error code "+execID+" from hadoopclLaunchKernelJNI, return null");
          return null;
          // logger.warning("### CL launch seems to have failed. Trying to revert to Java ###");
          // kernel.setFallbackExecutionMode();
          // return execute(_entrypointName, _range, _passes, enableStriding);
       }
-      System.err.println("hadoopclLaunchKernelJNI ran successfully");
+      // System.err.println("hadoopclLaunchKernelJNI ran successfully");
       /*
       if (hadoopclKernelIsDoneJNI(jniContextHandle) == 0) {
           System.err.println("Aparapi reporting kernel is RUNNING.");
@@ -981,7 +982,7 @@ public class KernelRunner extends KernelRunnerJNI{
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
             if (entryPoint == null) {
-               System.err.println("entryPoint is null, device is "+(device == null ? "null" : Long.toString(((OpenCLDevice)device).getDeviceId())));
+               // System.err.println("entryPoint is null, device is "+(device == null ? "null" : Long.toString(((OpenCLDevice)device).getDeviceId())));
                try {
                   final ClassModel classModel = new ClassModel(kernel.getClass());
                   entryPoint = classModel.getEntrypoint(_entrypointName, kernel);

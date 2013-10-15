@@ -9,7 +9,7 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
 
     if (!arg->isArray()) {
         fprintf(stderr,"Error: adding an arg that is not an array\n");
-        exit(1);
+        exit(2);
     }
 
     current->name = (char *)malloc(sizeof(char) * (strlen(arg->name)+1));
@@ -23,7 +23,7 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
     if (err != CL_SUCCESS) {
         fprintf(stderr, "Error allocating buffer of size %llu for %s: %d\n",
             current->allocatedSize, current->name, err);
-        exit(1);
+        exit(3);
     }
     return current;
 }
@@ -47,14 +47,14 @@ void JNIContext::refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopc
     cl_int err = clReleaseMemObject(hadoopclParam->allocatedMem);
     if (err != CL_SUCCESS) {
         fprintf(stderr, "Error releasing memory during refresh of object %s\n",arg->name);
-        exit(1);
+        exit(4);
     }
     hadoopclParam->allocatedMem = clCreateBuffer(context, CL_MEM_READ_WRITE,
         arg->arrayBuffer->lengthInBytes, NULL, &err);
     if (err != CL_SUCCESS) {
         fprintf(stderr,"Error allocating new memory buffer of size %llu during refresh of object %s\n",
             arg->arrayBuffer->lengthInBytes, arg->name);
-        exit(1);
+        exit(5);
     }
     hadoopclParam->allocatedSize = arg->arrayBuffer->lengthInBytes;
 }
