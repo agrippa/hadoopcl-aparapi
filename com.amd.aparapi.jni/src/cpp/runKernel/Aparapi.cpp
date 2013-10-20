@@ -1152,10 +1152,10 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                      arg->pin(jenv);
                      // toUnpin[nToUnpin++] = arg;
 
-                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem, CL_FALSE,
+                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem, CL_TRUE,
                              0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL,
                              NULL /*write_events + nWriteEvents*/ );
-                     arg->unpin(jenv);
+                     arg->unpinAbort(jenv);
                      if (err != CL_SUCCESS) {
                          // clWaitForEvents(nWriteEvents, write_events);
                          // unpinAll(toUnpin, nToUnpin, jenv);
@@ -1300,7 +1300,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
                  err = clEnqueueReadBuffer(jniContext->commandQueue, mem, CL_TRUE,
                          0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
                          /*read_events + nReadEvents*/ NULL);
-                 arg->unpinAbort(jenv);
+                 arg->unpinCommit(jenv);
                  // arg->unpin(jenv);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error reading %s of size %llu: %d\n",
