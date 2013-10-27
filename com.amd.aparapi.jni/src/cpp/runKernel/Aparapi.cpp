@@ -1092,7 +1092,6 @@ static void unpinAll(KernelArg **toUnpin, int nToUnpin, JNIEnv *jenv) {
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
 
-    // fprintf(stderr, "Entering hadoopclKernelIsDoneJNI\n");
     if (config == NULL){
        config = new Config(jenv);
     }
@@ -1108,14 +1107,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
         // clWaitForEvents(1, &(jniContext->exec_event)); // should be a no-op
         // clReleaseEvent(jniContext->exec_event);
     }
-    // fprintf(stderr, "Leaving hadoopclKernelIsDoneJNI\n");
     return status == CL_COMPLETE;
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range) {
 
-      // fprintf(stderr,"Entering hadoopclLaunchKernelJNI\n");
       if (config == NULL){
          config = new Config(jenv);
       }
@@ -1251,27 +1248,22 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              // releaseAllEvents(write_events, nWriteEvents);
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
-             // fprintf(stderr,"Error launching kernel: %d\n",err);
-             // exit(1);
          }
       } catch(CLException& cle) {
          cle.printError();
          // unpinAll(toUnpin, nToUnpin, jenv);
          // releaseAllEvents(write_events, nWriteEvents);
          // clReleaseEvent(jniContext->exec_event);
-         // fprintf(stderr,"Leaving hadoopclLaunchKernelJNI\n");
          return cle.status();
       }
       // unpinAll(toUnpin, nToUnpin, jenv);
       // releaseAllEvents(write_events, nWriteEvents);
       // clReleaseEvent(jniContext->exec_event);
-      // fprintf(stderr,"Leaving hadoopclLaunchKernelJNI\n");
       return err;
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
-      // fprintf(stderr,"Entering hadoopclReadbackJNI\n");
       if (config == NULL){
          config = new Config(jenv);
       }
@@ -1349,14 +1341,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
          // unpinAll(toUnpin, nToUnpin, jenv);
          // releaseAllEvents(read_events, nReadEvents);
          clReleaseEvent(jniContext->exec_event);
-         // fprintf(stderr,"Leaving hadoopclReadbackJNI\n");
          return cle.status();
       }
       // unpinAll(toUnpin, nToUnpin, jenv);
       // releaseAllEvents(read_events, nReadEvents);
       clReleaseEvent(jniContext->exec_event);
 
-      // fprintf(stderr,"Leaving hadoopclReadbackJNI\n");
       return err;
     }
 
