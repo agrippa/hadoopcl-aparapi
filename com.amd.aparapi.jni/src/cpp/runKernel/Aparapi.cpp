@@ -1212,28 +1212,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
             range.localDims[0] = std::min((cl_uint)range.localDims[0], max_group_size[0]);
          }
 
-         // clWaitForEvents(nWriteEvents, write_events);
-#ifdef PROFILE_HADOOPCL
-         cl_ulong writeStart;
-         cl_ulong writeStop;
-         int i;
-         for (i = 0; i < nWriteEvents; i++) {
-             cl_ulong start, stop;
-             clGetEventProfilingInfo(write_events[i], CL_PROFILING_COMMAND_QUEUED, sizeof(start), &start, NULL);
-             clGetEventProfilingInfo(write_events[i], CL_PROFILING_COMMAND_END, sizeof(stop), &stop, NULL);
-
-             if (i == 0 || start < writeStart) {
-                 writeStart = start;
-             }
-             if (i == 0 || stop > writeStop) {
-                 writeStop = stop;
-             }
-         }
-         fprintf(stderr, "APARAPI: host->device write %lu ns\n",writeStop-writeStart);
-#endif
-
-         // jniContext->printOpenclMemChecks();
-
          err = clEnqueueNDRangeKernel(
                jniContext->commandQueue,
                jniContext->kernel,
@@ -1249,6 +1227,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
          }
+         fprintf(stderr, "Successful kernel launch\n");
       } catch(CLException& cle) {
          cle.printError();
          // unpinAll(toUnpin, nToUnpin, jenv);
@@ -1309,32 +1288,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
          //     exit(13);
          // }
 
-#ifdef PROFILE_HADOOPCL
-#ifdef PROFILE_HADOOPCL
-         cl_ulong execStart;
-         cl_ulong execStop;
-         clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_QUEUED, sizeof(execStart), &execStart, NULL);
-         clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_END, sizeof(execStop), &execStop, NULL);
-         fprintf(stderr, "APARAPI: exec %lu ns\n",execStop-execStart);
-
-         cl_ulong readStart;
-         cl_ulong readStop;
-         int i;
-         for (i = 0; i < nReadEvents; i++) {
-             cl_ulong start, stop;
-             clGetEventProfilingInfo(read_events[i], CL_PROFILING_COMMAND_QUEUED, sizeof(start), &start, NULL);
-             clGetEventProfilingInfo(read_events[i], CL_PROFILING_COMMAND_END, sizeof(stop), &stop, NULL);
-
-             if (i == 0 || start < readStart) {
-                 readStart = start;
-             }
-             if (i == 0 || stop > readStop) {
-                 readStop = stop;
-             }
-         }
-         fprintf(stderr, "APARAPI: device->host read %lu ns\n",readStop-readStart);
-#endif
-#endif
       }
       catch(CLException& cle) {
          cle.printError();

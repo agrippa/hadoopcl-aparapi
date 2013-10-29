@@ -25,6 +25,7 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
             current->allocatedSize, current->name, err);
         exit(3);
     }
+    fprintf(stderr, "Adding param %s with size %llu\n",current->name, current->allocatedSize);
     return current;
 }
 
@@ -43,6 +44,8 @@ hadoopclParameter* JNIContext::findHadoopclParam(KernelArg *arg) {
 
 void JNIContext::refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam) {
     if (arg->arrayBuffer->lengthInBytes <= hadoopclParam->allocatedSize) return;
+    
+    fprintf(stderr, "Refreshing param %s from %llu to %llu\n",hadoopclParam->name, hadoopclParam->allocatedSize, arg->arrayBuffer->lengthInBytes);
 
     cl_int err = clReleaseMemObject(hadoopclParam->allocatedMem);
     if (err != CL_SUCCESS) {
