@@ -1191,7 +1191,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("}\n\n");
          } else if (isAllocFloat) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxDoubleIncr, len);\n");
+             write("   int offset = atomic_add(this->memAuxFloatIncr, len);\n");
              write("   if (offset + len > this->outputAuxLength) {\n");
              write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
