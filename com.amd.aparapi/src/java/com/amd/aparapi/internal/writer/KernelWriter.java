@@ -756,6 +756,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String inputVectorLengthPost = "__inputVectorLength";
       final String allocIntPost = "__allocInt";
       final String allocDoublePost = "__allocDouble";
+      final String allocFloatPost = "__allocFloat";
       final String mapPost = "__map";
       final String reducePost = "__reduce";
 
@@ -775,6 +776,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isInputVectorLength = false;
          boolean isAllocInt = false;
          boolean isAllocDouble = false;
+         boolean isAllocFloat = false;
          boolean isReduce = false;
          boolean isMap = false;
 
@@ -805,6 +807,8 @@ public abstract class KernelWriter extends BlockWriter{
                  isAllocInt = true;
              } else if(mm.getName().indexOf(allocDoublePost) != -1) {
                  isAllocDouble = true;
+             } else if(mm.getName().indexOf(allocFloatPost) != -1) {
+                 isAllocFloat = true;
              }
          }
          if(mm.getName().indexOf(mapPost) != -1) {
@@ -1185,6 +1189,16 @@ public abstract class KernelWriter extends BlockWriter{
              write("   }\n");
              write("   return this->outputValVals + offset;\n");
              write("}\n\n");
+         } else if (isAllocFloat) {
+             write("\n{\n");
+             write("   int offset = atomic_add(this->memAuxDoubleIncr, len);\n");
+             write("   if (offset + len > this->outputAuxLength) {\n");
+             write("      this->nWrites[this->iter] = -1;\n");
+             write("      return NULL;\n");
+             write("   }\n");
+             write("   return this->outputValVals + offset;\n");
+             write("}\n\n");
+
          } else if(isMap) {
              writeMethodBody(mm);
 
