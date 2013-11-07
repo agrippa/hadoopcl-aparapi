@@ -1089,6 +1089,27 @@ static void unpinAll(KernelArg **toUnpin, int nToUnpin, JNIEnv *jenv) {
     if (toUnpin) free(toUnpin);
 }
 
+static int contains(char *str, char *search) {
+
+    int str_len = strlen(str);
+    int search_len = strlen(search);
+
+    char *iter = str;
+    char *end = str + str_len - search_len;
+
+    while (iter <= end) {
+        if (strncmp(iter, search, strlen(search)) == 0) {
+            return 1;
+        }
+
+        while (iter <= end && *iter != ' ') {
+            iter++;
+        }
+        iter++; // seek past ' '
+    }
+    return 0;
+}
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
 

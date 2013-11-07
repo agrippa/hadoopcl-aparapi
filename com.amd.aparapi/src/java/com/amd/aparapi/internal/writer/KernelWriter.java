@@ -81,6 +81,12 @@ import com.amd.aparapi.opencl.OpenCL.Constant;
 import com.amd.aparapi.opencl.OpenCL.Local;
 
 public abstract class KernelWriter extends BlockWriter{
+   public enum FP64Support {
+       KHR, AMD, NONE
+   };
+
+   public static FP64Support fp64;
+
    public static HadoopTypes types = null;
    protected abstract String removePreviousLine();
 
@@ -553,10 +559,13 @@ public abstract class KernelWriter extends BlockWriter{
          newLine();
       }
 
-      if (true /*Config.enableDoubles || _entryPoint.requiresDoublePragma()*/) {
-         writePragma("cl_khr_fp64", true);
-         newLine();
+
+      if (fp64 == FP64Support.KHR) {
+          writePragma("cl_khr_fp64", true);
+      } else if (fp64 == FP64Support.AMD) {
+          writePragma("cl_amd_fp64", true);
       }
+      newLine();
 
       // Emit structs for oop transformation accessors
       for (final ClassModel cm : _entryPoint.getObjectArrayFieldsClasses().values()) {
@@ -1449,8 +1458,10 @@ public abstract class KernelWriter extends BlockWriter{
    }
 
    public static String writeToString(Entrypoint _entrypoint,
-           Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided)
+           Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided,
+           FP64Support fp64)
                throws CodeGenException {
+      KernelWriter.fp64 = fp64;
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
 
       final boolean VERBOSE = false;

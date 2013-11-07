@@ -10,6 +10,7 @@ import java.util.List;
 public interface OpenCL<T> {
 
    public static final String CL_KHR_FP64 = "cl_khr_fp64";
+   public static final String CL_AMD_FP64 = "cl_amd_fp64";
 
    public static final String CL_KHR_SELECT_FPROUNDING_MODE = "cl_khr_select_fprounding_mode";
 

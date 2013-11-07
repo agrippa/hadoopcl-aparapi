@@ -148,6 +148,13 @@ public class KernelRunner extends KernelRunnerJNI{
       return (capabilitiesSet.contains(OpenCL.CL_KHR_FP64));
    }
 
+   boolean hasAMDFP64Support() {
+      if (capabilitiesSet == null) {
+         throw new IllegalStateException("Capabilities queried before they were initialized");
+      }
+      return (capabilitiesSet.contains(OpenCL.CL_AMD_FP64));
+   }
+
    boolean hasSelectFPRoundingModeSupport() {
       if (capabilitiesSet == null) {
          throw new IllegalStateException("Capabilities queried before they were initialized");
@@ -1069,8 +1076,17 @@ public class KernelRunner extends KernelRunnerJNI{
 
                   String openCL = null;
                   try {
+                      KernelWriter.FP64Support support;
+                      if (hasFP64Support()) {
+                          support = KernelWriter.FP64Support.KHR;
+                      } else if (hasAMDFP64Support()) {
+                          support = KernelWriter.FP64Support.AMD;
+                      } else {
+                          support = KernelWriter.FP64Support.NONE;
+                      }
                      openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
-                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided);
+                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
+                             support);
                   } catch (final CodeGenException codeGenException) {
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided);
                   }
