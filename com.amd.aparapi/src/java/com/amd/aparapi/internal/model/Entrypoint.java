@@ -77,7 +77,7 @@ import com.amd.aparapi.internal.model.ClassModel.ConstantPool.FieldEntry;
 import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodEntry;
 import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodReferenceEntry.Arg;
 import com.amd.aparapi.internal.util.UnsafeWrapper;
-
+import com.amd.aparapi.internal.kernel.KernelRunner;
 public class Entrypoint{
 
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
@@ -813,6 +813,13 @@ public class Entrypoint{
             }
          }
 
+         if (!KernelRunner.allDevicesSupport64BitFloatingPoint()) {
+             if (referencedFieldNames.contains("globalsVal")) {
+                 referencedFieldNames.remove("globalsVal");
+                 referencedFieldNames.add("globalsFval");
+             }
+         }
+
          for (final String referencedFieldName : referencedFieldNames) {
             if(referencedFieldName.equals("context")) continue;
 
@@ -826,7 +833,7 @@ public class Entrypoint{
                   referencedClassModelFields.add(ff);
                }
             } catch (final SecurityException e) {
-               e.printStackTrace(); System.out.println("Hello");
+               e.printStackTrace();
             }
          }
 

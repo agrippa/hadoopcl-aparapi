@@ -81,11 +81,16 @@ import com.amd.aparapi.opencl.OpenCL.Constant;
 import com.amd.aparapi.opencl.OpenCL.Local;
 
 public abstract class KernelWriter extends BlockWriter{
-   public enum FP64Support {
-       KHR, AMD, NONE
-   };
 
-   public static FP64Support fp64;
+   private final boolean amdFp64Support;
+   private final boolean khrFp64Support;
+
+   public KernelWriter(boolean khrFp64Support, boolean amdFp64Support) {
+       super();
+       System.out.println("KernelWriter amd="+amdFp64Support+" khr="+khrFp64Support);
+       this.amdFp64Support = amdFp64Support;
+       this.khrFp64Support = khrFp64Support;
+   }
 
    public static HadoopTypes types = null;
    protected abstract String removePreviousLine();
@@ -560,9 +565,9 @@ public abstract class KernelWriter extends BlockWriter{
       }
 
 
-      if (fp64 == FP64Support.KHR) {
+      if (this.khrFp64Support) {
           writePragma("cl_khr_fp64", true);
-      } else if (fp64 == FP64Support.AMD) {
+      } else if (this.amdFp64Support) {
           writePragma("cl_amd_fp64", true);
       }
       newLine();
@@ -624,8 +629,8 @@ public abstract class KernelWriter extends BlockWriter{
       in();
       newLine();
       for (final String line : thisStruct) {
-         write(line);
-         writeln(";");
+        write(line);
+        writeln(";");
       }
       //write("__local double *localGlobals;\n");
       //write("   __local int *localGlobalIndices;\n");
@@ -1163,7 +1168,11 @@ public abstract class KernelWriter extends BlockWriter{
              //}
              //write(line);
              write("\n{\n");
-             write("   return this->globalsVal + this->globalIndices[gid];\n");
+             if (this.amdFp64Support || this.khrFp64Support) {
+                 write("   return this->globalsVal + this->globalIndices[gid];\n");
+             } else {
+                 write("   return this->globalsFval + this->globalIndices[gid];\n");
+             }
              write("}\n");
          } else if(isInputVectorLength) {
              write("\n{\n");
@@ -1440,7 +1449,8 @@ public abstract class KernelWriter extends BlockWriter{
    public static class OpenCLKernelWriter extends KernelWriter {
        private final StringList openCLStringBuilder;
 
-       public OpenCLKernelWriter() {
+       public OpenCLKernelWriter(boolean khrFp64Support, boolean amdFp64Support) {
+           super(khrFp64Support, amdFp64Support);
            this.openCLStringBuilder = new StringList();
        }
 
@@ -1459,10 +1469,10 @@ public abstract class KernelWriter extends BlockWriter{
 
    public static String writeToString(Entrypoint _entrypoint,
            Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided,
-           FP64Support fp64)
+           boolean khrFp64Support, boolean amdFp64Support)
                throws CodeGenException {
-      KernelWriter.fp64 = fp64;
-      final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter();
+      final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter(
+              khrFp64Support, amdFp64Support);
 
       final boolean VERBOSE = false;
       try {
@@ -1581,7 +1591,8 @@ public abstract class KernelWriter extends BlockWriter{
           }
       }
 
-      final OpenCLKernelWriter openCLWriter = new OpenCLKernelWriter();
+      final OpenCLKernelWriter openCLWriter = new OpenCLKernelWriter(
+              khrFp64Support, amdFp64Support);
       openCLWriter.setAllVars(allVars);
       openCLWriter.setAliases(aliases);
       openCLWriter.setMethodArgs(methodArgs);

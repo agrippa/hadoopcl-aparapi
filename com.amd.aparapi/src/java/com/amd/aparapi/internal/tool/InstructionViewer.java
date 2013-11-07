@@ -60,6 +60,7 @@ import com.amd.aparapi.internal.model.MethodModel;
 import com.amd.aparapi.internal.tool.InstructionViewer.Form.Check;
 import com.amd.aparapi.internal.tool.InstructionViewer.Form.Template;
 import com.amd.aparapi.internal.tool.InstructionViewer.Form.Toggle;
+import com.amd.aparapi.internal.writer.KernelWriter;
 
 public class InstructionViewer implements Config.InstructionListener{
 

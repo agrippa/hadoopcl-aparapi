@@ -141,6 +141,15 @@ public class KernelRunner extends KernelRunnerJNI{
 
    private long executionTime = 0;
 
+   private static Boolean support64BitFloat = null;
+
+   public static boolean allDevicesSupport64BitFloatingPoint() {
+       if (support64BitFloat == null) {
+           support64BitFloat = new Boolean(allDevicesSupport64bitFloat() > 0);
+       }
+       return support64BitFloat.booleanValue();
+   }
+
    boolean hasFP64Support() {
       if (capabilitiesSet == null) {
          throw new IllegalStateException("Capabilities queried before they were initialized");
@@ -992,8 +1001,10 @@ public class KernelRunner extends KernelRunnerJNI{
                // System.err.println("entryPoint is null, device is "+(device == null ? "null" : Long.toString(((OpenCLDevice)device).getDeviceId())));
                try {
                   final ClassModel classModel = new ClassModel(kernel.getClass());
-                  entryPoint = classModel.getEntrypoint(_entrypointName, kernel);
-                  entryPointCopy = classModel.getEntrypoint(_entrypointName, kernel);
+                  entryPoint = classModel.getEntrypoint(_entrypointName,
+                          kernel);
+                  entryPointCopy = classModel.getEntrypoint(_entrypointName,
+                          kernel);
                } catch (final Exception exception) {
                   return warnFallBackAndExecute(_entrypointName, _range, _passes, exception, enableStrided);
                }
@@ -1076,17 +1087,9 @@ public class KernelRunner extends KernelRunnerJNI{
 
                   String openCL = null;
                   try {
-                      KernelWriter.FP64Support support;
-                      if (hasFP64Support()) {
-                          support = KernelWriter.FP64Support.KHR;
-                      } else if (hasAMDFP64Support()) {
-                          support = KernelWriter.FP64Support.AMD;
-                      } else {
-                          support = KernelWriter.FP64Support.NONE;
-                      }
                      openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
                              openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
-                             support);
+                             hasFP64Support(), hasAMDFP64Support());
                   } catch (final CodeGenException codeGenException) {
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided);
                   }

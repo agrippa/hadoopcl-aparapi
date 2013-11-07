@@ -312,4 +312,5 @@ public abstract class KernelRunnerJNI{
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle, Range _range);
    protected native int hadoopclReadbackJNI(long _jniContextHandle);
    protected native int hadoopclKernelIsDoneJNI(long _jniContextHandle);
+   protected static native int allDevicesSupport64bitFloat();
 }

@@ -1089,25 +1089,104 @@ static void unpinAll(KernelArg **toUnpin, int nToUnpin, JNIEnv *jenv) {
     if (toUnpin) free(toUnpin);
 }
 
-static int contains(char *str, char *search) {
-
-    int str_len = strlen(str);
+static int contains(char *exts, char *search) {
+    int exts_len = strlen(exts);
     int search_len = strlen(search);
 
-    char *iter = str;
-    char *end = str + str_len - search_len;
+    char *iter = exts;
+    char *end = exts + exts_len - search_len - 1;
 
     while (iter <= end) {
-        if (strncmp(iter, search, strlen(search)) == 0) {
+        if (strncmp(iter, search, search_len) == 0) {
             return 1;
         }
 
         while (iter <= end && *iter != ' ') {
             iter++;
         }
-        iter++; // seek past ' '
+        iter++; // seek past space
     }
     return 0;
+}
+
+JNI_JAVA(jint, KernelRunnerJNI, allDevicesSupport64bitFloat)
+    (JNIEnv *jenv, jclass clazz) {
+
+    cl_platform_id *platforms;
+    cl_device_id *devices;
+    cl_uint *platformDevicesCount;
+    cl_uint nPlatforms;
+    int maxDevicePerPlatform = 0;
+    int i, j;
+    char *exts;
+    int extsLen = 0;
+
+    cl_int err = clGetPlatformIDs(0, NULL, &nPlatforms);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "clGetPlatformIDs failed with err=%d\n",err);
+        exit(1);
+    }
+    platforms = (cl_platform_id *)malloc(sizeof(cl_platform_id) * nPlatforms);
+    platformDevicesCount = (cl_uint *)malloc(sizeof(cl_uint) * nPlatforms);
+    err = clGetPlatformIDs(nPlatforms, platforms, 0);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "clGetPlatformIDs failed with err=%d\n",err);
+        exit(1);
+    }
+    
+    for (i = 0; i < nPlatforms; i++) {
+        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, platformDevicesCount + i);
+        if (err != CL_SUCCESS) {
+            fprintf(stderr, "clGetDeviceIDs failed with err=%d\n",err);
+            exit(1);
+        }
+        if (platformDevicesCount[i] > maxDevicePerPlatform) {
+            maxDevicePerPlatform = platformDevicesCount[i];
+        }
+    }
+
+    devices = (cl_device_id *)malloc(sizeof(cl_device_id) * maxDevicePerPlatform);
+
+    for (i = 0; i < nPlatforms; i++) {
+        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, platformDevicesCount[i], devices, NULL);
+        if (err != CL_SUCCESS) {
+            fprintf(stderr, "clGetDeviceIDs failed with err=%d\n",err);
+            exit(1);
+        }
+        for (j = 0; j < platformDevicesCount[i]; j++) {
+            size_t len;
+            err = clGetDeviceInfo(devices[j], CL_DEVICE_EXTENSIONS, 0, NULL, &len);
+            if (err != CL_SUCCESS) {
+                fprintf(stderr, "clGetDeviceInfo failed with err=%d\n",err);
+                exit(1);
+            }
+            if (len > extsLen) {
+                exts = (char *)realloc(exts, len);
+                extsLen = len;
+            }
+            err = clGetDeviceInfo(devices[j], CL_DEVICE_EXTENSIONS, extsLen, exts, NULL);
+            if (err != CL_SUCCESS) {
+                fprintf(stderr, "clGetDeviceInfo failed with err=%d\n",err);
+                exit(1);
+            }
+
+            if (contains(exts, "cl_amd_fp64") == 0 &&
+                    contains(exts, "cl_khr_fp64") == 0) {
+                free(devices);
+                free(platformDevicesCount);
+                free(platforms);
+                free(exts);
+                return 0;
+
+            }
+        }
+    }
+
+    free(devices);
+    free(platformDevicesCount);
+    free(platforms);
+    free(exts);
+    return 1;
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)

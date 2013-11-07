@@ -56,7 +56,7 @@ import com.amd.aparapi.internal.model.ClassModel.AttributePool.CodeEntry;
 import com.amd.aparapi.internal.model.ClassModel.ConstantPool.FieldEntry;
 import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodEntry;
 import com.amd.aparapi.internal.reader.ByteReader;
-
+import com.amd.aparapi.internal.writer.KernelWriter;
 /**
  * Class represents a ClassFile (MyClass.class).
  * 
