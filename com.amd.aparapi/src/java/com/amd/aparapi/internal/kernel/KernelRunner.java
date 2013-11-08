@@ -141,6 +141,7 @@ public class KernelRunner extends KernelRunnerJNI{
 
    private long executionTime = 0;
 
+   /*
    private static Boolean support64BitFloat = null;
 
    public static boolean allDevicesSupport64BitFloatingPoint() {
@@ -149,6 +150,7 @@ public class KernelRunner extends KernelRunnerJNI{
        }
        return support64BitFloat.booleanValue();
    }
+   */
 
    boolean hasFP64Support() {
       if (capabilitiesSet == null) {

@@ -319,7 +319,8 @@ public class Entrypoint{
       final String accessedFieldName = field.getNameAndTypeEntry().getNameUTF8Entry().getUTF8();
       if(accessedFieldName.equals("bufferOutputIndices") || accessedFieldName.equals("bufferOutputVals") ||
               accessedFieldName.equals("keyObj") || accessedFieldName.equals("valObj") || 
-              accessedFieldName.equals("copyVals") || accessedFieldName.equals("copyIndices")) return;
+              accessedFieldName.equals("copyVals") || accessedFieldName.equals("copyIndices") ||
+              accessedFieldName.equals("copyFvals")) return;
 
       // Quickly bail if it is a ref
       if (field.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8().startsWith("L")
@@ -811,13 +812,6 @@ public class Entrypoint{
 
                }
             }
-         }
-
-         if (!KernelRunner.allDevicesSupport64BitFloatingPoint()) {
-             if (referencedFieldNames.contains("globalsVal")) {
-                 referencedFieldNames.remove("globalsVal");
-                 referencedFieldNames.add("globalsFval");
-             }
          }
 
          for (final String referencedFieldName : referencedFieldNames) {

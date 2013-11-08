@@ -1353,6 +1353,7 @@ public class MethodModel{
       String rawVarNameCandidate = null;
       boolean mightBeSetter = true;
 
+
       if (methodName.startsWith("get")) {
          rawVarNameCandidate = methodName.substring(3);
       } else if (methodName.startsWith("is")) {
@@ -1691,7 +1692,9 @@ public class MethodModel{
             if (logger.isLoggable(Level.FINE)) {
                logger.fine("Considering accessor call: " + getName());
             }
-            if(!getMethod().getName().equals("getGlobalIndices") && !getMethod().getName().equals("getGlobalVals")) {
+            if(!getMethod().getName().equals("getGlobalIndices") &&
+                    !getMethod().getName().equals("getGlobalVals") &&
+                    !getMethod().getName().equals("getGlobalFVals")) {
                 checkForGetter(pcMap);
                 checkForSetter(pcMap);
             }

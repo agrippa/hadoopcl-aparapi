@@ -87,7 +87,6 @@ public abstract class KernelWriter extends BlockWriter{
 
    public KernelWriter(boolean khrFp64Support, boolean amdFp64Support) {
        super();
-       System.out.println("KernelWriter amd="+amdFp64Support+" khr="+khrFp64Support);
        this.amdFp64Support = amdFp64Support;
        this.khrFp64Support = khrFp64Support;
    }
@@ -767,6 +766,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String accessOutputPost = "__accessOutput";
       final String getGlobalIndicesPost = "__getGlobalIndices";
       final String getGlobalValsPost = "__getGlobalVals";
+      final String getGlobalFValsPost = "__getGlobalFVals";
       final String inputVectorLengthPost = "__inputVectorLength";
       final String allocIntPost = "__allocInt";
       final String allocDoublePost = "__allocDouble";
@@ -787,6 +787,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isAccessOutput = false;
          boolean isGetGlobalIndices = false;
          boolean isGetGlobalVals = false;
+         boolean isGetGlobalFVals = false;
          boolean isInputVectorLength = false;
          boolean isAllocInt = false;
          boolean isAllocDouble = false;
@@ -815,6 +816,8 @@ public abstract class KernelWriter extends BlockWriter{
                  isGetGlobalIndices = true;
              } else if(mm.getName().indexOf(getGlobalValsPost) != -1) {
                  isGetGlobalVals = true;
+             } else if(mm.getName().indexOf(getGlobalFValsPost) != -1) {
+                 isGetGlobalFVals = true;
              } else if(mm.getName().indexOf(inputVectorLengthPost) != -1) {
                  isInputVectorLength = true;
              } else if(mm.getName().indexOf(allocIntPost) != -1) {
@@ -1168,11 +1171,11 @@ public abstract class KernelWriter extends BlockWriter{
              //}
              //write(line);
              write("\n{\n");
-             if (this.amdFp64Support || this.khrFp64Support) {
-                 write("   return this->globalsVal + this->globalIndices[gid];\n");
-             } else {
-                 write("   return this->globalsFval + this->globalIndices[gid];\n");
-             }
+             write("   return this->globalsVal + this->globalIndices[gid];\n");
+             write("}\n");
+         } else if(isGetGlobalFVals) {
+             write("\n{\n");
+             write("   return this->globalsFval + this->globalIndices[gid];\n");
              write("}\n");
          } else if(isInputVectorLength) {
              write("\n{\n");

@@ -1109,6 +1109,7 @@ static int contains(char *exts, char *search) {
     return 0;
 }
 
+/*
 JNI_JAVA(jint, KernelRunnerJNI, allDevicesSupport64bitFloat)
     (JNIEnv *jenv, jclass clazz) {
 
@@ -1188,6 +1189,7 @@ JNI_JAVA(jint, KernelRunnerJNI, allDevicesSupport64bitFloat)
     free(exts);
     return 1;
 }
+*/
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
