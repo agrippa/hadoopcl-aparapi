@@ -1096,7 +1096,7 @@ public class KernelRunner extends KernelRunnerJNI{
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided);
                   }
 
-                  if (true /* Config.enableShowGeneratedOpenCL*/ ) {
+                  if (Config.enableShowGeneratedOpenCL) {
                      System.out.println(openCL);
                   }
 

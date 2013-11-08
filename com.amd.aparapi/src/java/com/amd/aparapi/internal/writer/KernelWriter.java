@@ -1546,7 +1546,7 @@ public abstract class KernelWriter extends BlockWriter{
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter(
               khrFp64Support, amdFp64Support);
 
-      final boolean VERBOSE = true;
+      final boolean VERBOSE = false;
       try {
          tmpOpenCLWriter.write(_entrypoint);
       } catch (final CodeGenException codeGenException) {
