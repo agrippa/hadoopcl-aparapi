@@ -500,6 +500,8 @@ public abstract class BlockWriter{
                    write("{ __global int *tmp = ");
                } else if(methodName.equals("allocDouble")) {
                    write("{ __global double *tmp = ");
+               } else if(methodName.equals("allocFloat")) {
+                   write("{ __global float *tmp = ");
                } else {
                    throw new RuntimeException("Unsupported alloc method \""+methodName+"\"");
                }
@@ -522,8 +524,18 @@ public abstract class BlockWriter{
                }
 
                write(localVariableInfo.getVariableName() + " = ");
+               int numOps = 0;
                for (Instruction operand = _instruction.getFirstChild(); operand != null; operand = operand.getNextExpr()) {
                   writeInstruction(operand);
+                  numOps++;
+               }
+
+               if (numOps == 1 && _instruction.getFirstChild() instanceof AccessLocalVariable) {
+                 String variableName = ((AccessLocalVariable) _instruction.getFirstChild()).getLocalVariableInfo().getVariableName();
+                 LocalVar assignedFrom = new LocalVar(this.currentMethodBody,
+                     variableName);
+                 LocalVar assignedTo = new LocalVar(this.currentMethodBody, localVariableInfo.getVariableName());
+                 this.addAlias(new VarAlias(assignedFrom, assignedTo));
                }
             }
          }
@@ -563,6 +575,7 @@ public abstract class BlockWriter{
             if(localVariable.isArray()) {
                 String varName = localVariable.getVariableName();
                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
+                System.out.println("Fetching "+var.toString());
                 strided = allVars.get(var);
             }
          }
