@@ -1069,7 +1069,7 @@ public class KernelRunner extends KernelRunnerJNI{
                      logger.fine("Capabilities initialized to :" + capabilitiesSet.toString());
                   }
 
-                  if (entryPoint.requiresDoublePragma() && !hasFP64Support()) {
+                  if (entryPoint.requiresDoublePragma() && !hasFP64Support() && !hasAMDFP64Support()) {
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, "FP64 required but not supported", enableStrided);
                   }
 
