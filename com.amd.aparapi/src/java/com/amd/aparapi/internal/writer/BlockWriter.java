@@ -575,7 +575,6 @@ public abstract class BlockWriter{
             if(localVariable.isArray()) {
                 String varName = localVariable.getVariableName();
                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
-                System.out.println("Fetching "+var.toString());
                 strided = allVars.get(var);
             }
          }
