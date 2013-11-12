@@ -25,7 +25,6 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
             current->allocatedSize, current->name, err);
         exit(3);
     }
-    fprintf(stderr, "Adding param %s with size %llu\n",current->name, current->allocatedSize);
     return current;
 }
 
