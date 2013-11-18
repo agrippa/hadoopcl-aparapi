@@ -1329,7 +1329,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
          }
-         fprintf(stderr, "Successful kernel launch\n");
       } catch(CLException& cle) {
          cle.printError();
          // unpinAll(toUnpin, nToUnpin, jenv);
@@ -1373,6 +1372,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
                  err = clEnqueueReadBuffer(jniContext->commandQueue, mem, CL_TRUE,
                          0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
                          /*read_events + nReadEvents*/ NULL);
+
                  arg->unpinCommit(jenv);
                  // arg->unpin(jenv);
                  if (err != CL_SUCCESS) {

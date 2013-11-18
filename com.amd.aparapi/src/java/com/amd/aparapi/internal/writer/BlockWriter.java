@@ -84,6 +84,7 @@ import com.amd.aparapi.internal.instruction.InstructionSet.I_IFNONNULL;
 import com.amd.aparapi.internal.instruction.InstructionSet.I_IFNULL;
 import com.amd.aparapi.internal.instruction.InstructionSet.I_IINC;
 import com.amd.aparapi.internal.instruction.InstructionSet.I_POP;
+import com.amd.aparapi.internal.instruction.InstructionSet.I_ACONST_NULL;
 import com.amd.aparapi.internal.instruction.InstructionSet.If;
 import com.amd.aparapi.internal.instruction.InstructionSet.IfUnary;
 import com.amd.aparapi.internal.instruction.InstructionSet.IncrementInstruction;
@@ -688,10 +689,14 @@ public abstract class BlockWriter{
                write(value.toString());
             }
          } else {
+           if (constantInstruction instanceof I_ACONST_NULL) {
+             write("NULL");
+           } else {
             write(value.toString());
             if (value instanceof Long) {
                write("L");
             }
+           }
          }
 
       } else if (_instruction instanceof AccessLocalVariable) {
