@@ -576,7 +576,15 @@ public abstract class BlockWriter{
             if(localVariable.isArray()) {
                 String varName = localVariable.getVariableName();
                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
-                strided = allVars.get(var);
+                Boolean obj = this.allVars.get(var);
+                /*
+                 * In testing, it seems that arrays retrieved through HadoopCL globals
+                 * may have null entries in allVars. They can never be strided, so we just
+                 * handle that here.
+                 */
+                if (obj != null && obj.booleanValue()) {
+                  strided = true;
+                }
             }
          }
          writeInstruction(refInstruction);

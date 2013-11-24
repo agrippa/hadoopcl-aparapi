@@ -787,6 +787,8 @@ public abstract class KernelWriter extends BlockWriter{
       final String getGlobalIndicesPost = "__getGlobalIndices";
       final String getGlobalValsPost = "__getGlobalVals";
       final String getGlobalFValsPost = "__getGlobalFVals";
+      // final String referenceGlobalValPost = "__referenceGlobalVal";
+      // final String referenceGlobalFvalPost = "__referenceGlobalFval";
       final String inputVectorLengthPost = "__inputVectorLength";
       final String allocIntPost = "__allocInt";
       final String allocDoublePost = "__allocDouble";
@@ -808,6 +810,8 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isGetGlobalIndices = false;
          boolean isGetGlobalVals = false;
          boolean isGetGlobalFVals = false;
+         boolean isReferenceGlobalVal = false;
+         boolean isReferenceGlobalFval = false;
          boolean isInputVectorLength = false;
          boolean isAllocInt = false;
          boolean isAllocDouble = false;
@@ -838,6 +842,10 @@ public abstract class KernelWriter extends BlockWriter{
                  isGetGlobalVals = true;
              } else if(mm.getName().indexOf(getGlobalFValsPost) != -1) {
                  isGetGlobalFVals = true;
+             // } else if (mm.getName().indexOf(referenceGlobalValPost) != -1) {
+             //    isReferenceGlobalVal = true;
+             // } else if (mm.getName().indexOf(referenceGlobalFvalPost) != -1) {
+             //    isReferenceGlobalFval = true;
              } else if(mm.getName().indexOf(inputVectorLengthPost) != -1) {
                  isInputVectorLength = true;
              } else if(mm.getName().indexOf(allocIntPost) != -1) {
@@ -1221,24 +1229,10 @@ public abstract class KernelWriter extends BlockWriter{
 
              write("}\n");
          } else if(isGetGlobalIndices) {
-             //writeMethodBody(mm);
-
-             //String line = removePreviousLine();
-             //while(line.indexOf("getGlobalIndices") == -1) {
-             //    line = removePreviousLine();
-             //}
-             //write(line);
              write("\n{\n");
              write("   return this->globalsInd + this->globalIndices[gid];\n");
              write("}\n");
          } else if(isGetGlobalVals) {
-             //writeMethodBody(mm);
-
-             //String line = removePreviousLine();
-             //while(line.indexOf("getGlobalVals") == -1) {
-             //    line = removePreviousLine();
-             //}
-             //write(line);
              write("\n{\n");
              write("   return this->globalsVal + this->globalIndices[gid];\n");
              write("}\n");
@@ -1246,6 +1240,20 @@ public abstract class KernelWriter extends BlockWriter{
              write("\n{\n");
              write("   return this->globalsFval + this->globalIndices[gid];\n");
              write("}\n");
+         // } else if (isReferenceGlobalVal) {
+         //     write("\n{\n");
+         //     write("   int hash = sparseIndex % this->nGlobalBuckets;\n");
+         //     write("   int globalBucketId = gid * this->nGlobalBuckets + hash;\n");
+         //     write("   int bucketStart = this->globalsMap[globalBucketId];\n");
+         //     write("   return 0.0;\n");
+         //     write("}\n");
+         // } else if (isReferenceGlobalFval) {
+         //     write("\n{\n");
+         //     write("   int hash = sparseIndex % this->nGlobalBuckets;\n");
+         //     write("   int globalBucketId = gid * this->nGlobalBuckets + hash;\n");
+         //     write("   int bucketStart = this->globalsMap[globalBucketId];\n");
+         //     write("   return 0.0f;\n");
+         //     write("}\n");
          } else if(isInputVectorLength) {
              write("\n{\n");
              write("   int start = this->inputValLookAsideBuffer[vid];\n");
