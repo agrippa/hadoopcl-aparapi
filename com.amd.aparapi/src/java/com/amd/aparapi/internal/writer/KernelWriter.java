@@ -1601,8 +1601,6 @@ public abstract class KernelWriter extends BlockWriter{
           }
       }
 
-      
-
       boolean changed;
       do {
           changed = false;

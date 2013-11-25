@@ -38,7 +38,7 @@
 
 #define APARAPI_SOURCE
 
-// #define PROFILE_HADOOPCL 1
+#define PROFILE_HADOOPCL
 
 //this is a workaround for windows machines since <windows.h> defines min/max that break code.
 #define NOMINMAX
@@ -51,7 +51,13 @@
 #include "CLHelper.h"
 #include "List.h"
 #include <algorithm>
+#include <sys/timeb.h>
 
+double read_timer() {
+  struct timeb tm;
+  ftime(&tm);
+  return (double)tm.time + (double)tm.millitm/1000.0;
+}
 
 //compiler dependant code
 /**
@@ -1109,88 +1115,6 @@ static int contains(char *exts, char *search) {
     return 0;
 }
 
-/*
-JNI_JAVA(jint, KernelRunnerJNI, allDevicesSupport64bitFloat)
-    (JNIEnv *jenv, jclass clazz) {
-
-    cl_platform_id *platforms;
-    cl_device_id *devices;
-    cl_uint *platformDevicesCount;
-    cl_uint nPlatforms;
-    int maxDevicePerPlatform = 0;
-    int i, j;
-    char *exts;
-    int extsLen = 0;
-
-    cl_int err = clGetPlatformIDs(0, NULL, &nPlatforms);
-    if (err != CL_SUCCESS) {
-        fprintf(stderr, "clGetPlatformIDs failed with err=%d\n",err);
-        exit(1);
-    }
-    platforms = (cl_platform_id *)malloc(sizeof(cl_platform_id) * nPlatforms);
-    platformDevicesCount = (cl_uint *)malloc(sizeof(cl_uint) * nPlatforms);
-    err = clGetPlatformIDs(nPlatforms, platforms, 0);
-    if (err != CL_SUCCESS) {
-        fprintf(stderr, "clGetPlatformIDs failed with err=%d\n",err);
-        exit(1);
-    }
-    
-    for (i = 0; i < nPlatforms; i++) {
-        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, platformDevicesCount + i);
-        if (err != CL_SUCCESS) {
-            fprintf(stderr, "clGetDeviceIDs failed with err=%d\n",err);
-            exit(1);
-        }
-        if (platformDevicesCount[i] > maxDevicePerPlatform) {
-            maxDevicePerPlatform = platformDevicesCount[i];
-        }
-    }
-
-    devices = (cl_device_id *)malloc(sizeof(cl_device_id) * maxDevicePerPlatform);
-
-    for (i = 0; i < nPlatforms; i++) {
-        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, platformDevicesCount[i], devices, NULL);
-        if (err != CL_SUCCESS) {
-            fprintf(stderr, "clGetDeviceIDs failed with err=%d\n",err);
-            exit(1);
-        }
-        for (j = 0; j < platformDevicesCount[i]; j++) {
-            size_t len;
-            err = clGetDeviceInfo(devices[j], CL_DEVICE_EXTENSIONS, 0, NULL, &len);
-            if (err != CL_SUCCESS) {
-                fprintf(stderr, "clGetDeviceInfo failed with err=%d\n",err);
-                exit(1);
-            }
-            if (len > extsLen) {
-                exts = (char *)realloc(exts, len);
-                extsLen = len;
-            }
-            err = clGetDeviceInfo(devices[j], CL_DEVICE_EXTENSIONS, extsLen, exts, NULL);
-            if (err != CL_SUCCESS) {
-                fprintf(stderr, "clGetDeviceInfo failed with err=%d\n",err);
-                exit(1);
-            }
-
-            if (contains(exts, "cl_amd_fp64") == 0 &&
-                    contains(exts, "cl_khr_fp64") == 0) {
-                free(devices);
-                free(platformDevicesCount);
-                free(platforms);
-                free(exts);
-                return 0;
-
-            }
-        }
-    }
-
-    free(devices);
-    free(platformDevicesCount);
-    free(platforms);
-    free(exts);
-    return 1;
-}
-*/
-
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
 
@@ -1206,8 +1130,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     if (err != CL_SUCCESS) {
         fprintf(stderr,"Error retrieving event info: %d\n",err);
         exit(7);
-        // clWaitForEvents(1, &(jniContext->exec_event)); // should be a no-op
-        // clReleaseEvent(jniContext->exec_event);
     }
     return status == CL_COMPLETE;
 }
@@ -1220,17 +1142,14 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       }
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
 
-      // KernelArg **toUnpin = (KernelArg**)malloc(sizeof(KernelArg*) * jniContext->argc);
-      // int nToUnpin = 0;
-
       Range range(jenv, _range);
 
       cl_int err = CL_SUCCESS;
 
-      // cl_event *write_events = NULL;
-      // int nWriteEvents = 0;
-
       try {
+#ifdef PROFILE_HADOOPCL
+         jniContext->startWrite = read_timer();
+#endif
          int argpos = 0;
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
@@ -1246,26 +1165,17 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(arg->javaArg, KernelArg::javaArrayFieldID);
                  cl_mem mem = jniContext->hadoopclRefresh(arg);
                  if (arg->dir != OUT) {
-                     // write_events = (cl_event *)realloc(write_events, sizeof(cl_event) * (nWriteEvents+1));
 
                      arg->pin(jenv);
-                     // toUnpin[nToUnpin++] = arg;
 
                      err = clEnqueueWriteBuffer(jniContext->commandQueue, mem, CL_TRUE,
                              0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL,
                              NULL /*write_events + nWriteEvents*/ );
                      arg->unpinAbort(jenv);
                      if (err != CL_SUCCESS) {
-                         // clWaitForEvents(nWriteEvents, write_events);
-                         // unpinAll(toUnpin, nToUnpin, jenv);
-                         // releaseAllEvents(write_events, nWriteEvents);
                          fprintf(stderr,"Reporting failure of write: %d\n",err);
                          return err;
-                         // fprintf(stderr,"Error writing %s of size %llu to device: %d\n",
-                         //         arg->name, arg->arrayBuffer->lengthInBytes, err);
-                         // exit(1);
                      }
-                     // nWriteEvents++;
                  }
                  err = clSetKernelArg(jniContext->kernel, argpos, sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
@@ -1287,7 +1197,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  }
              }
          }
-         // err = clWaitForEvents(nWriteEvents, write_events);
+#ifdef PROFILE_HADOOPCL
+         jniContext->stopWrite = read_timer();
+#endif
 
          int dummy_pass = 0;
          err = clSetKernelArg(jniContext->kernel, argpos, sizeof(int), &dummy_pass);
@@ -1324,21 +1236,13 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                0, NULL,
                &(jniContext->exec_event));
          if (err != CL_SUCCESS) {
-             // unpinAll(toUnpin, nToUnpin, jenv);
-             // releaseAllEvents(write_events, nWriteEvents);
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
          }
       } catch(CLException& cle) {
          cle.printError();
-         // unpinAll(toUnpin, nToUnpin, jenv);
-         // releaseAllEvents(write_events, nWriteEvents);
-         // clReleaseEvent(jniContext->exec_event);
          return cle.status();
       }
-      // unpinAll(toUnpin, nToUnpin, jenv);
-      // releaseAllEvents(write_events, nWriteEvents);
-      // clReleaseEvent(jniContext->exec_event);
       return err;
 }
 
@@ -1348,16 +1252,16 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
          config = new Config(jenv);
       }
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
-
-      // KernelArg **toUnpin = (KernelArg**)malloc(sizeof(KernelArg*) * jniContext->argc);
-      // int nToUnpin = 0;
+#ifdef PROFILE_HADOOPCL
+      double startRead, stopRead;
+#endif
 
       cl_int err = CL_SUCCESS;
 
-      // cl_event *read_events = NULL;
-      // int nReadEvents = 0;
-
       try {
+#ifdef PROFILE_HADOOPCL
+        startRead = read_timer();
+#endif
          for (int argidx = 0; argidx < jniContext->argc; argidx++) {
              KernelArg *arg = jniContext->args[argidx];
              if (arg->isArray() && arg->dir != IN) {
@@ -1365,221 +1269,45 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(arg->javaArg, KernelArg::javaArrayFieldID);
 
                  arg->pin(jenv);
-                 // toUnpin[nToUnpin++] = arg;
 
                  cl_mem mem = jniContext->findHadoopclParam(arg)->allocatedMem;
-                 // read_events = (cl_event *)realloc(read_events, sizeof(cl_event) * (nReadEvents+1));
                  err = clEnqueueReadBuffer(jniContext->commandQueue, mem, CL_TRUE,
                          0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
                          /*read_events + nReadEvents*/ NULL);
 
                  arg->unpinCommit(jenv);
-                 // arg->unpin(jenv);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error reading %s of size %llu: %d\n",
                              arg->name, arg->arrayBuffer->lengthInBytes, err);
                      exit(12);
                  }
-                 // nReadEvents++;
              }
          }
-
-         // err = clWaitForEvents(nReadEvents, read_events);
-         // if (err != CL_SUCCESS) {
-         //     fprintf(stderr, "Error waiting for %d read events\n",nReadEvents);
-         //     exit(13);
-         // }
-
+#ifdef PROFILE_HADOOPCL
+        stopRead = read_timer();
+#endif
       }
       catch(CLException& cle) {
          cle.printError();
-         // unpinAll(toUnpin, nToUnpin, jenv);
-         // releaseAllEvents(read_events, nReadEvents);
          clReleaseEvent(jniContext->exec_event);
          return cle.status();
       }
-      // unpinAll(toUnpin, nToUnpin, jenv);
-      // releaseAllEvents(read_events, nReadEvents);
+
+#ifdef PROFILE_HADOOPCL
+      cl_ulong end, queued, start;
+      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+      fprintf(stderr, "OpenCL Profile: write %f ms, kernel queued %f ms, kernel running %f ms, read %f ms\n",
+          jniContext->stopWrite - jniContext->startWrite,
+          (start - queued) / 1000000.0,
+          (end - start) / 1000000.0,
+          stopRead - startRead);
+#endif
       clReleaseEvent(jniContext->exec_event);
 
       return err;
     }
-
-/*
- * This is a special-purpose function for running HadoopCL kernels.
- * It assumes lots of things about the arguments passed, so don't
- * use it unless you're using HadoopCL
- */
-JNI_JAVA(jint, KernelRunnerJNI, hadoopclRunKernelJNI)
-   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range) {
-      if (config == NULL){
-         config = new Config(jenv);
-      }
-      JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
-
-      KernelArg **toUnpin = (KernelArg**)malloc(sizeof(KernelArg*) * jniContext->argc);
-      int nToUnpin = 0;
-
-      Range range(jenv, _range);
-
-      cl_int err = CL_SUCCESS;
-
-      int successful_kernel = 0;
-
-      cl_event *write_events = NULL;
-      int nWriteEvents = 0;
-      cl_event *read_events = NULL;
-      int nReadEvents = 0;
-
-      try {
-         int argpos = 0;
-         for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
-             KernelArg *arg = jniContext->args[argidx];
-             if (!arg->isArray()) {
-                 err = arg->setPrimitiveArg(jenv, argidx, argpos, config->isVerbose());
-                 if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                             argpos, arg->name, err);
-                     exit(14);
-                 }
-             } else {
-                 arg->syncSizeInBytes(jenv);
-                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(arg->javaArg, KernelArg::javaArrayFieldID);
-                 cl_mem mem = jniContext->hadoopclRefresh(arg);
-                 if (arg->dir != OUT) {
-                     write_events = (cl_event *)realloc(write_events, sizeof(cl_event) * (nWriteEvents+1));
-
-                     arg->pin(jenv);
-                     toUnpin[nToUnpin++] = arg;
-
-                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem, CL_FALSE,
-                             0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL,
-                             write_events + nWriteEvents);
-                     if (err != CL_SUCCESS) {
-                         fprintf(stderr,"Error writing %s of size %llu to device: %d\n",
-                                 arg->name, arg->arrayBuffer->lengthInBytes, err);
-                         exit(15);
-                     }
-                     // arg->unpin(jenv);
-                     nWriteEvents++;
-                 }
-                 err = clSetKernelArg(jniContext->kernel, argpos, sizeof(cl_mem), &mem);
-                 if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                             argpos, arg->name, err);
-                     exit(16);
-                 }
-
-                 if (arg->usesArrayLength()) {
-                     argpos++;
-                     arg->syncJavaArrayLength(jenv);
-                     err = clSetKernelArg(jniContext->kernel, argpos, sizeof(jint),
-                             &(arg->arrayBuffer->length));
-                     if (err != CL_SUCCESS) {
-                         fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                                 argpos, arg->name, err);
-                         exit(17);
-                     }
-                 }
-             }
-         }
-         // err = clWaitForEvents(nWriteEvents, write_events);
-
-         int dummy_pass = 0;
-         err = clSetKernelArg(jniContext->kernel, argpos, sizeof(int), &dummy_pass);
-         if (err != CL_SUCCESS) {
-             fprintf(stderr,"Error setting kernel arg for dummy pass\n");
-             exit(18);
-         }
-
-         // -----------
-         // fix for Mac OSX CPU driver (and possibly others) 
-         // which fail to give correct maximum work group info
-         // while using clGetDeviceInfo
-         // see: http://www.openwall.com/lists/john-dev/2012/04/10/4
-         cl_uint max_group_size[3];
-         err = clGetKernelWorkGroupInfo(jniContext->kernel,
-                                           (cl_device_id)jniContext->deviceId,
-                                           CL_KERNEL_WORK_GROUP_SIZE,
-                                           sizeof(max_group_size),
-                                           &max_group_size, NULL);
-         
-         if (err != CL_SUCCESS) {
-            CLException(err, "clGetKernelWorkGroupInfo()").printError();
-         } else {
-            range.localDims[0] = std::min((cl_uint)range.localDims[0], max_group_size[0]);
-         }
-
-         err = clEnqueueNDRangeKernel(
-               jniContext->commandQueue,
-               jniContext->kernel,
-               range.dims,
-               range.offsets,
-               range.globalDims,
-               range.localDims,
-               nWriteEvents,
-               write_events,
-               &(jniContext->exec_event));
-         if (err != CL_SUCCESS) {
-             fprintf(stderr,"Error launching kernel: %d\n",err);
-             exit(19);
-         }
-         successful_kernel = 1;
-
-         // err = clWaitForEvents(1, &exec_event);
-
-         for (int argidx = 0; argidx < jniContext->argc; argidx++) {
-             KernelArg *arg = jniContext->args[argidx];
-             if (arg->isArray() && arg->dir != IN) {
-
-                 int isPinned = 0;
-                 for (int i = 0; i < nToUnpin; i++) {
-                     if (toUnpin[i] == arg) {
-                         isPinned = 1;
-                         break;
-                     }
-                 }
-                 if (!isPinned) {
-                     arg->pin(jenv);
-                     toUnpin[nToUnpin++] = arg;
-                 }
-
-                 // arg->pin(jenv);
-                 cl_mem mem = jniContext->findHadoopclParam(arg)->allocatedMem;
-                 read_events = (cl_event *)realloc(read_events, sizeof(cl_event) * (nReadEvents+1));
-                 err = clEnqueueReadBuffer(jniContext->commandQueue, mem, CL_FALSE,
-                         0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
-                         read_events + nReadEvents);
-                 if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error reading %s of size %llu: %d\n",
-                             arg->name, arg->arrayBuffer->lengthInBytes, err);
-                     exit(20);
-                 }
-                 // arg->unpin(jenv);
-                 nReadEvents++;
-             }
-         }
-         err = clWaitForEvents(nReadEvents, read_events);
-         if (err != CL_SUCCESS) {
-             fprintf(stderr, "Error waiting for %d read events\n",nReadEvents);
-             exit(21);
-         }
-      }
-      catch(CLException& cle) {
-         cle.printError();
-         unpinAll(toUnpin, nToUnpin, jenv);
-         releaseAllEvents(write_events, nWriteEvents);
-         releaseAllEvents(read_events, nReadEvents);
-         if (successful_kernel) clReleaseEvent(jniContext->exec_event);
-         return cle.status();
-      }
-      unpinAll(toUnpin, nToUnpin, jenv);
-      releaseAllEvents(write_events, nWriteEvents);
-      releaseAllEvents(read_events, nReadEvents);
-      if (successful_kernel) clReleaseEvent(jniContext->exec_event);
-
-      return(err);
-   }
 
 JNI_JAVA(jint, KernelRunnerJNI, runKernelJNI)
    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range, jboolean needSync, jint passes) {

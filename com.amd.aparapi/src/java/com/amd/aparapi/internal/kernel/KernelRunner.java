@@ -898,35 +898,9 @@ public class KernelRunner extends KernelRunnerJNI{
 
       // native side will reallocate array buffers if necessary
       int execID;
-      /*
-      if ((execID = hadoopclRunKernelJNI(jniContextHandle, _range)) != 0) {
-         logger.warning("### CL exec seems to have failed. Trying to revert to Java ###");
-         kernel.setFallbackExecutionMode();
-         return execute(_entrypointName, _range, _passes, enableStriding);
-      }
-      */
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle, _range)) != 0) {
-         // System.err.println("Got error code "+execID+" from hadoopclLaunchKernelJNI, return null");
          return null;
-         // logger.warning("### CL launch seems to have failed. Trying to revert to Java ###");
-         // kernel.setFallbackExecutionMode();
-         // return execute(_entrypointName, _range, _passes, enableStriding);
       }
-      // System.err.println("hadoopclLaunchKernelJNI ran successfully");
-      /*
-      if (hadoopclKernelIsDoneJNI(jniContextHandle) == 0) {
-          System.err.println("Aparapi reporting kernel is RUNNING.");
-      } else {
-          System.err.println("Aparapi reporting kernel is DONE.");
-      }
-      */
-      /*
-      if ((execID = hadoopclReadbackJNI(jniContextHandle)) != 0) {
-         logger.warning("### CL readback seems to have failed. Trying to revert to Java ###");
-         kernel.setFallbackExecutionMode();
-         return execute(_entrypointName, _range, _passes, enableStriding);
-      }
-      */
 
       if (usesOopConversion == true) {
          restoreObjects();
