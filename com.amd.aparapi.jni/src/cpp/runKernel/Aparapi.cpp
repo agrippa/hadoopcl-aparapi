@@ -1239,6 +1239,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
          }
+         clFlush(jniContext->commandQueue);
       } catch(CLException& cle) {
          cle.printError();
          return cle.status();
@@ -1294,13 +1295,15 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
       }
 
 #ifdef PROFILE_HADOOPCL
-      cl_ulong end, queued, start;
+      cl_ulong end, queued, start, submit;
       clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
       clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
       clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
-      fprintf(stderr, "OpenCL Profile: write %f ms, kernel queued %f ms, kernel running %f ms, read %f ms\n",
+      fprintf(stderr, "OpenCL Profile: write %f ms, kernel queued %f ms, kernel submitted %f ms, kernel running %f ms, read %f ms\n",
           jniContext->stopWrite - jniContext->startWrite,
-          (start - queued) / 1000000.0,
+          (submit - queued) / 1000000.0,
+          (start - submit) / 1000000.0,
           (end - start) / 1000000.0,
           stopRead - startRead);
 #endif
