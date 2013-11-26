@@ -1154,7 +1154,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
              if (!arg->isArray()) {
-                 err = arg->setPrimitiveArg(jenv, argidx, argpos, config->isVerbose());
+                 err = arg->setPrimitiveArg(jenv, argidx, argpos,
+                         config->isVerbose());
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
                              argpos, arg->name, err);
@@ -1162,22 +1163,24 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  }
              } else {
                  arg->syncSizeInBytes(jenv);
-                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(arg->javaArg, KernelArg::javaArrayFieldID);
+                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                         arg->javaArg, KernelArg::javaArrayFieldID);
                  cl_mem mem = jniContext->hadoopclRefresh(arg);
                  if (arg->dir != OUT) {
 
                      arg->pin(jenv);
 
-                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem, CL_TRUE,
-                             0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL,
-                             NULL /*write_events + nWriteEvents*/ );
+                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem,
+                             CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                             arg->arrayBuffer->addr, 0, NULL, NULL);
                      arg->unpinAbort(jenv);
                      if (err != CL_SUCCESS) {
                          fprintf(stderr,"Reporting failure of write: %d\n",err);
                          return err;
                      }
                  }
-                 err = clSetKernelArg(jniContext->kernel, argpos, sizeof(cl_mem), &mem);
+                 err = clSetKernelArg(jniContext->kernel, argpos,
+                         sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
                              argpos, arg->name, err);
@@ -1187,8 +1190,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  if (arg->usesArrayLength()) {
                      argpos++;
                      arg->syncJavaArrayLength(jenv);
-                     err = clSetKernelArg(jniContext->kernel, argpos, sizeof(jint),
-                             &(arg->arrayBuffer->length));
+                     err = clSetKernelArg(jniContext->kernel, argpos,
+                             sizeof(jint), &(arg->arrayBuffer->length));
                      if (err != CL_SUCCESS) {
                          fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
                                  argpos, arg->name, err);
@@ -1202,7 +1205,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #endif
 
          int dummy_pass = 0;
-         err = clSetKernelArg(jniContext->kernel, argpos, sizeof(int), &dummy_pass);
+         err = clSetKernelArg(jniContext->kernel, argpos, sizeof(int),
+                 &dummy_pass);
          if (err != CL_SUCCESS) {
              fprintf(stderr,"Error setting kernel arg for dummy pass\n");
              exit(11);
@@ -1223,7 +1227,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          if (err != CL_SUCCESS) {
             CLException(err, "clGetKernelWorkGroupInfo()").printError();
          } else {
-            range.localDims[0] = std::min((cl_uint)range.localDims[0], max_group_size[0]);
+            range.localDims[0] = std::min((cl_uint)range.localDims[0],
+                    max_group_size[0]);
          }
 
          err = clEnqueueNDRangeKernel(
@@ -1267,14 +1272,16 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
              KernelArg *arg = jniContext->args[argidx];
              if (arg->isArray() && arg->dir != IN) {
                  arg->syncSizeInBytes(jenv);
-                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(arg->javaArg, KernelArg::javaArrayFieldID);
+                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                         arg->javaArg, KernelArg::javaArrayFieldID);
 
                  arg->pin(jenv);
 
                  cl_mem mem = jniContext->findHadoopclParam(arg)->allocatedMem;
-                 err = clEnqueueReadBuffer(jniContext->commandQueue, mem, CL_TRUE,
-                         0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
-                         /*read_events + nReadEvents*/ NULL);
+                 err = clEnqueueReadBuffer(jniContext->commandQueue, mem,
+                         CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                         arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
+                         NULL);
 
                  arg->unpinCommit(jenv);
                  if (err != CL_SUCCESS) {
@@ -1296,10 +1303,14 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
 
 #ifdef PROFILE_HADOOPCL
       cl_ulong end, queued, start, submit;
-      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
-      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
-      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
-      clGetEventProfilingInfo(jniContext->exec_event, CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event,
+              CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event,
+              CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event,
+              CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+      clGetEventProfilingInfo(jniContext->exec_event,
+              CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
       fprintf(stderr, "OpenCL Profile: write %f ms, kernel queued %f ms, kernel submitted %f ms, kernel running %f ms, read %f ms\n",
           jniContext->stopWrite - jniContext->startWrite,
           (submit - queued) / 1000000.0,
@@ -1313,7 +1324,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
     }
 
 JNI_JAVA(jint, KernelRunnerJNI, runKernelJNI)
-   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range, jboolean needSync, jint passes) {
+   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range,
+    jboolean needSync, jint passes) {
       if (config == NULL){
          config = new Config(jenv);
       }
