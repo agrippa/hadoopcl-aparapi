@@ -56,7 +56,7 @@
 double read_timer() {
   struct timeb tm;
   ftime(&tm);
-  return (double)tm.time + (double)tm.millitm/1000.0;
+  return (double)tm.time * 1000.0 + (double)tm.millitm;
 }
 
 //compiler dependant code
