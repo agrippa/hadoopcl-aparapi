@@ -15,17 +15,26 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
     current->name = (char *)malloc(sizeof(char) * (strlen(arg->name)+1));
     memcpy(current->name, arg->name, sizeof(char) * (strlen(arg->name)+1));
     current->allocatedSize = (size_t)arg->arrayBuffer->lengthInBytes;
+    current->javaPtr = NULL;
     // TODO depending on whether name contains input/output we should be
     // able to set more accurate flags here
     cl_int err;
+    cl_mem_flags flags = CL_MEM_READ_WRITE;
+    void *host_ptr = NULL;
+    if (arg->dir != OUT) {
+        flags |= CL_MEM_USE_HOST_PTR;
+        host_ptr = arg->arrayBuffer->addr;
+        current->javaPtr = arg->arrayBuffer->addr;
+    }
     current->allocatedMem = clCreateBuffer(context,
-        CL_MEM_READ_WRITE, current->allocatedSize, NULL, &err);
+        flags, current->allocatedSize, host_ptr, &err);
+
     if (err != CL_SUCCESS) {
         fprintf(stderr, "Error allocating buffer of size %llu for %s: %d\n",
             current->allocatedSize, current->name, err);
         exit(3);
     }
-    // fprintf(stderr, "%s : %llu\n",current->name, current->allocatedSize);
+    fprintf(stderr, "%s : %llu\n",current->name, current->allocatedSize);
     return current;
 }
 
@@ -43,9 +52,17 @@ hadoopclParameter* JNIContext::findHadoopclParam(KernelArg *arg) {
 }
 
 void JNIContext::refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam) {
-    if (arg->arrayBuffer->lengthInBytes <= hadoopclParam->allocatedSize) return;
+    if (arg->arrayBuffer->lengthInBytes <= hadoopclParam->allocatedSize &&
+            hadoopclParam->javaPtr == NULL ||
+            (arg->arrayBuffer->isCopy == 0 &&
+            arg->arrayBuffer->addr == hadoopclParam->javaPtr)) {
+        return;
+    }
     
-    fprintf(stderr, "Refreshing param %s from %llu to %llu\n",hadoopclParam->name, hadoopclParam->allocatedSize, arg->arrayBuffer->lengthInBytes);
+    fprintf(stderr, "Refreshing param %s from %llu to %llu\n",
+            hadoopclParam->name, hadoopclParam->allocatedSize, arg->arrayBuffer->lengthInBytes);
+    fprintf(stderr, "Because isCopy=%d, current javaPtr=%p, old javaPtr=%p\n",
+            arg->arrayBuffer->isCopy, hadoopclParam->javaPtr, arg->arrayBuffer->addr);
 
     cl_int err = clReleaseMemObject(hadoopclParam->allocatedMem);
     if (err != CL_SUCCESS) {
