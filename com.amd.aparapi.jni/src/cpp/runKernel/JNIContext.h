@@ -12,7 +12,6 @@ typedef struct _hadoopclParameter {
     char *name;
     cl_mem allocatedMem;
     size_t allocatedSize;
-    void *javaPtr;
 } hadoopclParameter;
 
 class JNIContext {

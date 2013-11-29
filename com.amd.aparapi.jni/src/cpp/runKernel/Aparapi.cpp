@@ -1166,18 +1166,17 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                          arg->javaArg, KernelArg::javaArrayFieldID);
 
-                 arg->pin(jenv);
                  cl_mem mem = jniContext->hadoopclRefresh(arg);
                  if (arg->dir != OUT) {
-                     err = clEnqueueWriteBuffer(jniContext->commandQueue, mem,
-                             CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
-                             arg->arrayBuffer->addr, 0, NULL, NULL);
-                 }
-
-                 arg->unpinAbort(jenv);
-                 if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Reporting failure of write: %d\n",err);
-                     return err;
+                   arg->pin(jenv);
+                   err = clEnqueueWriteBuffer(jniContext->commandQueue, mem,
+                           CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                           arg->arrayBuffer->addr, 0, NULL, NULL);
+                   if (err != CL_SUCCESS) {
+                       fprintf(stderr,"Reporting failure of write: %d\n",err);
+                       return err;
+                   }
+                   arg->unpinAbort(jenv);
                  }
 
                  err = clSetKernelArg(jniContext->kernel, argpos,

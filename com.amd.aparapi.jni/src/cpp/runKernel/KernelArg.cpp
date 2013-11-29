@@ -30,10 +30,10 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
       type = jenv->GetIntField(argObj, typeFieldID);
       jstring nameString  = (jstring)jenv->GetObjectField(argObj, nameFieldID);
       const char *nameChars = jenv->GetStringUTFChars(nameString, NULL);
-      if(strncmp(nameChars, "input", 5) == 0) {
+      if (strncmp(nameChars, "input", 5) == 0 || strncmp(nameChars, "globals", 7) == 0) {
           //fprintf(stderr,"Creating argument %s with direction IN\n",nameChars);
           dir = IN;
-      } else if(strncmp(nameChars, "output", 6) == 0) {
+      } else if (strncmp(nameChars, "output", 6) == 0) {
           //fprintf(stderr,"Creating argument %s with direction OUT\n",nameChars);
           dir = OUT;
       } else {
