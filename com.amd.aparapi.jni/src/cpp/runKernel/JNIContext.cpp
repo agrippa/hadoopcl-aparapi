@@ -16,8 +16,8 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
     current->name = (char *)malloc(sizeof(char) * (strlen(arg->name)+1));
     memcpy(current->name, arg->name, sizeof(char) * (strlen(arg->name)+1));
     current->allocatedSize = (size_t)arg->arrayBuffer->lengthInBytes;
-    if (strncmp(nameChars, "globals", 7) == 0) {
-        current->createFlags = CL_MEM_READ;
+    if (strncmp(current->name, "globals", 7) == 0) {
+        current->createFlags = CL_MEM_READ_ONLY;
     } else {
         current->createFlags = CL_MEM_READ_WRITE;
     }
