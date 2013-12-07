@@ -796,7 +796,8 @@ public abstract class BlockWriter{
              write("if (!");
              writeMethod(methodCall, methodEntry);
              write(") return");
-             //newLine();
+         } else if (methodName.equals("nValues")) {
+             write("nValues(this)");
          } else {
              writeMethod(methodCall, methodEntry);
          }
@@ -926,17 +927,14 @@ public abstract class BlockWriter{
       write(_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8());
       write("(");
 
-      // System.out.print("Method "+_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8()+" takes arguments ");
       for (int arg = 0; arg < argc; arg++) {
          if (arg != 0) {
             write(", ");
          }
          Instruction argObj = _methodCall.getArg(arg);
-         // System.out.print("\""+argObj.toString()+"\" ");
          writeInstruction(argObj);
       }
       write(")");
-
    }
 
    public void writeThisRef() {

@@ -290,10 +290,8 @@ public abstract class KernelWriter extends BlockWriter{
          }
 
          for (int arg = 0; arg < argc; arg++) {
-            if (((intrinsicMapping == null) && (_methodCall instanceof VirtualMethodCall) && (!isIntrinsic)) || (arg != 0) || (modifiableMethods.contains(methodName))) {
-               write(", ");
-            }
             Instruction argObj = _methodCall.getArg(arg);
+            boolean isIterator = false;
             if (argObj instanceof AccessLocalVariable) {
                 final AccessLocalVariable localVariableLoadInstruction = (AccessLocalVariable) argObj;
                 final LocalVariableInfo localVariable = localVariableLoadInstruction.getLocalVariableInfo();
@@ -308,15 +306,23 @@ public abstract class KernelWriter extends BlockWriter{
                     VarAlias newAlias = new VarAlias(beingPassed, argument);
                     this.addAlias(newAlias);
                 }
-                /*
-                System.out.println("      \""+localVariable.getVariableName()+"\" "+argObj.getClass().toString());
-                */
+                if (localVariable.getVariableDescriptor().equals("Lorg/apache/hadoop/mapreduce/HadoopCLSvecValueIterator;")) {
+                  isIterator = true;
+                }
+                // System.out.println("      \""+localVariable.getVariableName()+
+                //     "\" \""+localVariable.getVariableDescriptor()+"\" "+
+                //     argObj.getClass().toString());
             } else {
-                /*
-                System.out.println("      \""+argObj.toString()+"\" "+argObj.getClass().toString());
-                */
+                // System.out.println("      \""+argObj.toString()+"\" "+argObj.getClass().toString());
             }
-            writeInstruction(argObj);
+
+            if (!isIterator) {
+              if (((intrinsicMapping == null) && (_methodCall instanceof VirtualMethodCall) && (!isIntrinsic)) || (arg != 0) || (modifiableMethods.contains(methodName))) {
+                 write(", ");
+              }
+              
+              writeInstruction(argObj);
+            }
          }
          write(")");
       }
@@ -638,9 +644,9 @@ public abstract class KernelWriter extends BlockWriter{
           write("   int currentValueIndex;\n");
           write("   int currentStartingValueIndex;\n");
           write("   int currentNumValues;\n");
-          if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
-              write("   int currentNumAuxValues;\n");
-          }
+          // if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
+          //     write("   int currentNumAuxValues;\n");
+          // }
       }
       write("   int reservedOffset;\n");
       write("   int reservedAuxOffset;\n");
@@ -674,7 +680,7 @@ public abstract class KernelWriter extends BlockWriter{
           write("}\n");
           write("\n");
           write("int seekTo(This *this, int set) {\n");
-          write("   if (set < 0 || this->currentStartingValueIndex+set >= this->currentNumValues) return 0;\n");
+          write("   if (set < 0 || set >= this->currentNumValues) return 0;\n");
           write("   this->currentValueIndex = this->currentStartingValueIndex+set;\n");
           write("   return 1;\n");
           write("}\n");
@@ -724,7 +730,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("\n");
               write("int vectorLength(This *this, int index) {\n");
               write("   int start = this->inputValLookAsideBuffer[index];\n");
-              write("   int end = (index == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[index+1]);\n");
+              write("   int end = (index == this->nVals-1 ? this->individualInputValsCount : this->inputValLookAsideBuffer[index+1]);\n");
               write("   return end-start;\n");
               write("}\n");
               write("\n");
@@ -739,7 +745,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("\n");
               write("int vectorLength(This *this, int index) {\n");
               write("   int start = this->inputValLookAsideBuffer[index];\n");
-              write("   int end = (index == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[index+1]);\n");
+              write("   int end = (index == this->nVals-1 ? this->individualInputValsCount : this->inputValLookAsideBuffer[index+1]);\n");
               write("   return end-start;\n");
               write("}\n");
               write("\n");
@@ -759,7 +765,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("\n");
               write("int vectorLength(This *this, int index) {\n");
               write("   int start = this->inputValLookAsideBuffer[index];\n");
-              write("   int end = (index == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[index+1]);\n");
+              write("   int end = (index == this->nVals-1 ? this->individualInputValsCount : this->inputValLookAsideBuffer[index+1]);\n");
               write("   return end-start;\n");
               write("}\n");
               write("\n");
@@ -795,6 +801,8 @@ public abstract class KernelWriter extends BlockWriter{
       final String allocFloatPost = "__allocFloat";
       final String mapPost = "__map";
       final String reducePost = "__reduce";
+      final String findNextSmallestPost = "__findNextSmallest";
+      final String findEndPost = "__findEnd";
 
       HADOOPTYPE hadoopType = HADOOPTYPE.UNKNOWN;
 
@@ -816,6 +824,8 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isAllocInt = false;
          boolean isAllocDouble = false;
          boolean isAllocFloat = false;
+         boolean isFindNextSmallest = false;
+         boolean isFindEnd = false;
          boolean isReduce = false;
          boolean isMap = false;
 
@@ -854,8 +864,13 @@ public abstract class KernelWriter extends BlockWriter{
                  isAllocDouble = true;
              } else if(mm.getName().indexOf(allocFloatPost) != -1) {
                  isAllocFloat = true;
+             } else if (mm.getName().indexOf(findNextSmallestPost) != -1) {
+                 isFindNextSmallest = true;
+             } else if (mm.getName().indexOf(findEndPost) != -1) {
+                 isFindEnd = true;
              }
          }
+
          if(mm.getName().indexOf(mapPost) != -1) {
              isMap = true;
          } else if(mm.getName().indexOf(reducePost) != -1) {
@@ -895,7 +910,8 @@ public abstract class KernelWriter extends BlockWriter{
          final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
          List<String> gatherArgumentNames = new ArrayList<String>();
          for (final LocalVariableInfo lvi : lvte) {
-            if ((lvi.getStart() == 0) && ((lvi.getVariableIndex() != 0) || mm.getMethod().isStatic())) { // full scope but skip this
+            if (!lvi.getVariableDescriptor().equals("Lorg/apache/hadoop/mapreduce/HadoopCLSvecValueIterator;") &&
+                (lvi.getStart() == 0) && ((lvi.getVariableIndex() != 0) || mm.getMethod().isStatic())) { // full scope but skip this
                final String descriptor = lvi.getVariableDescriptor();
                if (alreadyHasFirstArg) {
                   write(", ");
@@ -1153,11 +1169,11 @@ public abstract class KernelWriter extends BlockWriter{
              write("   this->currentValueIndex = startOffset;\n");
              write("   this->currentStartingValueIndex = startOffset;\n");
              write("   this->currentNumValues = stopOffset - startOffset;\n");
-             if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
-                write("   this->currentNumAuxValues = this->iter == this->nKeys-1 ?\n");
-                write("      (this->individualInputValsCount - this->inputValLookAsideBuffer[startOffset]) :\n");
-                write("      (this->inputValLookAsideBuffer[stopOffset] - this->inputValLookAsideBuffer[startOffset]);\n");
-             }
+             // if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
+             //    write("   this->currentNumAuxValues = this->iter == this->nKeys-1 ?\n");
+             //    write("      (this->individualInputValsCount - this->inputValLookAsideBuffer[startOffset]) :\n");
+             //    write("      (this->inputValLookAsideBuffer[stopOffset] - this->inputValLookAsideBuffer[startOffset]);\n");
+             // }
              write("   "+enclosingClassName+"__reduce(this, ");
 
              if (inputKeyType.equals("pair")) {
@@ -1296,7 +1312,26 @@ public abstract class KernelWriter extends BlockWriter{
              write("   }\n");
              write("   return this->outputValVals + offset;\n");
              write("}\n\n");
-
+         } else if (isFindNextSmallest) {
+             write("\n{\n");
+             write("   int index = startIndex;\n");
+             write("   int prev = -1;\n");
+             write("   while (index != -1 && queueOfSparseIndices[index]<sparseIndex) {\n");
+             write("      prev = index;\n");
+             write("      index = queueOfSparseIndicesLinks[index];\n");
+             write("   }\n");
+             write("   return prev;\n");
+             write("}\n\n");
+         } else if (isFindEnd) {
+             write("\n{\n");
+             write("   int index = startIndex;\n");
+             write("   int prev = -1;\n");
+             write("   while (index != -1) {\n");
+             write("      prev = index;\n");
+             write("      index = queueOfSparseIndicesLinks[index];\n");
+             write("   }\n");
+             write("   return prev;\n");
+             write("}\n\n");
          } else if(isMap) {
              writeMethodBody(mm);
 
@@ -1313,26 +1348,26 @@ public abstract class KernelWriter extends BlockWriter{
          } else if(isReduce) {
              writeMethodBody(mm);
 
-             List<String> buffer = new ArrayList<String>();
-             String line = removePreviousLine();
-             while(line.indexOf("reduce(") == -1) {
-                 buffer.add(line);
-                 line = removePreviousLine();
-             }
-             String[] tokens = line.split(" ");
-             StringBuffer rebuild = new StringBuffer();
-             for(int i = 0; i < tokens.length-3; i++) {
-                 rebuild.append(tokens[i]);
-                 rebuild.append(" ");
-             }
-             String finalArg = tokens[tokens.length-3];
-             finalArg = finalArg.substring(0, finalArg.length()-1);
-             rebuild.append(finalArg);
-             rebuild.append("){\n");
-             write(rebuild.toString());
-             for(int i = buffer.size()-1; i >= 0; i--) {
-                 write(buffer.get(i));
-             }
+             // List<String> buffer = new ArrayList<String>();
+             // String line = removePreviousLine();
+             // while(line.indexOf("reduce(") == -1) {
+             //     buffer.add(line);
+             //     line = removePreviousLine();
+             // }
+             // String[] tokens = line.split(" ");
+             // StringBuffer rebuild = new StringBuffer();
+             // for(int i = 0; i < tokens.length-3; i++) {
+             //     rebuild.append(tokens[i]);
+             //     rebuild.append(" ");
+             // }
+             // String finalArg = tokens[tokens.length-3];
+             // finalArg = finalArg.substring(0, finalArg.length()-1);
+             // rebuild.append(finalArg);
+             // rebuild.append("){\n");
+             // write(rebuild.toString());
+             // for(int i = buffer.size()-1; i >= 0; i--) {
+             //     write(buffer.get(i));
+             // }
          } else {
              writeMethodBody(mm);
          }
@@ -1539,7 +1574,7 @@ public abstract class KernelWriter extends BlockWriter{
        }
 
        @Override protected String removePreviousLine() {
-           return openCLStringBuilder.removePreviousLine();
+         return openCLStringBuilder.removePreviousLine();
        }
 
        @Override public String toString() {

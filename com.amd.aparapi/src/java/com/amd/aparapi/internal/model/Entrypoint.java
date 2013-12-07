@@ -647,10 +647,10 @@ public class Entrypoint{
       if (!fallback) {
          calledMethods.addAll(methodMap.values());
          calledMethods.add(classModel.getMethodModel("getOutputPairsPerInput", "()I"));
-         if(!isMapper) {
-             calledMethods.add(classModel.getAnyMethod("reduce"));
-             calledMethods.add(classModel.getAnyMethod("write"));
-         }
+         // if(!isMapper) {
+         //     calledMethods.add(classModel.getAnyMethod("reduce"));
+         //     calledMethods.add(classModel.getAnyMethod("write"));
+         // }
          //if(isMapper) calledMethods.add(classModel.getMethodModel("callMap", "()V"));
          //else calledMethods.add(classModel.getMethodModel("callReduce", "(II)V"));
          Collections.reverse(calledMethods);
