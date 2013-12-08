@@ -38,7 +38,7 @@
 
 #define APARAPI_SOURCE
 
-#define PROFILE_HADOOPCL
+// #define PROFILE_HADOOPCL
 
 //this is a workaround for windows machines since <windows.h> defines min/max that break code.
 #define NOMINMAX

@@ -7,13 +7,21 @@ import com.amd.aparapi.device.OpenCLDevice.DeviceSelector;
 public abstract class Device{
 
    public static enum TYPE {
-      UNKNOWN,
-      GPU,
-      CPU,
-      JTP,
-      SEQ,
-      JAVA
-   };
+      UNKNOWN ("UNKNOWN"),
+      GPU ("GPU"),
+      CPU ("CPU"),
+      JTP ("JTP"),
+      SEQ ("SEQ"),
+      JAVA ("JAVA");
+
+      private final String name;
+      private TYPE(String n) {
+        this.name = n;
+      }
+      public String toString() {
+        return this.name;
+      }
+   }
 
    public static Device best() {
       return (OpenCLDevice.select(new DeviceComparitor(){
