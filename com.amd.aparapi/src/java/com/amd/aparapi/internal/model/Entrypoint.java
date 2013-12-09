@@ -511,8 +511,8 @@ public class Entrypoint{
           referencedFieldNames.add("inputKeyIds");
           referencedFieldNames.add("inputKeys1");
           referencedFieldNames.add("inputKeys2");
-      } else if (inputKeyType.equals("svec")) {
-          throw new RuntimeException("Invalid input key type svec");
+      } else if (inputKeyType.equals("svec") || inputKeyType.equals("bsvec")) {
+          throw new RuntimeException("Invalid input key type "+inputKeyType);
       } else {
           referencedFieldNames.add("inputKeys");
       }
@@ -524,7 +524,7 @@ public class Entrypoint{
           referencedFieldNames.add("inputValIds");
           referencedFieldNames.add("inputVals1");
           referencedFieldNames.add("inputVals2");
-      } else if (inputValueType.equals("svec")) {
+      } else if (inputValueType.equals("svec") || inputValueType.equals("bsvec")) {
           referencedFieldNames.add("individualInputValsCount");
           referencedFieldNames.add("inputValLookAsideBuffer");
           referencedFieldNames.add("inputValIndices");
@@ -541,8 +541,8 @@ public class Entrypoint{
           referencedFieldNames.add("outputKeyIds");
           referencedFieldNames.add("outputKeys1");
           referencedFieldNames.add("outputKeys2");
-      } else if (outputKeyType.equals("svec")) {
-          throw new RuntimeException("Invalid output key type svec");
+      } else if (outputKeyType.equals("svec") || outputKeyType.equals("bsvec")) {
+          throw new RuntimeException("Invalid output key type "+outputKeyType);
       } else {
          referencedFieldNames.add("outputKeys");
       }
@@ -556,7 +556,7 @@ public class Entrypoint{
           referencedFieldNames.add("outputValIds");
           referencedFieldNames.add("outputVals1");
           referencedFieldNames.add("outputVals2");
-      } else if (outputValueType.equals("svec")) {
+      } else if (outputValueType.equals("svec") || outputValueType.equals("bsvec")) {
           referencedFieldNames.add("outputValIntLookAsideBuffer");
           referencedFieldNames.add("outputValDoubleLookAsideBuffer");
           referencedFieldNames.add("outputValLengthBuffer");

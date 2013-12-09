@@ -644,9 +644,6 @@ public abstract class KernelWriter extends BlockWriter{
           write("   int currentValueIndex;\n");
           write("   int currentStartingValueIndex;\n");
           write("   int currentNumValues;\n");
-          // if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
-          //     write("   int currentNumAuxValues;\n");
-          // }
       }
       write("   int reservedOffset;\n");
       write("   int reservedAuxOffset;\n");
@@ -718,7 +715,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("   return this->inputVals2[this->currentValueIndex];\n");
               write("}\n");
               write("\n");
-          } else if (inputValType.equals("svec")) {
+          } else if (inputValType.equals("svec") || inputValType.equals("bsvec")) {
               write("__global int *getValIndices(This *this) {\n");
               //write("   int end = (this->currentValueIndex == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[this->currentValueIndex+1]);
               write("   return this->inputValIndices + this->inputValLookAsideBuffer[this->currentValueIndex];\n");
@@ -954,7 +951,7 @@ public abstract class KernelWriter extends BlockWriter{
              arguments = arguments.substring(0, arguments.indexOf(")"));
              String[] argTokens = arguments.split(",");
 
-             if(outputValType.equals("svec")) {
+             if(outputValType.equals("svec") || outputValType.equals("bsvec")) {
                  write("   int index = atomic_add(this->memIncr, 1);\n");
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
@@ -1060,7 +1057,7 @@ public abstract class KernelWriter extends BlockWriter{
              String transformedArgs = mapCall.substring(openingIndex, closingIndex).replace("3", "this->iter");
              mapCall = mapCall.substring(0, openingIndex)+transformedArgs+mapCall.substring(closingIndex);
 
-             if(inputValType.equals("svec")) {
+             if(inputValType.equals("svec") || inputValType.equals("bsvec")) {
                  String arguments = mapCall.substring(mapCall.indexOf("("));
                  arguments = arguments.substring(0, arguments.lastIndexOf(")"));
                  String[] splitArgs = arguments.split(",");
@@ -1169,18 +1166,13 @@ public abstract class KernelWriter extends BlockWriter{
              write("   this->currentValueIndex = startOffset;\n");
              write("   this->currentStartingValueIndex = startOffset;\n");
              write("   this->currentNumValues = stopOffset - startOffset;\n");
-             // if(inputValType.equals("svec") || inputValType.equals("ivec") || inputValType.equals("fsvec")) {
-             //    write("   this->currentNumAuxValues = this->iter == this->nKeys-1 ?\n");
-             //    write("      (this->individualInputValsCount - this->inputValLookAsideBuffer[startOffset]) :\n");
-             //    write("      (this->inputValLookAsideBuffer[stopOffset] - this->inputValLookAsideBuffer[startOffset]);\n");
-             // }
              write("   "+enclosingClassName+"__reduce(this, ");
 
              if (inputKeyType.equals("pair")) {
                  write("this->inputKeys1[this->iter], this->inputKeys2[this->iter]");
              } else if (inputKeyType.equals("upair")) {
                  write("this->inputKeyIds[this->iter], this->inputKeys1[this->iter], this->inputKeys2[this->iter]");
-             } else if (inputKeyType.equals("svec") || inputKeyType.equals("ivec") || inputKeyType.equals("fsvec")) {
+             } else if (inputKeyType.equals("svec") || inputKeyType.equals("ivec") || inputKeyType.equals("fsvec") || inputKeyType.equals("bsvec")) {
                  throw new RuntimeException("Invalid input key type "+inputKeyType);
              } else {
                  write("this->inputKeys[this->iter]");
@@ -1209,7 +1201,7 @@ public abstract class KernelWriter extends BlockWriter{
              }
              write(line);
 
-             if(outputValType.equals("svec") || outputValType.equals("ivec") || outputValType.equals("fsvec")) {
+             if(outputValType.equals("svec") || outputValType.equals("ivec") || outputValType.equals("fsvec") || outputValType.equals("bsvec")) {
                  write("   this->reservedAuxOffset = atomic_add(this->memAuxIncr, len);\n");
                  write("   if(this->reservedAuxOffset+len <= this->outputAuxLength) {\n");
                  write("      this->reservedOffset = atomic_add(this->memIncr, 1);\n");
@@ -1604,7 +1596,8 @@ public abstract class KernelWriter extends BlockWriter{
 
       // if (true) {
       if (!enableStrided || types.hadoopType() != HADOOPTYPE.MAPPER ||
-              (!types.inputValType().equals("svec") && !types.inputValType().equals("ivec") && !types.inputValType().equals("fsvec")) ||
+              (!types.inputValType().equals("svec") && !types.inputValType().equals("ivec") &&
+               !types.inputValType().equals("fsvec") && !types.inputValType().equals("bsvec")) ||
               !isGPU) {
           return tmpOpenCLWriter.toString();
       }
