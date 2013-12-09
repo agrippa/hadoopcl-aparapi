@@ -544,9 +544,35 @@ public abstract class BlockWriter{
 
       } else if (_instruction instanceof AssignToArrayElement) {
          final AssignToArrayElement arrayAssignmentInstruction = (AssignToArrayElement) _instruction;
-         writeInstruction(arrayAssignmentInstruction.getArrayRef());
+         final Instruction refInstruction = arrayAssignmentInstruction.getArrayRef();
+         writeInstruction(refInstruction);
+
+         boolean strided = false;
+         if (this.getStrided() && this.allVars != null &&
+                 refInstruction instanceof AccessLocalVariable) {
+             final AccessLocalVariable localVariableLoadInstruction =
+               (AccessLocalVariable) refInstruction;
+             final LocalVariableInfo localVariable =
+               localVariableLoadInstruction.getLocalVariableInfo();
+             if(localVariable.isArray()) {
+                 String varName = localVariable.getVariableName();
+                 LocalVar var = new LocalVar(this.currentMethodBody, varName);
+                 Boolean obj = this.allVars.get(var);
+                 /*
+                  * In testing, it seems that arrays retrieved through HadoopCL globals
+                  * may have null entries in allVars. They can never be strided, so we just
+                  * handle that here.
+                  */
+                 if (obj != null && obj.booleanValue()) {
+                   strided = true;
+                 }
+             }
+         }
+
          write("[");
+         if (strided) write("(");
          writeInstruction(arrayAssignmentInstruction.getArrayIndex());
+         if (strided) write(") * this->nPairs");
          write("]");
          write(" ");
          write(" = ");

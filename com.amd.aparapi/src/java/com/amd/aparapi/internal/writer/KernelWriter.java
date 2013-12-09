@@ -1594,7 +1594,6 @@ public abstract class KernelWriter extends BlockWriter{
           System.out.println("Running on "+(isGPU ? "GPU" : "CPU"));
       }
 
-      // if (true) {
       if (!enableStrided || types.hadoopType() != HADOOPTYPE.MAPPER ||
               (!types.inputValType().equals("svec") && !types.inputValType().equals("ivec") &&
                !types.inputValType().equals("fsvec") && !types.inputValType().equals("bsvec")) ||
