@@ -13,3 +13,5 @@ class OpenCLContext {
         cl_program program;
         cl_kernel kernel;
 }
+
+#endif
