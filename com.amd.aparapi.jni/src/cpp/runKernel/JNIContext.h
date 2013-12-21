@@ -2,6 +2,7 @@
 #define JNI_CONTEXT_H
 
 
+#include "OpenCLContext.h"
 #include "Common.h"
 #include "KernelArg.h"
 #include "ProfileInfo.h"
@@ -24,12 +25,7 @@ public:
    jobject kernelObject;
    jobject openCLDeviceObject;
    jclass kernelClass;
-   cl_device_id deviceId;
-   cl_int deviceType;
-   cl_context context;
-   cl_command_queue commandQueue;
-   cl_program program;
-   cl_kernel kernel;
+   OpenCLContext clctx;
    jint argc;
    KernelArg** args;
    cl_event* executeEvents;
