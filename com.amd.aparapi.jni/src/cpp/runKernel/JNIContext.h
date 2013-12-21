@@ -49,8 +49,9 @@ public:
    hadoopclParameter *hadoopclParams;
    int nHadoopclParams;
    cl_event exec_event;
-   double startWrite;
-   double stopWrite;
+   unsigned long startWrite;
+   unsigned long stopWrite;
+   unsigned long startKernel;
 
    cl_mem hadoopclRefresh(KernelArg *arg);
    hadoopclParameter* addHadoopclParam(KernelArg *arg);

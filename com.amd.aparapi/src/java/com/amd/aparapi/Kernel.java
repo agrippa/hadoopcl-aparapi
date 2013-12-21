@@ -1911,6 +1911,10 @@ public abstract class Kernel implements Cloneable {
        return kernelRunner.waitForOpenCL();
    }
 
+   public synchronized void waitForCompletion() {
+      kernelRunner.waitForKernelCompletion();
+   }
+
    public synchronized boolean isComplete() {
        return kernelRunner.isOpenCLComplete();
    }

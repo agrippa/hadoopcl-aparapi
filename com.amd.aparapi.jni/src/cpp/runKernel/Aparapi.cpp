@@ -53,10 +53,10 @@
 #include <algorithm>
 #include <sys/timeb.h>
 
-double read_timer() {
+unsigned long read_timer() {
   struct timeb tm;
   ftime(&tm);
-  return (double)tm.time * 1000.0 + (double)tm.millitm;
+  return tm.time * 1000 + tm.millitm;
 }
 
 //compiler dependant code
@@ -1134,6 +1134,24 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclKernelIsDoneJNI)
     return status == CL_COMPLETE;
 }
 
+JNI_JAVA(jint, KernelRunnerJNI, hadoopclWaitForKernel)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
+    if (config == NULL){
+       config = new Config(jenv);
+    }
+    JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+
+    cl_int status;
+    cl_int err;
+
+    err = clWaitForEvents(1, &(jniContext->exec_event));
+    if (err != CL_SUCCESS) {
+        fprintf(stderr,"Error waiting on exec event: %d\n",err);
+        exit(69);
+    }
+    return 0;
+}
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range) {
 
@@ -1231,6 +1249,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                     max_group_size[0]);
          }
 
+#ifdef PROFILE_HADOOPCL
+         jniContext->startKernel = read_timer();
+#endif
          err = clEnqueueNDRangeKernel(
                jniContext->commandQueue,
                jniContext->kernel,
@@ -1259,7 +1280,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
       }
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
 #ifdef PROFILE_HADOOPCL
-      double startRead, stopRead;
+      unsigned long startRead, stopRead;
 #endif
 
       cl_int err = CL_SUCCESS;
@@ -1311,12 +1332,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
               CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
       clGetEventProfilingInfo(jniContext->exec_event,
               CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
-      fprintf(stderr, "OpenCL Profile: write %f ms, kernel queued %f ms, kernel submitted %f ms, kernel running %f ms, read %f ms\n",
-          jniContext->stopWrite - jniContext->startWrite,
-          (submit - queued) / 1000000.0,
-          (start - submit) / 1000000.0,
-          (end - start) / 1000000.0,
-          stopRead - startRead);
+      fprintf(stderr, "TIMING | OpenCL Profile: write %lu ms (%lu), kernel queued %lu ms (%lu), kernel submitted %lu ms, kernel running %lu ms (%lu), read %lu ms (%lu)\n",
+          jniContext->stopWrite - jniContext->startWrite, jniContext->startWrite,
+          (submit - queued) / 1000000, jniContext->startKernel,
+          (start - submit) / 1000000,
+          (end - start) / 1000000, end,
+          stopRead - startRead, startRead);
 #endif
       clReleaseEvent(jniContext->exec_event);
 

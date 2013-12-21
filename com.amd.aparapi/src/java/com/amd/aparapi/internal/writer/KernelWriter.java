@@ -800,6 +800,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String reducePost = "__reduce";
       final String findNextSmallestPost = "__findNextSmallest";
       final String findEndPost = "__findEnd";
+      final String quickSortPost = "__quickSort";
 
       HADOOPTYPE hadoopType = HADOOPTYPE.UNKNOWN;
 
@@ -825,6 +826,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isFindEnd = false;
          boolean isReduce = false;
          boolean isMap = false;
+         boolean isQuickSort = false;
 
          if(mm.getName().indexOf(mapreducePrefix) == 0) {
              if(mm.getName().indexOf(mapperWritePost) != -1) {
@@ -865,6 +867,8 @@ public abstract class KernelWriter extends BlockWriter{
                  isFindNextSmallest = true;
              } else if (mm.getName().indexOf(findEndPost) != -1) {
                  isFindEnd = true;
+             } else if (mm.getName().indexOf(quickSortPost) != -1) {
+               isQuickSort = true;
              }
          }
 
@@ -961,6 +965,7 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValDoubleLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -979,6 +984,7 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      int pastWrites = this->nWrites[this->iter]++;\n");
                  write("      this->outputValLookAsideBuffer[index] = vals - this->outputVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -998,6 +1004,7 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValFloatLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1037,10 +1044,10 @@ public abstract class KernelWriter extends BlockWriter{
                  for(int i = 1; i < argTokens.length; i++) {
                      hadoopOutputWrite(argTokens[i]);
                  }
+                 write("   this->outputIterMarkers[index] = this->iter;\n");
                  write("   return 1;\n");
                  write("}\n\n");
              }
-
 
          } else if (isCallMap) {
              writeMethodBody(mm);
@@ -1360,6 +1367,40 @@ public abstract class KernelWriter extends BlockWriter{
              // for(int i = buffer.size()-1; i >= 0; i--) {
              //     write(buffer.get(i));
              // }
+         } else if (isQuickSort) {
+             write("\n{\n");
+             write("    int piv, L, R, swap;\n");
+             write("    double dpiv;\n");
+             write("    int i = 0;\n");
+             write("    beg[0]=0; end[0]=elements;\n");
+             write("    while (i>=0) {\n");
+             write("        L=beg[i]; R=end[i]-1;\n");
+             write("        if (L<R) {\n");
+             write("            piv=arr[L];\n");
+             write("            dpiv = coarr[L];\n");
+             write("            while (L<R) {\n");
+             write("                while (arr[R]>=piv && L<R) R--;\n");
+             write("                if (L<R) {\n");
+             write("                    coarr[L] = coarr[R];\n");
+             write("                    arr[L++]=arr[R];\n");
+             write("                }\n");
+             write("                while (arr[L]<=piv && L<R) L++;\n");
+             write("                if (L<R) {\n");
+             write("                    coarr[R] = coarr[L];\n");
+             write("                    arr[R--]=arr[L];\n");
+             write("                }\n");
+             write("            }\n");
+             write("            arr[L]=piv; coarr[L] = dpiv;\n");
+             write("            beg[i+1]=L+1; end[i+1]=end[i]; end[i++]=L;\n");
+             write("            if (end[i]-beg[i]>end[i-1]-beg[i-1]) {\n");
+             write("                swap=beg[i]; beg[i]=beg[i-1]; beg[i-1]=swap;\n");
+             write("                swap=end[i]; end[i]=end[i-1]; end[i-1]=swap;\n");
+             write("            }\n");
+             write("        } else {\n");
+             write("            i--;\n");
+             write("        }\n");
+             write("    }\n");
+             write("}\n\n");
          } else {
              writeMethodBody(mm);
          }

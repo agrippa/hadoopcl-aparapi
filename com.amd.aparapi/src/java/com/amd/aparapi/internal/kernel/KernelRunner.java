@@ -916,6 +916,10 @@ public class KernelRunner extends KernelRunnerJNI{
        return hadoopclKernelIsDoneJNI(jniContextHandle) != 0;
    }
 
+   public synchronized void waitForKernelCompletion() {
+     hadoopclWaitForKernel(jniContextHandle);
+   }
+
    public synchronized int waitForOpenCL() {
        return hadoopclReadbackJNI(jniContextHandle);
    }
