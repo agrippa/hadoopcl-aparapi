@@ -4,14 +4,15 @@
 #include "Common.h"
 #include "Config.h"
 
-class OpenCLContext {
+typedef struct _OpenCLContext {
     public:
-        cl_device_id deviceId;
-        cl_int deviceType;
-        cl_context context;
-        cl_command_queue commandQueue;
-        cl_program program;
-        cl_kernel kernel;
-}
+        cl_device_id deviceId; // initOpenCL
+        cl_int deviceType; // initOpenCL
+        cl_context context; // initOpenCL
+        cl_command_queue commandQueue; // buildProgramJNI
+        cl_program program; // buildProgramJNI
+        cl_kernel kernel; // buildProgramJNI
+        cl_event prevExecEvent;
+} OpenCLContext;
 
 #endif

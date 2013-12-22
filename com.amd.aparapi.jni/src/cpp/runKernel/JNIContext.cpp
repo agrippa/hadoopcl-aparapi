@@ -24,7 +24,7 @@ hadoopclParameter* JNIContext::addHadoopclParam(KernelArg *arg) {
     // TODO depending on whether name contains input/output we should be
     // able to set more accurate flags here
     cl_int err;
-    current->allocatedMem = clCreateBuffer(context,
+    current->allocatedMem = clCreateBuffer(clctx.context,
         current->createFlags, current->allocatedSize, NULL, &err);
 
     if (err != CL_SUCCESS) {
@@ -65,7 +65,7 @@ void JNIContext::refreshHadoopclParam(KernelArg *arg,
                 arg->name);
         exit(4);
     }
-    hadoopclParam->allocatedMem = clCreateBuffer(context,
+    hadoopclParam->allocatedMem = clCreateBuffer(clctx.context,
             hadoopclParam->createFlags, arg->arrayBuffer->lengthInBytes,
             NULL, &err);
     if (err != CL_SUCCESS) {
@@ -109,34 +109,13 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
       profileBaseTime(0),
       passes(0),
       exec(NULL),
-      deviceType(((
-          flags & com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
-              == com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
-                ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU),
       profileFile(NULL), 
       valid(JNI_FALSE){
-   int i;
-   cl_int status = CL_SUCCESS;
-   jobject platformInstance = OpenCLDevice::getPlatformInstance(jenv,
-           openCLDeviceObject);
-   cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv,
-           platformInstance);
-   deviceId = OpenCLDevice::getDeviceId(jenv, openCLDeviceObject);
-   cl_device_type returnedDeviceType;
-   clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,  sizeof(returnedDeviceType),
-           &returnedDeviceType, NULL);
 
-   cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM,
-       (cl_context_properties)platformId, 0 };
-   cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
-   context = clCreateContext( cprops, 1, &deviceId, NULL, NULL, &status);
-   CLException::checkCLError(status, "clCreateContextFromType()");
-   if (status == CL_SUCCESS){
-      valid = JNI_TRUE;
-   }
-
+   memset(&clctx, 0x00, sizeof(OpenCLContext));
    hadoopclParams = NULL;
    nHadoopclParams = 0;
+   valid = JNI_TRUE;
 }
 
 void JNIContext::dispose(JNIEnv *jenv, Config* config) {
@@ -144,33 +123,33 @@ void JNIContext::dispose(JNIEnv *jenv, Config* config) {
    cl_int status = CL_SUCCESS;
    jenv->DeleteGlobalRef(kernelObject);
    jenv->DeleteGlobalRef(kernelClass);
-   if (context != 0){
-      status = clReleaseContext(context);
+   if (clctx.context != 0){
+      status = clReleaseContext(clctx.context);
       //fprintf(stdout, "dispose context %0lx\n", context);
       CLException::checkCLError(status, "clReleaseContext()");
-      context = (cl_context)0;
+      clctx.context = (cl_context)0;
    }
-   if (commandQueue != 0){
+   if (clctx.commandQueue != 0){
       if (config->isTrackingOpenCLResources()){
-         commandQueueList.remove((cl_command_queue)commandQueue, __LINE__,
+         commandQueueList.remove((cl_command_queue)clctx.commandQueue, __LINE__,
                  __FILE__);
       }
-      status = clReleaseCommandQueue((cl_command_queue)commandQueue);
+      status = clReleaseCommandQueue((cl_command_queue)clctx.commandQueue);
       //fprintf(stdout, "dispose commandQueue %0lx\n", commandQueue);
       CLException::checkCLError(status, "clReleaseCommandQueue()");
-      commandQueue = (cl_command_queue)0;
+      clctx.commandQueue = (cl_command_queue)0;
    }
-   if (program != 0){
-      status = clReleaseProgram((cl_program)program);
+   if (clctx.program != 0){
+      status = clReleaseProgram((cl_program)clctx.program);
       //fprintf(stdout, "dispose program %0lx\n", program);
       CLException::checkCLError(status, "clReleaseProgram()");
-      program = (cl_program)0;
+      clctx.program = (cl_program)0;
    }
-   if (kernel != 0){
-      status = clReleaseKernel((cl_kernel)kernel);
+   if (clctx.kernel != 0){
+      status = clReleaseKernel((cl_kernel)clctx.kernel);
       //fprintf(stdout, "dispose kernel %0lx\n", kernel);
       CLException::checkCLError(status, "clReleaseKernel()");
-      kernel = (cl_kernel)0;
+      clctx.kernel = (cl_kernel)0;
    }
    if (argc > 0){
       for (int i=0; i< argc; i++){

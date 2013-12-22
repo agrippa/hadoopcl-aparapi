@@ -54,14 +54,14 @@ cl_int KernelArg::setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool v
    if (verbose){
        fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) arrayBuffer->lengthInBytes);
    }
-   return(clSetKernelArg(jniContext->kernel, argPos, (int)arrayBuffer->lengthInBytes, NULL));
+   return(clSetKernelArg(jniContext->clctx.kernel, argPos, (int)arrayBuffer->lengthInBytes, NULL));
 }
 
 cl_int KernelArg::setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose) {
    if (verbose){
        fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) aparapiBuffer->lengthInBytes);
    }
-   return(clSetKernelArg(jniContext->kernel, argPos, (int)aparapiBuffer->lengthInBytes, NULL));
+   return(clSetKernelArg(jniContext->clctx.kernel, argPos, (int)aparapiBuffer->lengthInBytes, NULL));
 }
 
 const char* KernelArg::getTypeName() {
@@ -145,32 +145,32 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    if (isFloat()) {
        jfloat f;
        getPrimitive(jenv, argIdx, argPos, verbose, &f);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(f), &f);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(f), &f);
    }
    else if (isInt()) {
        jint i;
        getPrimitive(jenv, argIdx, argPos, verbose, &i);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(i), &i);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(i), &i);
    }
    else if (isBoolean()) {
        jboolean z;
        getPrimitive(jenv, argIdx, argPos, verbose, &z);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(z), &z);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(z), &z);
    }
    else if (isByte()) {
        jbyte b;
        getPrimitive(jenv, argIdx, argPos, verbose, &b);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(b), &b);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(b), &b);
    }
    else if (isLong()) {
        jlong l;
        getPrimitive(jenv, argIdx, argPos, verbose, &l);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(l), &l);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(l), &l);
    }
    else if (isDouble()) {
        jdouble d;
        getPrimitive(jenv, argIdx, argPos, verbose, &d);
-       status = clSetKernelArg(jniContext->kernel, argPos, sizeof(d), &d);
+       status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(d), &d);
    }
    return status;
 }

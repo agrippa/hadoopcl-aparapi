@@ -94,6 +94,27 @@ public class KernelRunner extends KernelRunnerJNI{
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private long jniContextHandle = 0;
+   private static long openclContextHandle = 0;
+
+   private static void initOpenCLContext(OpenCLDevice dev, int flags) {
+     synchronized(KernelRunner.class) {
+       if (openclContextHandle == 0) {
+         openclContextHandle = initOpenCL(dev, flags);
+       }
+     }
+   }
+
+   private static void buildOpenCLContext(String src) {
+     synchronized (KernelRunner.class) {
+       if (openclContextHandle == 0) {
+         throw new RuntimeException("Got to building before initialization?");
+       }
+       if (buildProgramJNI(openclContextHandle, src) == 0) {
+         throw new RuntimeException("Failure building OpenCL context");
+       }
+     }
+
+   }
 
    private final Kernel kernel;
 
@@ -898,7 +919,8 @@ public class KernelRunner extends KernelRunnerJNI{
 
       // native side will reallocate array buffers if necessary
       int execID;
-      if ((execID = hadoopclLaunchKernelJNI(jniContextHandle, _range)) != 0) {
+      if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
+              openclContextHandle, _range)) != 0) {
          return null;
       }
 
@@ -921,7 +943,7 @@ public class KernelRunner extends KernelRunnerJNI{
    }
 
    public synchronized int waitForOpenCL() {
-       return hadoopclReadbackJNI(jniContextHandle);
+       return hadoopclReadbackJNI(jniContextHandle, openclContextHandle);
    }
 
    synchronized public void waitForEvent(int id) {
@@ -1028,6 +1050,7 @@ public class KernelRunner extends KernelRunnerJNI{
                      // Init the device to check capabilities before emitting the
                      // code that requires the capabilities.
 
+                     initOpenCLContext(openCLDevice, jniFlags);
                      jniContextHandle = initJNI(kernel, openCLDevice, jniFlags); // openCLDevice will not be null here
                   } // end of synchronized! issue 68
 
@@ -1035,7 +1058,7 @@ public class KernelRunner extends KernelRunnerJNI{
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, "initJNI failed to return a valid handle", enableStrided);
                   }
 
-                  final String extensions = getExtensionsJNI(jniContextHandle);
+                  final String extensions = getExtensionsJNI(openclContextHandle);
                   capabilitiesSet = new HashSet<String>();
 
                   final StringTokenizer strTok = new StringTokenizer(extensions);
@@ -1083,9 +1106,8 @@ public class KernelRunner extends KernelRunnerJNI{
                   }
 
                   // Send the string to OpenCL to compile it
-                  if (buildProgramJNI(jniContextHandle, openCL) == 0) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "OpenCL compile failed", enableStrided);
-                  }
+                  buildOpenCLContext(openCL);
+                  initJNIContextFromOpenCLContext(jniContextHandle, openclContextHandle);
 
                   args = new KernelArg[entryPoint.getReferencedFields().size()];
                   int i = 0;

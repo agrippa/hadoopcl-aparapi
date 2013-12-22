@@ -294,8 +294,6 @@ public abstract class KernelRunnerJNI{
 
    protected native int getJNI(long _jniContextHandle, Object _array);
 
-   protected native long buildProgramJNI(long _jniContextHandle, String _source);
-
    protected native int setArgsJNI(long _jniContextHandle, KernelArgJNI[] _args, int argc);
 
    protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes);
@@ -304,13 +302,18 @@ public abstract class KernelRunnerJNI{
 
    protected native int waitForExecute(long _jniContextHandle, int id);
 
-   protected native String getExtensionsJNI(long _jniContextHandle);
+   protected native String getExtensionsJNI(long _openclContextHandle);
 
    protected native synchronized List<ProfileInfo> getProfileInfoJNI(long _jniContextHandle);
 
+   protected native static long buildProgramJNI(long _openclContextHandle, String _source);
    protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
-   protected native int hadoopclLaunchKernelJNI(long _jniContextHandle, Range _range);
-   protected native int hadoopclReadbackJNI(long _jniContextHandle);
+   protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
+       long _openclContextHandle, Range _range);
+   protected native int hadoopclReadbackJNI(long _jniContextHandle, long _openclContextHandle);
    protected native int hadoopclKernelIsDoneJNI(long _jniContextHandle);
    protected native int hadoopclWaitForKernel(long _jniContextHandle);
+   protected native static long initOpenCL(OpenCLDevice _device, int _flags);
+   protected native int initJNIContextFromOpenCLContext(long _jniContextHandle,
+       long _openclContextHandle);
 }

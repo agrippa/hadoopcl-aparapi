@@ -50,6 +50,7 @@
 #include "AparapiBuffer.h"
 #include "CLHelper.h"
 #include "List.h"
+#include "OpenCLJNI.h"
 #include <algorithm>
 #include <sys/timeb.h>
 
@@ -328,7 +329,7 @@ void profileFirstRun(JNIContext* jniContext) {
    cl_event firstEvent;
    int status = CL_SUCCESS;
 
-   status = enqueueMarker(jniContext->commandQueue, &firstEvent);
+   status = enqueueMarker(jniContext->clctx.commandQueue, &firstEvent);
    if (status != CL_SUCCESS) throw CLException(status, "clEnqueueMarker endOfTxfers");
 
    status = clWaitForEvents(1, &firstEvent);
@@ -367,7 +368,7 @@ void updateArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argP
             argIdx, arg->arrayBuffer->memSpec, (unsigned long)arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr);
    }
 
-   arg->arrayBuffer->mem = clCreateBuffer(jniContext->context, arg->arrayBuffer->memMask, 
+   arg->arrayBuffer->mem = clCreateBuffer(jniContext->clctx.context, arg->arrayBuffer->memMask, 
          arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, &status);
 
    if(status != CL_SUCCESS) {
@@ -379,7 +380,7 @@ void updateArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argP
       memList.add(arg->arrayBuffer->mem, __LINE__, __FILE__);
    }
 
-   status = clSetKernelArg(jniContext->kernel, argPos, sizeof(cl_mem), (void *)&(arg->arrayBuffer->mem));
+   status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_mem), (void *)&(arg->arrayBuffer->mem));
    if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (array)");
 
    // Add the array length if needed
@@ -387,7 +388,7 @@ void updateArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argP
       argPos++;
       arg->syncJavaArrayLength(jenv);
 
-      status = clSetKernelArg(jniContext->kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
+      status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
       if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (array length)");
 
       if (config->isVerbose()){
@@ -406,7 +407,7 @@ void updateBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& arg
    else if (arg->isMutableByKernel()) mask |= CL_MEM_WRITE_ONLY;
    buffer->memMask = mask;
 
-   buffer->mem = clCreateBuffer(jniContext->context, buffer->memMask, 
+   buffer->mem = clCreateBuffer(jniContext->clctx.context, buffer->memMask, 
          buffer->lengthInBytes, buffer->data, &status);
 
    if(status != CL_SUCCESS) {
@@ -418,7 +419,7 @@ void updateBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& arg
       memList.add(buffer->mem, __LINE__, __FILE__);
    }
 
-   status = clSetKernelArg(jniContext->kernel, argPos, sizeof(cl_mem), (void *)&(buffer->mem));
+   status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_mem), (void *)&(buffer->mem));
    if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (buffer)");
 
    // Add the array length if needed
@@ -426,7 +427,7 @@ void updateBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& arg
 
       for(int i = 0; i < buffer->numDims; i++) {
          argPos++;
-         status = clSetKernelArg(jniContext->kernel, argPos, sizeof(cl_uint), &(buffer->lens[i]));
+         status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_uint), &(buffer->lens[i]));
          if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (buffer length)");
          if (config->isVerbose()){
             fprintf(stderr, "runKernel arg %d %s, length = %d\n", argIdx, arg->name, buffer->lens[i]);
@@ -599,10 +600,10 @@ void updateWriteEvents(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int
    }
 
    if(arg->isArray()) {
-      status = clEnqueueWriteBuffer(jniContext->commandQueue, arg->arrayBuffer->mem, CL_FALSE, 0, 
+      status = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, CL_FALSE, 0, 
          arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL, &(jniContext->writeEvents[writeEventCount]));
    } else if(arg->isAparapiBuffer()) {
-      status = clEnqueueWriteBuffer(jniContext->commandQueue, arg->aparapiBuffer->mem, CL_FALSE, 0, 
+      status = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, CL_FALSE, 0, 
          arg->aparapiBuffer->lengthInBytes, arg->aparapiBuffer->data, 0, NULL, &(jniContext->writeEvents[writeEventCount]));
    }
 
@@ -644,7 +645,7 @@ void processLocalArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int
       if (arg->usesArrayLength()) {
          arg->syncJavaArrayLength(jenv);
 
-         status = clSetKernelArg(jniContext->kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
+         status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
 
          if (config->isVerbose()){
             fprintf(stderr, "runKernel arg %d %s, javaArrayLength = %d\n", argIdx, arg->name, arg->arrayBuffer->length);
@@ -687,7 +688,7 @@ void processLocalBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, in
          for(int i = 0; i < arg->aparapiBuffer->numDims; i++)
          {
              int length = arg->aparapiBuffer->lens[i];
-             status = clSetKernelArg(jniContext->kernel, argPos, sizeof(jint), &length);
+             status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &length);
              if (config->isVerbose()){
                 fprintf(stderr, "runKernel arg %d %s, javaArrayLength = %d\n", argIdx, arg->name, length);
              }
@@ -802,7 +803,7 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
    for (int passid=0; passid < passes; passid++) {
 
       //size_t offset = 1; // (size_t)((range.globalDims[0]/jniContext->deviceIdc)*dev);
-      status = clSetKernelArg(jniContext->kernel, argPos, sizeof(passid), &(passid));
+      status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(passid), &(passid));
       if (status != CL_SUCCESS) throw CLException(status, "clSetKernelArg() (passid)");
       //status = clSetKernelArg(jniContext->kernel, argPos+1, localMemSize, NULL);
       //if (status != CL_SUCCESS) throw CLException(status, "clSetKernelArg() (allLocal)");
@@ -822,8 +823,8 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
       // while using clGetDeviceInfo
       // see: http://www.openwall.com/lists/john-dev/2012/04/10/4
       cl_uint max_group_size[3];
-      status = clGetKernelWorkGroupInfo(jniContext->kernel,
-                                        (cl_device_id)jniContext->deviceId,
+      status = clGetKernelWorkGroupInfo(jniContext->clctx.kernel,
+                                        (cl_device_id)jniContext->clctx.deviceId,
                                         CL_KERNEL_WORK_GROUP_SIZE,
                                         sizeof(max_group_size),
                                         &max_group_size, NULL);
@@ -875,8 +876,8 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
       }
 
       status = clEnqueueNDRangeKernel(
-            jniContext->commandQueue,
-            jniContext->kernel,
+            jniContext->clctx.commandQueue,
+            jniContext->clctx.kernel,
             range.dims,
             range.offsets,
             range.globalDims,
@@ -948,12 +949,12 @@ int getReadEvents(JNIEnv* jenv, JNIContext* jniContext) {
          }
 
          if(arg->isArray()) {
-            status = clEnqueueReadBuffer(jniContext->commandQueue, arg->arrayBuffer->mem, 
+            status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, 
                 CL_FALSE, 0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, 
                 jniContext->executeEvents, &(jniContext->readEvents[readEventCount]));
             readEventCount++;
          } else if(arg->isAparapiBuffer()) {
-            status = clEnqueueReadBuffer(jniContext->commandQueue, arg->aparapiBuffer->mem, 
+            status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, 
                 CL_TRUE, 0, arg->aparapiBuffer->lengthInBytes, arg->aparapiBuffer->data, 1, 
                 jniContext->executeEvents, &(jniContext->readEvents[readEventCount]));
             arg->aparapiBuffer->inflate(jenv, arg);
@@ -1153,12 +1154,13 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclWaitForKernel)
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jobject _range) {
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jobject _range) {
 
       if (config == NULL){
          config = new Config(jenv);
       }
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+      OpenCLContext *openclContext = ((OpenCLContext *)openclContextHandle);
 
       Range range(jenv, _range);
 
@@ -1187,7 +1189,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  cl_mem mem = jniContext->hadoopclRefresh(arg);
                  if (arg->dir != OUT) {
                    arg->pin(jenv);
-                   err = clEnqueueWriteBuffer(jniContext->commandQueue, mem,
+                   err = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, mem,
                            CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
                            arg->arrayBuffer->addr, 0, NULL, NULL);
                    if (err != CL_SUCCESS) {
@@ -1197,7 +1199,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                    arg->unpinAbort(jenv);
                  }
 
-                 err = clSetKernelArg(jniContext->kernel, argpos,
+                 err = clSetKernelArg(jniContext->clctx.kernel, argpos,
                          sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
@@ -1208,7 +1210,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  if (arg->usesArrayLength()) {
                      argpos++;
                      arg->syncJavaArrayLength(jenv);
-                     err = clSetKernelArg(jniContext->kernel, argpos,
+                     err = clSetKernelArg(jniContext->clctx.kernel, argpos,
                              sizeof(jint), &(arg->arrayBuffer->length));
                      if (err != CL_SUCCESS) {
                          fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
@@ -1223,7 +1225,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #endif
 
          int dummy_pass = 0;
-         err = clSetKernelArg(jniContext->kernel, argpos, sizeof(int),
+         err = clSetKernelArg(jniContext->clctx.kernel, argpos, sizeof(int),
                  &dummy_pass);
          if (err != CL_SUCCESS) {
              fprintf(stderr,"Error setting kernel arg for dummy pass\n");
@@ -1236,8 +1238,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          // while using clGetDeviceInfo
          // see: http://www.openwall.com/lists/john-dev/2012/04/10/4
          cl_uint max_group_size[3];
-         err = clGetKernelWorkGroupInfo(jniContext->kernel,
-                                           (cl_device_id)jniContext->deviceId,
+         err = clGetKernelWorkGroupInfo(jniContext->clctx.kernel,
+                                           (cl_device_id)jniContext->clctx.deviceId,
                                            CL_KERNEL_WORK_GROUP_SIZE,
                                            sizeof(max_group_size),
                                            &max_group_size, NULL);
@@ -1253,19 +1255,22 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          jniContext->startKernel = read_timer();
 #endif
          err = clEnqueueNDRangeKernel(
-               jniContext->commandQueue,
-               jniContext->kernel,
+               jniContext->clctx.commandQueue,
+               jniContext->clctx.kernel,
                range.dims,
                range.offsets,
                range.globalDims,
                range.localDims,
-               0, NULL,
+               openclContext->prevExecEvent == 0 ? 0 : 1,
+               openclContext->prevExecEvent == 0 ? NULL : &(openclContext->prevExecEvent),
                &(jniContext->exec_event));
          if (err != CL_SUCCESS) {
              fprintf(stderr,"Reporting failure of kernel: %d\n",err);
              return err;
          }
-         clFlush(jniContext->commandQueue);
+         openclContext->prevExecEvent = jniContext->exec_event;
+
+         clFlush(jniContext->clctx.commandQueue);
       } catch(CLException& cle) {
          cle.printError();
          return cle.status();
@@ -1274,11 +1279,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
       if (config == NULL){
          config = new Config(jenv);
       }
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+      OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
 #ifdef PROFILE_HADOOPCL
       unsigned long startRead, stopRead;
 #endif
@@ -1299,7 +1305,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
                  arg->pin(jenv);
 
                  cl_mem mem = jniContext->findHadoopclParam(arg)->allocatedMem;
-                 err = clEnqueueReadBuffer(jniContext->commandQueue, mem,
+                 err = clEnqueueReadBuffer(jniContext->clctx.commandQueue, mem,
                          CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
                          arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
                          NULL);
@@ -1339,6 +1345,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
           (end - start) / 1000000, end,
           stopRead - startRead, startRead);
 #endif
+      if (openclContext->prevExecEvent == jniContext->exec_event) {
+        openclContext->prevExecEvent = 0;
+      }
       clReleaseEvent(jniContext->exec_event);
 
       return err;
@@ -1402,7 +1411,6 @@ JNI_JAVA(jint, KernelRunnerJNI, runKernelJNI)
       return(status);
    }
 
-
 // we return the JNIContext from here 
 JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
    (JNIEnv *jenv, jobject jobj, jobject kernelObject, jobject openCLDeviceObject, jint flags) {
@@ -1423,6 +1431,62 @@ JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
       }
    }
 
+JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
+  (JNIEnv *jenv, jclass clazz, jobject _openCLDeviceObject, jint flags) {
+      cl_int status = CL_SUCCESS;
+      if (config == NULL) {
+        config = new Config(jenv);
+      }
+      jobject openCLDeviceObject = jenv->NewGlobalRef(_openCLDeviceObject);
+
+      OpenCLContext *clctx = (OpenCLContext *)malloc(sizeof(OpenCLContext));
+      memset(clctx, 0x00, sizeof(OpenCLContext));
+
+      jobject platformInstance = OpenCLDevice::getPlatformInstance(jenv,
+              openCLDeviceObject);
+      cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv,
+              platformInstance);
+
+      clctx->deviceId = OpenCLDevice::getDeviceId(jenv, openCLDeviceObject);
+      clctx->deviceType = (((
+             flags & com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
+                 == com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
+                   ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU);
+
+      cl_device_type returnedDeviceType;
+      clGetDeviceInfo(clctx->deviceId, CL_DEVICE_TYPE,  sizeof(returnedDeviceType),
+              &returnedDeviceType, NULL);
+
+
+      cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM,
+          (cl_context_properties)platformId, 0 };
+      cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
+      clctx->context = clCreateContext( cprops, 1, &clctx->deviceId, NULL, NULL,
+          &status);
+      CLException::checkCLError(status, "clCreateContextFromType()");
+
+      return ((jlong)clctx);
+  }
+
+JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLContext)
+  (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
+   jlong openclContextHandle) {
+      if (config == NULL) {
+         config = new Config(jenv);
+      }
+
+      OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
+      if (openclContext == NULL) {
+         return 0;
+      }
+
+      JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+      if (jniContext == NULL) {
+        return 0;
+      }
+
+      memcpy(&jniContext->clctx, openclContext, sizeof(OpenCLContext));
+}
 
 void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
    // compute profile filename
@@ -1465,44 +1529,41 @@ void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
 }
 
 JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
-   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jstring source) {
-      JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
-      if (jniContext == NULL){
+   (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jstring source) {
+      OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
+      if (openclContext == NULL){
          return 0;
       }
 
       try {
          cl_int status = CL_SUCCESS;
 
-         jniContext->program = CLHelper::compile(jenv, jniContext->context,  1, &jniContext->deviceId, source, NULL, &status);
+         openclContext->program = CLHelper::compile(jenv, openclContext->context,  1, &openclContext->deviceId, source, NULL, &status);
 
          if(status != CL_SUCCESS) throw CLException(status, "compile()");
 
-         jniContext->kernel = clCreateKernel(jniContext->program, "run", &status);
+         openclContext->kernel = clCreateKernel(openclContext->program, "run", &status);
          if(status != CL_SUCCESS) throw CLException(status,"clCreateKernel()");
 
          cl_command_queue_properties queue_props = 0;
+         queue_props |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 #ifdef PROFILE_HADOOPCL
          queue_props |= CL_QUEUE_PROFILING_ENABLE;
 #endif
 
-         jniContext->commandQueue = clCreateCommandQueue(jniContext->context, (cl_device_id)jniContext->deviceId,
+         openclContext->commandQueue = clCreateCommandQueue(openclContext->context, (cl_device_id)openclContext->deviceId,
                queue_props,
                &status);
          if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
 
-         commandQueueList.add(jniContext->commandQueue, __LINE__, __FILE__);
+         commandQueueList.add(openclContext->commandQueue, __LINE__, __FILE__);
 
-         if (config->isProfilingCSVEnabled()) {
-            writeProfile(jenv, jniContext);
-         }
       } catch(CLException& cle) {
          cle.printError();
          return 0;
       }
       
-
-      return((jlong)jniContext);
+      return((jlong)openclContext);
    }
 
 
@@ -1569,15 +1630,15 @@ JNI_JAVA(jint, KernelRunnerJNI, setArgsJNI)
 
 
 JNI_JAVA(jstring, KernelRunnerJNI, getExtensionsJNI)
-   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
+   (JNIEnv *jenv, jobject jobj, jlong openclContextHandle) {
       if (config == NULL){
          config = new Config(jenv);
       }
       jstring jextensions = NULL;
-      JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
-      if (jniContext != NULL){
+      OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
+      if (openclContext != NULL){
          cl_int status = CL_SUCCESS;
-         jextensions = CLHelper::getExtensions(jenv, jniContext->deviceId, &status);
+         jextensions = CLHelper::getExtensions(jenv, openclContext->deviceId, &status);
       }
       return jextensions;
    }
@@ -1650,7 +1711,7 @@ JNI_JAVA(jint, KernelRunnerJNI, getJNI)
                arg->pin(jenv);
 
                try {
-                  status = clEnqueueReadBuffer(jniContext->commandQueue, arg->arrayBuffer->mem, 
+                  status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, 
                                                CL_FALSE, 0, 
                                                arg->arrayBuffer->lengthInBytes,
                                                arg->arrayBuffer->addr , 0, NULL, 
@@ -1686,7 +1747,7 @@ JNI_JAVA(jint, KernelRunnerJNI, getJNI)
             } else if(arg->isAparapiBuffer()) {
 
                try {
-                  status = clEnqueueReadBuffer(jniContext->commandQueue, arg->aparapiBuffer->mem, 
+                  status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, 
                                                CL_FALSE, 0, 
                                                arg->aparapiBuffer->lengthInBytes,
                                                arg->aparapiBuffer->data, 0, NULL, 
