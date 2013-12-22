@@ -157,6 +157,12 @@ public abstract class Kernel implements Cloneable {
        return this.enableStrided;
    }
 
+   public enum TaskType {
+     MAPPER, COMBINER, REDUCER
+   }
+
+   public abstract TaskType checkTaskType();
+
    /**
     *  We can use this Annotation to 'tag' intended local buffers. 
     *  

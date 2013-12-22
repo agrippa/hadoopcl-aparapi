@@ -1562,12 +1562,13 @@ void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
 }
 
 JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
-   (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jlong openclProgramContextHandle, jstring source) {
+   (JNIEnv *jenv, jobject obj, jlong openclContextHandle, jstring source) {
       OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
       if (openclContext == NULL){
          return 0;
       }
-      OpenCLProgramContext *openclProgramContext = ((OpenCLProgramContext*)openclProgramContextHandle);
+      OpenCLProgramContext *openclProgramContext = (OpenCLProgramContext*)malloc(sizeof(OpenCLProgramContext));
+      memset(openclProgramContext, 0x00, sizeof(OpenCLProgramContext));
       if (openclProgramContext == NULL) {
           return 0;
       }
@@ -1600,7 +1601,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
          return 0;
       }
       
-      return((jlong)openclContext);
+      return((jlong)openclProgramContext);
    }
 
 

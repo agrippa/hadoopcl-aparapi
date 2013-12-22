@@ -52,6 +52,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Map;
+import java.util.HashMap;
 
 import com.amd.aparapi.Config;
 import com.amd.aparapi.Kernel;
@@ -89,31 +91,39 @@ import com.amd.aparapi.opencl.OpenCL;
  * @author gfrost
  *
  */
-public class KernelRunner extends KernelRunnerJNI{
+public class KernelRunner extends KernelRunnerJNI {
 
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private long jniContextHandle = 0;
    private static long openclContextHandle = 0;
-   private static long openclProgramContextHandle = 0;
+   private static Map<Kernel.TaskType, Long> openclProgramContextHandles =
+     new HashMap<Kernel.TaskType, Long>();
+
+   static {
+     openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
+     openclProgramContextHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
+     openclProgramContextHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
+   }
 
    private static void initOpenCLContext(OpenCLDevice dev, int flags) {
      synchronized(KernelRunner.class) {
        if (openclContextHandle == 0) {
          openclContextHandle = initOpenCL(dev, flags);
-         openclProgramContextHandle = initOpenCLProgram();
        }
      }
    }
 
-   private static void buildOpenCLContext(String src) {
+   private void buildOpenCLContext(String src) {
      synchronized (KernelRunner.class) {
        if (openclContextHandle == 0) {
          throw new RuntimeException("Got to building before initialization?");
        }
-       if (buildProgramJNI(openclContextHandle, openclProgramContextHandle, src) == 0) {
+       long openclProgramContextHandle = buildProgramJNI(openclContextHandle, src);
+       if (openclProgramContextHandle == 0L) {
          throw new RuntimeException("Failure building OpenCL context");
        }
+       openclProgramContextHandles.put(kernel.checkTaskType(), new Long(openclProgramContextHandle));
      }
 
    }
@@ -1110,7 +1120,8 @@ public class KernelRunner extends KernelRunnerJNI{
                   // Send the string to OpenCL to compile it
                   buildOpenCLContext(openCL);
                   initJNIContextFromOpenCLContext(jniContextHandle, openclContextHandle);
-                  initJNIContextFromOpenCLProgramContext(jniContextHandle, openclProgramContextHandle);
+                  initJNIContextFromOpenCLProgramContext(jniContextHandle,
+                      openclProgramContextHandles.get(kernel.checkTaskType()));
 
                   args = new KernelArg[entryPoint.getReferencedFields().size()];
                   int i = 0;
