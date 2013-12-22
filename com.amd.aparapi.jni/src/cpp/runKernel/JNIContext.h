@@ -2,6 +2,7 @@
 #define JNI_CONTEXT_H
 
 
+#include "OpenCLProgramContext.h"
 #include "OpenCLContext.h"
 #include "Common.h"
 #include "KernelArg.h"
@@ -26,6 +27,7 @@ public:
    jobject openCLDeviceObject;
    jclass kernelClass;
    OpenCLContext clctx;
+   OpenCLProgramContext clprgctx;
    jint argc;
    KernelArg** args;
    cl_event* executeEvents;

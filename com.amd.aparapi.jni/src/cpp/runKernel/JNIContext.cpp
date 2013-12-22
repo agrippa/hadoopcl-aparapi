@@ -139,17 +139,17 @@ void JNIContext::dispose(JNIEnv *jenv, Config* config) {
       CLException::checkCLError(status, "clReleaseCommandQueue()");
       clctx.commandQueue = (cl_command_queue)0;
    }
-   if (clctx.program != 0){
-      status = clReleaseProgram((cl_program)clctx.program);
+   if (clprgctx.program != 0){
+      status = clReleaseProgram((cl_program)clprgctx.program);
       //fprintf(stdout, "dispose program %0lx\n", program);
       CLException::checkCLError(status, "clReleaseProgram()");
-      clctx.program = (cl_program)0;
+      clprgctx.program = (cl_program)0;
    }
-   if (clctx.kernel != 0){
-      status = clReleaseKernel((cl_kernel)clctx.kernel);
+   if (clprgctx.kernel != 0){
+      status = clReleaseKernel((cl_kernel)clprgctx.kernel);
       //fprintf(stdout, "dispose kernel %0lx\n", kernel);
       CLException::checkCLError(status, "clReleaseKernel()");
-      clctx.kernel = (cl_kernel)0;
+      clprgctx.kernel = (cl_kernel)0;
    }
    if (argc > 0){
       for (int i=0; i< argc; i++){

@@ -95,11 +95,13 @@ public class KernelRunner extends KernelRunnerJNI{
 
    private long jniContextHandle = 0;
    private static long openclContextHandle = 0;
+   private static long openclProgramContextHandle = 0;
 
    private static void initOpenCLContext(OpenCLDevice dev, int flags) {
      synchronized(KernelRunner.class) {
        if (openclContextHandle == 0) {
          openclContextHandle = initOpenCL(dev, flags);
+         openclProgramContextHandle = initOpenCLProgram();
        }
      }
    }
@@ -109,7 +111,7 @@ public class KernelRunner extends KernelRunnerJNI{
        if (openclContextHandle == 0) {
          throw new RuntimeException("Got to building before initialization?");
        }
-       if (buildProgramJNI(openclContextHandle, src) == 0) {
+       if (buildProgramJNI(openclContextHandle, openclProgramContextHandle, src) == 0) {
          throw new RuntimeException("Failure building OpenCL context");
        }
      }
@@ -1108,6 +1110,7 @@ public class KernelRunner extends KernelRunnerJNI{
                   // Send the string to OpenCL to compile it
                   buildOpenCLContext(openCL);
                   initJNIContextFromOpenCLContext(jniContextHandle, openclContextHandle);
+                  initJNIContextFromOpenCLProgramContext(jniContextHandle, openclProgramContextHandle);
 
                   args = new KernelArg[entryPoint.getReferencedFields().size()];
                   int i = 0;

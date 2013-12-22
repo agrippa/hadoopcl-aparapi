@@ -380,7 +380,7 @@ void updateArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argP
       memList.add(arg->arrayBuffer->mem, __LINE__, __FILE__);
    }
 
-   status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_mem), (void *)&(arg->arrayBuffer->mem));
+   status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(cl_mem), (void *)&(arg->arrayBuffer->mem));
    if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (array)");
 
    // Add the array length if needed
@@ -388,7 +388,7 @@ void updateArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argP
       argPos++;
       arg->syncJavaArrayLength(jenv);
 
-      status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
+      status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
       if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (array length)");
 
       if (config->isVerbose()){
@@ -419,7 +419,7 @@ void updateBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& arg
       memList.add(buffer->mem, __LINE__, __FILE__);
    }
 
-   status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_mem), (void *)&(buffer->mem));
+   status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(cl_mem), (void *)&(buffer->mem));
    if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (buffer)");
 
    // Add the array length if needed
@@ -427,7 +427,7 @@ void updateBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& arg
 
       for(int i = 0; i < buffer->numDims; i++) {
          argPos++;
-         status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(cl_uint), &(buffer->lens[i]));
+         status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(cl_uint), &(buffer->lens[i]));
          if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg (buffer length)");
          if (config->isVerbose()){
             fprintf(stderr, "runKernel arg %d %s, length = %d\n", argIdx, arg->name, buffer->lens[i]);
@@ -645,7 +645,7 @@ void processLocalArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int
       if (arg->usesArrayLength()) {
          arg->syncJavaArrayLength(jenv);
 
-         status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
+         status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(jint), &(arg->arrayBuffer->length));
 
          if (config->isVerbose()){
             fprintf(stderr, "runKernel arg %d %s, javaArrayLength = %d\n", argIdx, arg->name, arg->arrayBuffer->length);
@@ -688,7 +688,7 @@ void processLocalBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, in
          for(int i = 0; i < arg->aparapiBuffer->numDims; i++)
          {
              int length = arg->aparapiBuffer->lens[i];
-             status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(jint), &length);
+             status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(jint), &length);
              if (config->isVerbose()){
                 fprintf(stderr, "runKernel arg %d %s, javaArrayLength = %d\n", argIdx, arg->name, length);
              }
@@ -803,7 +803,7 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
    for (int passid=0; passid < passes; passid++) {
 
       //size_t offset = 1; // (size_t)((range.globalDims[0]/jniContext->deviceIdc)*dev);
-      status = clSetKernelArg(jniContext->clctx.kernel, argPos, sizeof(passid), &(passid));
+      status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(passid), &(passid));
       if (status != CL_SUCCESS) throw CLException(status, "clSetKernelArg() (passid)");
       //status = clSetKernelArg(jniContext->kernel, argPos+1, localMemSize, NULL);
       //if (status != CL_SUCCESS) throw CLException(status, "clSetKernelArg() (allLocal)");
@@ -823,7 +823,7 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
       // while using clGetDeviceInfo
       // see: http://www.openwall.com/lists/john-dev/2012/04/10/4
       cl_uint max_group_size[3];
-      status = clGetKernelWorkGroupInfo(jniContext->clctx.kernel,
+      status = clGetKernelWorkGroupInfo(jniContext->clprgctx.kernel,
                                         (cl_device_id)jniContext->clctx.deviceId,
                                         CL_KERNEL_WORK_GROUP_SIZE,
                                         sizeof(max_group_size),
@@ -877,7 +877,7 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
 
       status = clEnqueueNDRangeKernel(
             jniContext->clctx.commandQueue,
-            jniContext->clctx.kernel,
+            jniContext->clprgctx.kernel,
             range.dims,
             range.offsets,
             range.globalDims,
@@ -1199,7 +1199,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                    arg->unpinAbort(jenv);
                  }
 
-                 err = clSetKernelArg(jniContext->clctx.kernel, argpos,
+                 err = clSetKernelArg(jniContext->clprgctx.kernel, argpos,
                          sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
@@ -1210,7 +1210,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  if (arg->usesArrayLength()) {
                      argpos++;
                      arg->syncJavaArrayLength(jenv);
-                     err = clSetKernelArg(jniContext->clctx.kernel, argpos,
+                     err = clSetKernelArg(jniContext->clprgctx.kernel, argpos,
                              sizeof(jint), &(arg->arrayBuffer->length));
                      if (err != CL_SUCCESS) {
                          fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
@@ -1225,7 +1225,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #endif
 
          int dummy_pass = 0;
-         err = clSetKernelArg(jniContext->clctx.kernel, argpos, sizeof(int),
+         err = clSetKernelArg(jniContext->clprgctx.kernel, argpos, sizeof(int),
                  &dummy_pass);
          if (err != CL_SUCCESS) {
              fprintf(stderr,"Error setting kernel arg for dummy pass\n");
@@ -1238,7 +1238,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          // while using clGetDeviceInfo
          // see: http://www.openwall.com/lists/john-dev/2012/04/10/4
          cl_uint max_group_size[3];
-         err = clGetKernelWorkGroupInfo(jniContext->clctx.kernel,
+         err = clGetKernelWorkGroupInfo(jniContext->clprgctx.kernel,
                                            (cl_device_id)jniContext->clctx.deviceId,
                                            CL_KERNEL_WORK_GROUP_SIZE,
                                            sizeof(max_group_size),
@@ -1256,7 +1256,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #endif
          err = clEnqueueNDRangeKernel(
                jniContext->clctx.commandQueue,
-               jniContext->clctx.kernel,
+               jniContext->clprgctx.kernel,
                range.dims,
                range.offsets,
                range.globalDims,
@@ -1468,6 +1468,19 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
       return ((jlong)clctx);
   }
 
+JNI_JAVA(jlong, KernelRunnerJNI, initOpenCLProgram)
+  (JNIEnv *jenv, jclass clazz) {
+      if (config == NULL) {
+        config = new Config(jenv);
+      }
+
+      OpenCLProgramContext *ctx =
+        (OpenCLProgramContext *)malloc(sizeof(OpenCLProgramContext));
+      memset(ctx, 0x00, sizeof(OpenCLProgramContext));
+
+      return ((jlong)ctx);
+  }
+
 JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLContext)
   (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
    jlong openclContextHandle) {
@@ -1486,6 +1499,26 @@ JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLContext)
       }
 
       memcpy(&jniContext->clctx, openclContext, sizeof(OpenCLContext));
+}
+
+JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLProgramContext)
+  (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
+   jlong openclProgramContextHandle) {
+      if (config == NULL) {
+         config = new Config(jenv);
+      }
+
+      OpenCLProgramContext *openclProgramContext = ((OpenCLProgramContext*)openclProgramContextHandle);
+      if (openclProgramContext == NULL) {
+         return 0;
+      }
+
+      JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+      if (jniContext == NULL) {
+        return 0;
+      }
+
+      memcpy(&jniContext->clprgctx, openclProgramContext, sizeof(OpenCLProgramContext));
 }
 
 void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
@@ -1529,20 +1562,24 @@ void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
 }
 
 JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
-   (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jstring source) {
+   (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jlong openclProgramContextHandle, jstring source) {
       OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
       if (openclContext == NULL){
          return 0;
+      }
+      OpenCLProgramContext *openclProgramContext = ((OpenCLProgramContext*)openclProgramContextHandle);
+      if (openclProgramContext == NULL) {
+          return 0;
       }
 
       try {
          cl_int status = CL_SUCCESS;
 
-         openclContext->program = CLHelper::compile(jenv, openclContext->context,  1, &openclContext->deviceId, source, NULL, &status);
+         openclProgramContext->program = CLHelper::compile(jenv, openclContext->context,  1, &openclContext->deviceId, source, NULL, &status);
 
          if(status != CL_SUCCESS) throw CLException(status, "compile()");
 
-         openclContext->kernel = clCreateKernel(openclContext->program, "run", &status);
+         openclProgramContext->kernel = clCreateKernel(openclProgramContext->program, "run", &status);
          if(status != CL_SUCCESS) throw CLException(status,"clCreateKernel()");
 
          cl_command_queue_properties queue_props = 0;
