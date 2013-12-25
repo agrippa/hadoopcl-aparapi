@@ -845,14 +845,20 @@ public class KernelRunner extends KernelRunnerJNI {
                } else {
                   // set up JNI fields for normal arrays
                   arg.setJavaArray(newArrayRef);
-                  arg.setNumElements(Array.getLength(newArrayRef));
-                  arg.setSizeInBytes((long)arg.getNumElements() * (long)arg.getPrimitiveSize());
 
-                  if (((args[i].getType() & ARG_EXPLICIT) != 0) && puts.contains(newArrayRef)) {
-                     args[i].setType(args[i].getType() | ARG_EXPLICIT_WRITE);
-                     // System.out.println("detected an explicit write " + args[i].name);
-                     puts.remove(newArrayRef);
+                  if (newArrayRef == null) {
+                    arg.setNumElements(kernel.getArrayLength(arg.getName()));
+                  } else {
+                    arg.setNumElements(Array.getLength(newArrayRef));
+
+                    if (((args[i].getType() & ARG_EXPLICIT) != 0) &&
+                         puts.contains(newArrayRef)) {
+                       args[i].setType(args[i].getType() | ARG_EXPLICIT_WRITE);
+                       puts.remove(newArrayRef);
+                    }
                   }
+                  arg.setSizeInBytes((long)arg.getNumElements() *
+                      (long)arg.getPrimitiveSize());
                }
 
                if (newArrayRef != arg.getArray()) {
@@ -880,47 +886,6 @@ public class KernelRunner extends KernelRunnerJNI {
 
    private Kernel executeOpenCL(final String _entrypointName, final Range _range, final int _passes,
            final boolean enableStriding) throws AparapiException {
-      /*
-      if (_range.getDims() > getMaxWorkItemDimensionsJNI(jniContextHandle)) {
-         throw new RangeException("Range dim size " + _range.getDims() + " > device "
-               + getMaxWorkItemDimensionsJNI(jniContextHandle));
-      }
-      if (_range.getWorkGroupSize() > getMaxWorkGroupSizeJNI(jniContextHandle)) {
-         throw new RangeException("Range workgroup size " + _range.getWorkGroupSize() + " > device "
-               + getMaxWorkGroupSizeJNI(jniContextHandle));
-      }
-      
-            if (_range.getGlobalSize(0) > getMaxWorkItemSizeJNI(jniContextHandle, 0)) {
-               throw new RangeException("Range globalsize 0 " + _range.getGlobalSize(0) + " > device "
-                     + getMaxWorkItemSizeJNI(jniContextHandle, 0));
-            }
-            if (_range.getDims() > 1) {
-               if (_range.getGlobalSize(1) > getMaxWorkItemSizeJNI(jniContextHandle, 1)) {
-                  throw new RangeException("Range globalsize 1 " + _range.getGlobalSize(1) + " > device "
-                        + getMaxWorkItemSizeJNI(jniContextHandle, 1));
-               }
-               if (_range.getDims() > 2) {
-                  if (_range.getGlobalSize(2) > getMaxWorkItemSizeJNI(jniContextHandle, 2)) {
-                     throw new RangeException("Range globalsize 2 " + _range.getGlobalSize(2) + " > device "
-                           + getMaxWorkItemSizeJNI(jniContextHandle, 2));
-                  }
-               }
-            }
-      
-
-      if (logger.isLoggable(Level.FINE)) {
-         logger.fine("maxComputeUnits=" + this.getMaxComputeUnitsJNI(jniContextHandle));
-         logger.fine("maxWorkGroupSize=" + this.getMaxWorkGroupSizeJNI(jniContextHandle));
-         logger.fine("maxWorkItemDimensions=" + this.getMaxWorkItemDimensionsJNI(jniContextHandle));
-         logger.fine("maxWorkItemSize(0)=" + getMaxWorkItemSizeJNI(jniContextHandle, 0));
-         if (_range.getDims() > 1) {
-            logger.fine("maxWorkItemSize(1)=" + getMaxWorkItemSizeJNI(jniContextHandle, 1));
-            if (_range.getDims() > 2) {
-               logger.fine("maxWorkItemSize(2)=" + getMaxWorkItemSizeJNI(jniContextHandle, 2));
-            }
-         }
-      }
-      */
       // Read the array refs after kernel may have changed them
       // We need to do this as input to computing the localSize
       assert args != null : "args should not be null";
@@ -1259,7 +1224,6 @@ public class KernelRunner extends KernelRunnerJNI {
                   try {
                      ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided);
                   } catch (final AparapiException e) {
-                     System.out.println("Exception during execution");
                      warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
                   }
                } else {

@@ -162,6 +162,7 @@ public abstract class Kernel implements Cloneable {
    }
 
    public abstract TaskType checkTaskType();
+   public abstract int getArrayLength(String arrName);
 
    /**
     *  We can use this Annotation to 'tag' intended local buffers. 
@@ -2874,5 +2875,4 @@ public abstract class Kernel implements Cloneable {
        }
        kernelRunner.waitForEvent(launched.poll());
    }
-
 }
