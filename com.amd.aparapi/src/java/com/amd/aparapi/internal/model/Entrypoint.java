@@ -565,7 +565,8 @@ public class Entrypoint{
           referencedFieldNames.add("outputValVals");
           referencedFieldNames.add("memAuxIntIncr");
           referencedFieldNames.add("memAuxDoubleIncr");
-          referencedFieldNames.add("outputAuxLength");
+          referencedFieldNames.add("outputAuxIntLength");
+          referencedFieldNames.add("outputAuxDoubleLength");
       } else if (outputValueType.equals("fsvec")) {
           referencedFieldNames.add("outputValIntLookAsideBuffer");
           referencedFieldNames.add("outputValFloatLookAsideBuffer");
@@ -574,7 +575,8 @@ public class Entrypoint{
           referencedFieldNames.add("outputValVals");
           referencedFieldNames.add("memAuxIntIncr");
           referencedFieldNames.add("memAuxFloatIncr");
-          referencedFieldNames.add("outputAuxLength");
+          referencedFieldNames.add("outputAuxIntLength");
+          referencedFieldNames.add("outputAuxFloatLength");
 
       } else {
          referencedFieldNames.add("outputVals");

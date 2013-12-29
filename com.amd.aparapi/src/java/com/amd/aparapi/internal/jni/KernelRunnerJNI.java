@@ -309,7 +309,7 @@ public abstract class KernelRunnerJNI{
    protected native long buildProgramJNI(long _openclContextHandle, String _source);
    protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
-       long _openclContextHandle, Range _range);
+       long _openclContextHandle, Range _range, int relaunch);
    protected native int hadoopclReadbackJNI(long _jniContextHandle, long _openclContextHandle);
    protected native int hadoopclKernelIsDoneJNI(long _jniContextHandle);
    protected native int hadoopclWaitForKernel(long _jniContextHandle);

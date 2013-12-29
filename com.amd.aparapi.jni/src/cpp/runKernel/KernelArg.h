@@ -75,6 +75,7 @@ class KernelArg{
       char *name;        // used for debugging printfs
       jint type;         // a bit mask determining the type of this arg
       enum KernelArgDirection dir;
+      int zeroBeforeKernel;
 
       ArrayBuffer *arrayBuffer;
       AparapiBuffer *aparapiBuffer;

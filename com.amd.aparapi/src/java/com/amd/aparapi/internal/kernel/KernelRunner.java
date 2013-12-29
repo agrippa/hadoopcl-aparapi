@@ -836,9 +836,9 @@ public class KernelRunner extends KernelRunnerJNI {
                Object newArrayRef;
                newArrayRef = arg.getField().get(kernel);
 
-               if (newArrayRef == null) {
-                  throw new IllegalStateException("Cannot send null refs to kernel, reverting to java");
-               }
+               // if (newArrayRef == null) {
+               //    throw new IllegalStateException("Cannot send null refs to kernel, reverting to java");
+               // }
 
                if ((arg.getType() & ARG_OBJ_ARRAY_STRUCT) != 0) {
                   prepareOopConversionBuffer(arg);
@@ -882,10 +882,8 @@ public class KernelRunner extends KernelRunnerJNI {
       return needsSync;
    }
 
-   // private int numAvailableProcessors = Runtime.getRuntime().availableProcessors();
-
    private Kernel executeOpenCL(final String _entrypointName, final Range _range, final int _passes,
-           final boolean enableStriding) throws AparapiException {
+           final boolean enableStriding, boolean isRelaunch) throws AparapiException {
       // Read the array refs after kernel may have changed them
       // We need to do this as input to computing the localSize
       assert args != null : "args should not be null";
@@ -897,7 +895,7 @@ public class KernelRunner extends KernelRunnerJNI {
       // native side will reallocate array buffers if necessary
       int execID;
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
-              openclContextHandle, _range)) != 0) {
+              openclContextHandle, _range, isRelaunch ? 1 : 0)) != 0) {
          return null;
       }
 
@@ -920,6 +918,11 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    public synchronized int waitForOpenCL() {
+       try {
+           updateKernelArrayRefs();
+       } catch (Exception e) {
+           throw new RuntimeException(e);
+       }
        return hadoopclReadbackJNI(jniContextHandle, openclContextHandle);
    }
 
@@ -927,39 +930,38 @@ public class KernelRunner extends KernelRunnerJNI {
        waitForExecute(jniContextHandle, id);
    }
 
-   public synchronized Kernel execute(Kernel.Entry entry, final Range _range, final int _passes) {
-      System.out.println("execute(Kernel.Entry, size) not implemented");
-      return (kernel);
+   public synchronized Kernel execute(Kernel.Entry entry, final Range _range, final int _passes, final boolean isRelaunch) {
+      throw new RuntimeException("Not implemented");
    }
 
    synchronized private Kernel fallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
-           final boolean enableStrided) {
+           final boolean enableStrided, final boolean isRelaunch) {
       if (kernel.hasNextExecutionMode()) {
          kernel.tryNextExecutionMode();
       } else {
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, enableStrided);
+      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
-         Exception _exception, boolean enableStrided) {
+         Exception _exception, boolean enableStrided, boolean isRelaunch) {
       if (logger.isLoggable(Level.WARNING)) {
          logger.warning("Reverting to Java Thread Pool (JTP) for " + kernel.getClass() + ": " + _exception.getMessage());
          _exception.printStackTrace(); System.out.println("Hello");
       }
-      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided);
+      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName,
-           final Range _range, final int _passes, String _excuse, boolean enableStrided) {
+           final Range _range, final int _passes, String _excuse, boolean enableStrided, boolean isRelaunch) {
       logger.warning("Reverting to Java Thread Pool (JTP) for " + kernel.getClass() + ": " + _excuse);
-      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided);
+      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
    }
 
    public synchronized Kernel execute(String _entrypointName, final Range _range,
-           final int _passes, final boolean enableStrided) {
+           final int _passes, final boolean enableStrided, final boolean isRelaunch) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -985,7 +987,7 @@ public class KernelRunner extends KernelRunnerJNI {
                   entryPointCopy = classModel.getEntrypoint(_entrypointName,
                           kernel);
                } catch (final Exception exception) {
-                  return warnFallBackAndExecute(_entrypointName, _range, _passes, exception, enableStrided);
+                  return warnFallBackAndExecute(_entrypointName, _range, _passes, exception, enableStrided, isRelaunch);
                }
 
                OpenCLDevice openCLDevice;
@@ -1010,7 +1012,7 @@ public class KernelRunner extends KernelRunnerJNI {
                            openCLDevice = (OpenCLDevice) OpenCLDevice.firstCPU();
                            if (openCLDevice == null) {
                               return warnFallBackAndExecute(_entrypointName, _range, _passes,
-                                    "CPU request can't be honored not CPU device", enableStrided);
+                                    "CPU request can't be honored not CPU device", enableStrided, isRelaunch);
                            }
                         }
                      } else {
@@ -1032,7 +1034,7 @@ public class KernelRunner extends KernelRunnerJNI {
                   } // end of synchronized! issue 68
 
                   if (jniContextHandle == 0) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "initJNI failed to return a valid handle", enableStrided);
+                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "initJNI failed to return a valid handle", enableStrided, isRelaunch);
                   }
 
                   final String extensions = getExtensionsJNI(openclContextHandle);
@@ -1048,12 +1050,12 @@ public class KernelRunner extends KernelRunnerJNI {
                   }
 
                   if (entryPoint.requiresDoublePragma() && !hasFP64Support() && !hasAMDFP64Support()) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "FP64 required but not supported", enableStrided);
+                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "FP64 required but not supported", enableStrided, isRelaunch);
                   }
 
                   if (entryPoint.requiresByteAddressableStorePragma() && !hasByteAddressableStoreSupport()) {
                      return warnFallBackAndExecute(_entrypointName, _range, _passes,
-                           "Byte addressable stores required but not supported", enableStrided);
+                           "Byte addressable stores required but not supported", enableStrided, isRelaunch);
                   }
 
                   final boolean all32AtomicsAvailable = hasGlobalInt32BaseAtomicsSupport()
@@ -1062,7 +1064,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
                   if (entryPoint.requiresAtomic32Pragma() && !all32AtomicsAvailable) {
 
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "32 bit Atomics required but not supported", enableStrided);
+                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "32 bit Atomics required but not supported", enableStrided, isRelaunch);
                   }
 
                   String openCL = null;
@@ -1071,7 +1073,7 @@ public class KernelRunner extends KernelRunnerJNI {
                              openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
                              hasFP64Support(), hasAMDFP64Support());
                   } catch (final CodeGenException codeGenException) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided);
+                     return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided, isRelaunch);
                   }
 
                   if (Config.enableShowGeneratedOpenCL) {
@@ -1143,7 +1145,7 @@ public class KernelRunner extends KernelRunnerJNI {
                                  return warnFallBackAndExecute(_entrypointName,
                                          _range, _passes, "failed to set kernel arguement "
                                          + args[i].getName() + ".  Aparapi only supports 2D and 3D arrays.",
-                                         enableStrided);
+                                         enableStrided, isRelaunch);
                               }
                            } else {
 
@@ -1222,24 +1224,24 @@ public class KernelRunner extends KernelRunnerJNI {
                   conversionTime = System.currentTimeMillis() - executeStartTime;
 
                   try {
-                     ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided);
+                     ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
                   } catch (final AparapiException e) {
-                     warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
+                     warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided, isRelaunch);
                   }
                } else {
-                  warnFallBackAndExecute(_entrypointName, _range, _passes, "failed to locate entrypoint", enableStrided);
+                  warnFallBackAndExecute(_entrypointName, _range, _passes, "failed to locate entrypoint", enableStrided, isRelaunch);
                }
             } else {
                try {
-                  ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided);
+                  ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
                } catch (final AparapiException e) {
                   System.out.println("Exception during execution");
-                  warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided);
+                  warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided, isRelaunch);
                }
             }
          } else {
             warnFallBackAndExecute(_entrypointName, _range, _passes,
-                  "OpenCL was requested but Device supplied was not an OpenCLDevice", enableStrided);
+                  "OpenCL was requested but Device supplied was not an OpenCLDevice", enableStrided, isRelaunch);
          }
       } else {
          executeJava(_range, _passes);

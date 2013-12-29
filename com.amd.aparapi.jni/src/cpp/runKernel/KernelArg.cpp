@@ -40,6 +40,13 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
           //fprintf(stderr,"Creating argument %s with direction INOUT\n",nameChars);
           dir = INOUT;
       }
+
+      if (strncmp(nameChars, "mem", 3) == 0) {
+          zeroBeforeKernel = 1;
+      } else {
+          zeroBeforeKernel = 0;
+      }
+
       name = strdup(nameChars);
       // fprintf(stderr,"Initializing %s\n",name);
       jenv->ReleaseStringUTFChars(nameString, nameChars);

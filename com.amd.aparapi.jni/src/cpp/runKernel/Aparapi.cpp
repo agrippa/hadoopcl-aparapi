@@ -1154,7 +1154,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclWaitForKernel)
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jobject _range) {
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jobject _range, jint relaunch) {
 
       if (config == NULL){
          config = new Config(jenv);
@@ -1165,6 +1165,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       Range range(jenv, _range);
 
       cl_int err = CL_SUCCESS;
+      cl_event *fillEvents = NULL;
+      int fillEventsSoFar = 0;
 
       try {
 #ifdef PROFILE_HADOOPCL
@@ -1187,16 +1189,26 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                          arg->javaArg, KernelArg::javaArrayFieldID);
 
                  cl_mem mem = jniContext->hadoopclRefresh(arg);
-                 if (arg->dir != OUT) {
-                   arg->pin(jenv);
-                   err = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, mem,
-                           CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
-                           arg->arrayBuffer->addr, 0, NULL, NULL);
-                   if (err != CL_SUCCESS) {
-                       fprintf(stderr,"Reporting failure of write: %d\n",err);
-                       return err;
+                 if (arg->zeroBeforeKernel) {
+                   int zero = 0;
+                   fillEvents = (cl_event *)realloc(fillEvents, sizeof(cl_event) *
+                       (fillEventsSoFar + 1));
+                   err = clEnqueueFillBuffer(jniContext->clctx.commandQueue, mem,
+                           &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
+                           0, NULL, fillEvents + fillEventsSoFar);
+                   fillEventsSoFar++;
+                 } else if (arg->dir != OUT) {
+                   if (relaunch == 0) {
+                       arg->pin(jenv);
+                       err = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, mem,
+                               CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                               arg->arrayBuffer->addr, 0, NULL, NULL);
+                       if (err != CL_SUCCESS) {
+                           fprintf(stderr,"Reporting failure of write: %d\n",err);
+                           return err;
+                       }
+                       arg->unpinAbort(jenv);
                    }
-                   arg->unpinAbort(jenv);
                  }
 
                  err = clSetKernelArg(jniContext->clprgctx.kernel, argpos,
@@ -1249,6 +1261,15 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          } else {
             range.localDims[0] = std::min((cl_uint)range.localDims[0],
                     max_group_size[0]);
+         }
+
+         if (fillEvents != NULL) {
+             int i;
+             clWaitForEvents(fillEventsSoFar, fillEvents);
+             for (i = 0; i < fillEventsSoFar; i++) {
+                 clReleaseEvent(fillEvents[i]);
+             }
+             free(fillEvents);
          }
 
 #ifdef PROFILE_HADOOPCL

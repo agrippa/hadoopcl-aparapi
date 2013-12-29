@@ -785,7 +785,6 @@ public abstract class KernelWriter extends BlockWriter{
       final String reducerRunPost = "HadoopCLReducerKernel__run";
       final String mapperCallPost = "HadoopCLMapperKernel__callMap";
       final String reducerCallPost = "HadoopCLReducerKernel__callReduce";
-      final String reserveOutputPost = "__reserveOutput";
       final String accessOutputPost = "__accessOutput";
       final String getGlobalIndicesPost = "__getGlobalIndices";
       final String getGlobalValsPost = "__getGlobalVals";
@@ -801,6 +800,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String findNextSmallestPost = "__findNextSmallest";
       final String findEndPost = "__findEnd";
       final String quickSortPost = "__quickSort";
+      final String outOfMemoryPost = "__outOfMemory";
 
       HADOOPTYPE hadoopType = HADOOPTYPE.UNKNOWN;
 
@@ -809,9 +809,10 @@ public abstract class KernelWriter extends BlockWriter{
 
          boolean isMapWrite = false;
          boolean isReduceWrite = false;
+         boolean isMapWriteWithOffset = false;
+         boolean isReduceWriteWithOffset = false;
          boolean isCallMap = false;
          boolean isCallReduce = false;
-         boolean isReserveOutput = false;
          boolean isAccessOutput = false;
          boolean isGetGlobalIndices = false;
          boolean isGetGlobalVals = false;
@@ -827,13 +828,34 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isReduce = false;
          boolean isMap = false;
          boolean isQuickSort = false;
+         boolean isOutOfMemory = false;
+
+         boolean hasOffsetArg = false;
+         final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
+         for (final LocalVariableInfo lvi : lvte) {
+             if ((lvi.getStart() == 0) && ((lvi.getVariableIndex() != 0) || mm.getMethod().isStatic())) {
+                String varName = lvi.getVariableName();
+                if (varName.indexOf("Offset") != -1 || varName.indexOf("offset") != -1) {
+                    hasOffsetArg = true;
+                    break;
+                }
+             }
+         }
 
          if(mm.getName().indexOf(mapreducePrefix) == 0) {
              if(mm.getName().indexOf(mapperWritePost) != -1) {
-                 isMapWrite = true;
+                 if (hasOffsetArg) {
+                     isMapWriteWithOffset = true;
+                 } else {
+                     isMapWrite = true;
+                 }
                  hadoopType = HADOOPTYPE.MAPPER;
              } else if(mm.getName().indexOf(reducerWritePost) != -1) {
-                 isReduceWrite = true;
+                 if (hasOffsetArg) {
+                     isReduceWriteWithOffset = true;
+                 } else {
+                     isReduceWrite = true;
+                 }
                  hadoopType = HADOOPTYPE.REDUCER;
              } else if(mm.getName().indexOf(mapperCallPost) != -1) {
                  isCallMap = true;
@@ -841,8 +863,6 @@ public abstract class KernelWriter extends BlockWriter{
              } else if(mm.getName().indexOf(reducerCallPost) != -1) {
                  isCallReduce = true;
                  hadoopType = HADOOPTYPE.REDUCER;
-             } else if(mm.getName().indexOf(reserveOutputPost) != -1) {
-                 isReserveOutput = true;
              } else if(mm.getName().indexOf(accessOutputPost) != -1) {
                  isAccessOutput = true;
              } else if(mm.getName().indexOf(getGlobalIndicesPost) != -1) {
@@ -868,7 +888,9 @@ public abstract class KernelWriter extends BlockWriter{
              } else if (mm.getName().indexOf(findEndPost) != -1) {
                  isFindEnd = true;
              } else if (mm.getName().indexOf(quickSortPost) != -1) {
-               isQuickSort = true;
+                 isQuickSort = true;
+             } else if (mm.getName().indexOf(outOfMemoryPost) != -1) {
+                 isOutOfMemory = true;
              }
          }
 
@@ -908,7 +930,6 @@ public abstract class KernelWriter extends BlockWriter{
 
          boolean alreadyHasFirstArg = !mm.getMethod().isStatic();
 
-         final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
          List<String> gatherArgumentNames = new ArrayList<String>();
          for (final LocalVariableInfo lvi : lvte) {
             if (!lvi.getVariableDescriptor().equals("Lorg/apache/hadoop/mapreduce/HadoopCLSvecValueIterator;") &&
@@ -934,7 +955,7 @@ public abstract class KernelWriter extends BlockWriter{
          this.addMethodArgs(mm.getName(),
                  new MethodArgumentList(mm.getName(), gatherArgumentNames));
 
-         if(isReduceWrite || isMapWrite) {
+         if (isReduceWrite || isMapWrite) {
              try {
                  writeMethodBody(mm);
              } catch(Exception ex) {
@@ -1023,9 +1044,6 @@ public abstract class KernelWriter extends BlockWriter{
                  write("         this->nWrites[this->iter] = -1;\n");
                  write("         return 0;\n");
                  write("      }\n");
-                 // write("   if (this->reservedOffset >= 0 ) {\n");
-                 // write("      index = this->reservedOffset;\n");
-                 // write("      this->reservedOffset = -1;\n");
                  write("   } else {\n");
                  if(isMapWrite) {
                      write("      index = (this->nPairs * pastWrites) + (this->iter);\n");
@@ -1047,6 +1065,90 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   this->outputIterMarkers[index] = this->iter;\n");
                  write("   return 1;\n");
                  write("}\n\n");
+             }
+
+         } else if (isReduceWriteWithOffset || isMapWriteWithOffset) {
+             try {
+                 writeMethodBody(mm);
+             } catch(Exception ex) {
+                 throw new RuntimeException(ex);
+             }
+
+             String className = _entryPoint.getClassModel().getClassWeAreModelling().toString();
+             className = className.split(" ")[1];
+             String getPairsLine = className+"__getOutputPairsPerInput(this)";
+
+             String funcDeclString = removePreviousLine();
+             while(funcDeclString.indexOf("Kernel__write") == -1) {
+                 funcDeclString = removePreviousLine();
+             }
+             write(funcDeclString);
+
+             String arguments = funcDeclString.substring(funcDeclString.indexOf("(")+1);
+             arguments = arguments.substring(0, arguments.indexOf(")"));
+             String[] argTokens = arguments.split(",");
+
+             if(outputValType.equals("svec") || outputValType.equals("bsvec")) {
+                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 write("   if (index >= this->outputLength) {\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
+                 write("      return 0;\n");
+                 write("   } else {\n");
+                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputValIntLookAsideBuffer[index] = (valIndices + indicesOffset) - this->outputValIndices;\n");
+                 write("      this->outputValDoubleLookAsideBuffer[index] = (valVals + valsOffset) - this->outputValVals;\n");
+                 write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 for(int i = 1; i < argTokens.length; i++) {
+                     if(argTokens[i].indexOf("key") != -1) {
+                         write("   ");
+                         hadoopOutputWrite(argTokens[i]);
+                     }
+                 }
+                 write("      return 1;\n");
+                 write("   }\n");
+                 write("}\n\n");
+             } else if (outputValType.equals("ivec")) {
+                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 write("   if (index >= this->outputLength) {\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
+                 write("      return 0;\n");
+                 write("   } else {\n");
+                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputValLookAsideBuffer[index] = (vals + offset) - this->outputVals;\n");
+                 write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 for(int i = 1; i < argTokens.length; i++) {
+                     if(argTokens[i].indexOf("key") != -1) {
+                         write("   ");
+                         hadoopOutputWrite(argTokens[i]);
+                     }
+                 }
+                 write("      return 1;\n");
+                 write("   }\n");
+                 write("}\n\n");
+             } else if(outputValType.equals("fsvec")) {
+                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 write("   if (index >= this->outputLength) {\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
+                 write("      return 0;\n");
+                 write("   } else {\n");
+                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputValIntLookAsideBuffer[index] = (valIndices + indicesOffset) - this->outputValIndices;\n");
+                 write("      this->outputValFloatLookAsideBuffer[index] = (valVals + valsOffset) - this->outputValVals;\n");
+                 write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 for(int i = 1; i < argTokens.length; i++) {
+                     if(argTokens[i].indexOf("key") != -1) {
+                         write("   ");
+                         hadoopOutputWrite(argTokens[i]);
+                     }
+                 }
+                 write("      return 1;\n");
+                 write("   }\n");
+                 write("}\n\n");
+             } else {
+                 throw new RuntimeException("Invalid write-with-offset method for type "+outputValType);
              }
 
          } else if (isCallMap) {
@@ -1198,37 +1300,6 @@ public abstract class KernelWriter extends BlockWriter{
              //write(reduceCall);
              //write(returnStmt);
              //write(closeBrace);
-         } else if(isReserveOutput) {
-             writeMethodBody(mm);
-
-             // Should be defunct now
-             String line = removePreviousLine();
-             while(line.indexOf("reserveOutput") == -1) {
-                 line = removePreviousLine();
-             }
-             write(line);
-
-             if(outputValType.equals("svec") || outputValType.equals("ivec") || outputValType.equals("fsvec") || outputValType.equals("bsvec")) {
-                 write("   this->reservedAuxOffset = atomic_add(this->memAuxIncr, len);\n");
-                 write("   if(this->reservedAuxOffset+len <= this->outputAuxLength) {\n");
-                 write("      this->reservedOffset = atomic_add(this->memIncr, 1);\n");
-                 write("   }\n");
-                 write("   if (this->reservedAuxOffset+len <= this->outputAuxLength && this->reservedOffset < this->outputLength) {\n");
-                 write("      this->outputValLookAsideBuffer[this->reservedOffset] = this->reservedAuxOffset;\n");
-                 write("      this->outputValLengthBuffer[this->reservedOffset] = len;\n");
-                 write("      return 1;\n");
-                 write("   } else {\n");
-                 write("      this->nWrites[this->iter] = -1;\n");
-                 write("      return 0;\n");
-                 write("   }\n");
-             } else {
-                 write("   this->reservedOffset = atomic_add(this->memIncr, 1);\n");
-                 write("   if (this->reservedOffset >= this->outputLength) {\n");
-                 write("       this->nWrites[this->iter] = -1;\n");
-                 write("   }\n");
-                 write("   return this->reservedOffset < this->outputLength;\n");
-             }
-             write("}\n");
          } else if(isAccessOutput) {
              writeMethodBody(mm);
 
@@ -1287,7 +1358,7 @@ public abstract class KernelWriter extends BlockWriter{
          } else if(isAllocInt) {
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxIntIncr, len);\n");
-             write("   if (offset + len > this->outputAuxLength) {\n");
+             write("   if (offset + len > this->outputAuxIntLength) {\n");
              write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
              write("   }\n");
@@ -1296,7 +1367,7 @@ public abstract class KernelWriter extends BlockWriter{
          } else if(isAllocDouble) {
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxDoubleIncr, len);\n");
-             write("   if (offset + len > this->outputAuxLength) {\n");
+             write("   if (offset + len > this->outputAuxDoubleLength) {\n");
              write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
              write("   }\n");
@@ -1305,7 +1376,7 @@ public abstract class KernelWriter extends BlockWriter{
          } else if (isAllocFloat) {
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxFloatIncr, len);\n");
-             write("   if (offset + len > this->outputAuxLength) {\n");
+             write("   if (offset + len > this->outputAuxFloatLength) {\n");
              write("      this->nWrites[this->iter] = -1;\n");
              write("      return NULL;\n");
              write("   }\n");
@@ -1401,6 +1472,27 @@ public abstract class KernelWriter extends BlockWriter{
              write("        }\n");
              write("    }\n");
              write("}\n\n");
+         } else if (isOutOfMemory) {
+            write("\n{\n");
+            if (outputValType.equals("svec")) {
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
+                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength &&\n");
+                write("        *(this->memIncr) >= this->outputLength;\n");
+            } else if (outputValType.equals("ivec")) {
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
+                write("        *(this->memIncr) >= this->outputLength;\n");
+            } else if (outputValType.equals("fsvec")) {
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
+                write("        *(this->memAuxFloatIncr) >= this->outputAuxFloatLength  &&\n");
+                write("        *(this->memIncr) >= this->outputLength;\n");
+            } else if (outputValType.equals("bsvec")) {
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
+                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength &&\n");
+                write("        *(this->memIncr) >= this->outputLength;\n");
+            } else {
+                write("    return *(this->memIncr) >= this->outputLength;\n");
+            }
+            write("}\n\n");
          } else {
              writeMethodBody(mm);
          }
