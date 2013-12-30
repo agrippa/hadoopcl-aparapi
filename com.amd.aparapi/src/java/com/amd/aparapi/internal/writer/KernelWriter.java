@@ -1475,19 +1475,19 @@ public abstract class KernelWriter extends BlockWriter{
          } else if (isOutOfMemory) {
             write("\n{\n");
             if (outputValType.equals("svec")) {
-                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
-                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength &&\n");
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength ||\n");
+                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength ||\n");
                 write("        *(this->memIncr) >= this->outputLength;\n");
             } else if (outputValType.equals("ivec")) {
-                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength ||\n");
                 write("        *(this->memIncr) >= this->outputLength;\n");
             } else if (outputValType.equals("fsvec")) {
-                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
-                write("        *(this->memAuxFloatIncr) >= this->outputAuxFloatLength  &&\n");
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength ||\n");
+                write("        *(this->memAuxFloatIncr) >= this->outputAuxFloatLength  ||\n");
                 write("        *(this->memIncr) >= this->outputLength;\n");
             } else if (outputValType.equals("bsvec")) {
-                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength &&\n");
-                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength &&\n");
+                write("    return *(this->memAuxIntIncr) >= this->outputAuxIntLength ||\n");
+                write("        *(this->memAuxDoubleIncr) >= this->outputAuxDoubleLength ||\n");
                 write("        *(this->memIncr) >= this->outputLength;\n");
             } else {
                 write("    return *(this->memIncr) >= this->outputLength;\n");

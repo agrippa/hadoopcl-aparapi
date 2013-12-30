@@ -78,14 +78,24 @@ void JNIContext::refreshHadoopclParam(KernelArg *arg,
     hadoopclParam->allocatedSize = arg->arrayBuffer->lengthInBytes;
 }
 
-cl_mem JNIContext::hadoopclRefresh(KernelArg *arg) {
+cl_mem JNIContext::hadoopclRefresh(KernelArg *arg, int relaunch) {
     if (!arg->isArray()) return 0x0;
+
     hadoopclParameter *param = findHadoopclParam(arg);
-    if (param == NULL) {
-        param = addHadoopclParam(arg);
+
+    if (relaunch) {
+        if (param == NULL) {
+            fprintf(stderr, "Failed finding param %s\n", arg->name);
+            exit(1);
+        }
+        return param->allocatedMem;
+    } else {
+        if (param == NULL) {
+            param = addHadoopclParam(arg);
+        }
+        refreshHadoopclParam(arg, param);
+        return param->allocatedMem;
     }
-    refreshHadoopclParam(arg, param);
-    return param->allocatedMem;
 }
 
 void JNIContext::printOpenclMemChecks() {

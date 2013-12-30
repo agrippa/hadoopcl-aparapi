@@ -756,7 +756,7 @@ int processArgs(JNIEnv* jenv, JNIContext* jniContext, int& argPos, int& writeEve
       } else if (arg->isLocal()) {
           processLocal(jenv, jniContext, arg, argPos, argIdx);
       } else {  // primitive arguments
-         status = arg->setPrimitiveArg(jenv, argIdx, argPos, config->isVerbose());
+         status = arg->setPrimitiveArg(jenv, argIdx, argPos, config->isVerbose(), 0);
          if(status != CL_SUCCESS) throw CLException(status,"clSetKernelArg()");
       }
 
@@ -1177,26 +1177,33 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              KernelArg *arg = jniContext->args[argidx];
              if (!arg->isArray()) {
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
-                         config->isVerbose());
+                         config->isVerbose(), relaunch);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
                              argpos, arg->name, err);
                      exit(8);
                  }
              } else {
-                 arg->syncSizeInBytes(jenv);
-                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
-                         arg->javaArg, KernelArg::javaArrayFieldID);
+                 if (relaunch == 0) {
+                     arg->syncSizeInBytes(jenv);
+                     arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                             arg->javaArg, KernelArg::javaArrayFieldID);
+                 }
 
-                 cl_mem mem = jniContext->hadoopclRefresh(arg);
+                 cl_mem mem = jniContext->hadoopclRefresh(arg, relaunch);
+
                  if (arg->zeroBeforeKernel) {
-                   int zero = 0;
-                   fillEvents = (cl_event *)realloc(fillEvents, sizeof(cl_event) *
-                       (fillEventsSoFar + 1));
-                   err = clEnqueueFillBuffer(jniContext->clctx.commandQueue, mem,
-                           &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
-                           0, NULL, fillEvents + fillEventsSoFar);
-                   fillEventsSoFar++;
+                     int zero = 0;
+                     fillEvents = (cl_event *)realloc(fillEvents, sizeof(cl_event) *
+                         (fillEventsSoFar + 1));
+                     err = clEnqueueFillBuffer(jniContext->clctx.commandQueue, mem,
+                             &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
+                             0, NULL, fillEvents + fillEventsSoFar);
+                     if (err != CL_SUCCESS) {
+                        fprintf(stderr, "Error filling with zeros: %d\n", err);
+                        exit(1);
+                     }
+                     fillEventsSoFar++;
                  } else if (arg->dir != OUT) {
                    if (relaunch == 0) {
                        arg->pin(jenv);
@@ -1221,7 +1228,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 
                  if (arg->usesArrayLength()) {
                      argpos++;
-                     arg->syncJavaArrayLength(jenv);
+                     if (relaunch == 0) {
+                         arg->syncJavaArrayLength(jenv);
+                     }
                      err = clSetKernelArg(jniContext->clprgctx.kernel, argpos,
                              sizeof(jint), &(arg->arrayBuffer->length));
                      if (err != CL_SUCCESS) {

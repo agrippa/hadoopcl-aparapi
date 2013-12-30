@@ -534,6 +534,7 @@ public class Entrypoint{
       }
 
       referencedFieldNames.add("memIncr");
+      referencedFieldNames.add("memRetry");
       if(outputKeyType.equals("pair")) {
           referencedFieldNames.add("outputKeys1");
           referencedFieldNames.add("outputKeys2");

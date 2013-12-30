@@ -41,6 +41,9 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
           dir = INOUT;
       }
 
+      cachedValue = NULL;
+      cachedValueLength = 0;
+
       if (strncmp(nameChars, "mem", 3) == 0) {
           zeroBeforeKernel = 1;
       } else {
@@ -147,37 +150,73 @@ void KernelArg::getStaticPrimitiveValue(JNIEnv *jenv, jdouble* value) {
    *value = jenv->GetStaticDoubleField(jniContext->kernelClass, fieldID);
 }
 
-cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose){
+cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached){
    cl_int status = CL_SUCCESS;
-   if (isFloat()) {
-       jfloat f;
-       getPrimitive(jenv, argIdx, argPos, verbose, &f);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(f), &f);
-   }
-   else if (isInt()) {
-       jint i;
-       getPrimitive(jenv, argIdx, argPos, verbose, &i);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(i), &i);
-   }
-   else if (isBoolean()) {
-       jboolean z;
-       getPrimitive(jenv, argIdx, argPos, verbose, &z);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(z), &z);
-   }
-   else if (isByte()) {
-       jbyte b;
-       getPrimitive(jenv, argIdx, argPos, verbose, &b);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(b), &b);
-   }
-   else if (isLong()) {
-       jlong l;
-       getPrimitive(jenv, argIdx, argPos, verbose, &l);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(l), &l);
-   }
-   else if (isDouble()) {
-       jdouble d;
-       getPrimitive(jenv, argIdx, argPos, verbose, &d);
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(d), &d);
+
+   if (useCached) {
+       fprintf(stderr,"Setting %s to %d (len=%d)\n", name, *((int *)cachedValue), cachedValueLength);
+       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, cachedValueLength, cachedValue);
+   } else {
+       if (isFloat()) {
+           jfloat f;
+           getPrimitive(jenv, argIdx, argPos, verbose, &f);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(f));
+           cachedValueLength = sizeof(f);
+           memcpy(cachedValue, &f, sizeof(f));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(f), &f);
+       }
+       else if (isInt()) {
+           jint i;
+           getPrimitive(jenv, argIdx, argPos, verbose, &i);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(i));
+           cachedValueLength = sizeof(i);
+           memcpy(cachedValue, &i, sizeof(i));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(i), &i);
+       }
+       else if (isBoolean()) {
+           jboolean z;
+           getPrimitive(jenv, argIdx, argPos, verbose, &z);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(z));
+           cachedValueLength = sizeof(z);
+           memcpy(cachedValue, &z, sizeof(z));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(z), &z);
+       }
+       else if (isByte()) {
+           jbyte b;
+           getPrimitive(jenv, argIdx, argPos, verbose, &b);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(b));
+           cachedValueLength = sizeof(b);
+           memcpy(cachedValue, &b, sizeof(b));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(b), &b);
+       }
+       else if (isLong()) {
+           jlong l;
+           getPrimitive(jenv, argIdx, argPos, verbose, &l);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(l));
+           cachedValueLength = sizeof(l);
+           memcpy(cachedValue, &l, sizeof(l));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(l), &l);
+       }
+       else if (isDouble()) {
+           jdouble d;
+           getPrimitive(jenv, argIdx, argPos, verbose, &d);
+
+           cachedValue = (void *)realloc(cachedValue, sizeof(d));
+           cachedValueLength = sizeof(d);
+           memcpy(cachedValue, &d, sizeof(d));
+
+           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(d), &d);
+       }
    }
    return status;
 }

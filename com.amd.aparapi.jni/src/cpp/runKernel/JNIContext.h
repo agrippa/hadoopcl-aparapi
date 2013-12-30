@@ -51,7 +51,7 @@ public:
    unsigned long stopWrite;
    unsigned long startKernel;
 
-   cl_mem hadoopclRefresh(KernelArg *arg);
+   cl_mem hadoopclRefresh(KernelArg *arg, int relaunch);
    hadoopclParameter* addHadoopclParam(KernelArg *arg);
    hadoopclParameter* findHadoopclParam(KernelArg *arg);
    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);

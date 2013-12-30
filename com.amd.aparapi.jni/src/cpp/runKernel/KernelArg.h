@@ -29,6 +29,8 @@ class KernelArg{
       static jfieldID typeFieldID; 
       static jfieldID sizeInBytesFieldID;
       static jfieldID numElementsFieldID;
+      void *cachedValue;
+      size_t cachedValueLength;
 
       const char* getTypeName();
 
@@ -84,6 +86,9 @@ class KernelArg{
       KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj);
 
       ~KernelArg(){
+          if (cachedValue) {
+              free(cachedValue);
+          }
       }
 
       void unpinAbort(JNIEnv *jenv){
@@ -203,7 +208,7 @@ class KernelArg{
       cl_int setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       cl_int setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       // Uses JNIContext so can't inline here we below.  
-      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
+      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached);
 };
 
 
