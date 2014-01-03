@@ -154,7 +154,6 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    cl_int status = CL_SUCCESS;
 
    if (useCached) {
-       fprintf(stderr,"Setting %s to %d (len=%d)\n", name, *((int *)cachedValue), cachedValueLength);
        status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, cachedValueLength, cachedValue);
    } else {
        if (isFloat()) {
