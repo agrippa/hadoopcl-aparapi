@@ -112,7 +112,7 @@ void JNIContext::printOpenclMemChecks() {
 }
 
 JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
-        jobject _openCLDeviceObject, jint _flags): 
+        jobject _openCLDeviceObject, jint _flags, jint setContextId): 
       kernelObject(jenv->NewGlobalRef(_kernelObject)),
       kernelClass((jclass)jenv->NewGlobalRef(jenv->GetObjectClass(_kernelObject))), 
       openCLDeviceObject(jenv->NewGlobalRef(_openCLDeviceObject)),
@@ -123,6 +123,7 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
       profileFile(NULL), 
       valid(JNI_FALSE){
 
+   contextId = setContextId;
    memset(&clctx, 0x00, sizeof(OpenCLContext));
    hadoopclParams = NULL;
    nHadoopclParams = 0;

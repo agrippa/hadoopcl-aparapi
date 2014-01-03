@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
@@ -93,6 +94,7 @@ import com.amd.aparapi.opencl.OpenCL;
  */
 public class KernelRunner extends KernelRunnerJNI {
 
+   private static final AtomicInteger jniContextCounter = new AtomicInteger(0);
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private long jniContextHandle = 0;
@@ -1030,7 +1032,7 @@ public class KernelRunner extends KernelRunnerJNI {
                      // code that requires the capabilities.
 
                      initOpenCLContext(openCLDevice, jniFlags);
-                     jniContextHandle = initJNI(kernel, openCLDevice, jniFlags); // openCLDevice will not be null here
+                     jniContextHandle = initJNI(kernel, openCLDevice, jniFlags, jniContextCounter.getAndIncrement()); // openCLDevice will not be null here
                   } // end of synchronized! issue 68
 
                   if (jniContextHandle == 0) {

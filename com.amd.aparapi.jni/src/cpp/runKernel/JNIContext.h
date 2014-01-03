@@ -21,6 +21,7 @@ class JNIContext {
 private: 
    jint flags;
    jboolean valid;
+   jint contextId;
 
 public:
    jobject kernelObject;
@@ -57,7 +58,7 @@ public:
    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);
    void printOpenclMemChecks();
 
-   JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags);
+   JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setContextId);
    
    static JNIContext* getJNIContext(jlong jniContextHandle){
       return((JNIContext*)jniContextHandle);
