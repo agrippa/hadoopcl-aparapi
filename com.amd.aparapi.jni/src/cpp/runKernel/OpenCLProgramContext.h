@@ -8,6 +8,7 @@ typedef struct _OpenCLProgramContext {
     public:
       cl_kernel kernel;
       cl_program program;
+      char *source;
 } OpenCLProgramContext;
 
 #endif

@@ -129,11 +129,17 @@ void CLHelper::getBuildErr(JNIEnv *jenv, cl_device_id deviceId,  cl_program prog
    delete []buildLog;
 }
 
-cl_program CLHelper::compile(JNIEnv *jenv, cl_context context, size_t deviceCount, cl_device_id* deviceIds, jstring source, jstring* log, cl_int* status){
+cl_program CLHelper::compile(JNIEnv *jenv, cl_context context, size_t deviceCount, cl_device_id* deviceIds, jstring source, jstring* log, cl_int* status, char **outsource){
    const char *sourceChars = jenv->GetStringUTFChars(source, NULL);
    // fprintf(stderr,"From compile, source =\n");
    // fprintf(stderr,"%s\n",sourceChars);
    size_t sourceSize[] = { strlen(sourceChars) };
+
+   if (outsource != NULL) {
+       *outsource = (char *)malloc(sizeof(char) * sourceSize[0] + 1);
+       memcpy(outsource, sourceChars, sizeof(char) * sourceSize[0] + 1);
+   }
+
    cl_program program = clCreateProgramWithSource(context, 1, &sourceChars, sourceSize, status); 
    jenv->ReleaseStringUTFChars(source, sourceChars);
    if(*status != CL_SUCCESS) {

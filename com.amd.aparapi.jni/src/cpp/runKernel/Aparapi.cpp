@@ -1171,12 +1171,13 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #ifdef DUMP_DEBUG
          int thisLaunchId = jniContext->kernelLaunchCounter;
          jniContext->kernelLaunchCounter = jniContext->kernelLaunchCounter + 1;
+         int nArgs = jniContext->argc + 1;
 
          char dump_filename[512];
          sprintf(dump_filename, "/tmp/kernel-dump-%d-%d", jniContext->contextId,
                  thisLaunchId);
          FILE *dump = fopen(dump_filename, "w");
-         fwrite(&jniContext->argc, sizeof(int), 1, dump);
+         fwrite(&nArgs, sizeof(int), 1, dump);
 #endif
 
       try {
@@ -1260,12 +1261,26 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 #endif
 
          int dummy_pass = 0;
+#ifdef DUMP_DEBUG
+         size_t dummy_pass_len = sizeof(dummy_pass);
+         fwrite("int", 1, 4, dump);
+         fwrite("pass", 1, 5, dump);
+         fwrite(&dummy_pass_len, sizeof(size_t), 1, dump);
+         fwrite(&dummy_pass, dummy_pass_len, 1, dump); 
+#endif
          err = clSetKernelArg(jniContext->clprgctx.kernel, argpos, sizeof(int),
                  &dummy_pass);
          if (err != CL_SUCCESS) {
              fprintf(stderr,"Error setting kernel arg for dummy pass\n");
              exit(11);
          }
+
+#ifdef DUMP_DEBUG
+         int sourceLength = strlen(jniContext->clprgctx.source);
+         fwrite(&sourceLength, sizeof(sourceLength), 1, dump);
+         fwrite(jniContext->clprgctx.source, 1, sourceLength + 1, dump);
+         fclose(dump);
+#endif
 
          // -----------
          // fix for Mac OSX CPU driver (and possibly others) 
@@ -1294,11 +1309,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              }
              free(fillEvents);
          }
-
-#ifdef DUMP_DEBUG
-         fclose(dump);
-#endif
-
 
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
@@ -1616,7 +1626,8 @@ JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
       if (openclContext == NULL){
          return 0;
       }
-      OpenCLProgramContext *openclProgramContext = (OpenCLProgramContext*)malloc(sizeof(OpenCLProgramContext));
+      OpenCLProgramContext *openclProgramContext =
+          (OpenCLProgramContext*)malloc(sizeof(OpenCLProgramContext));
       memset(openclProgramContext, 0x00, sizeof(OpenCLProgramContext));
       if (openclProgramContext == NULL) {
           return 0;
@@ -1625,11 +1636,20 @@ JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
       try {
          cl_int status = CL_SUCCESS;
 
-         openclProgramContext->program = CLHelper::compile(jenv, openclContext->context,  1, &openclContext->deviceId, source, NULL, &status);
+#ifdef DUMP_DEBUG
+         openclProgramContext->program = CLHelper::compile(jenv,
+                 openclContext->context,  1, &openclContext->deviceId, source,
+                 NULL, &status, &openclProgramContext->source);
+#else
+         openclProgramContext->program = CLHelper::compile(jenv,
+                 openclContext->context,  1, &openclContext->deviceId, source,
+                 NULL, &status, NULL);
+#endif
 
          if(status != CL_SUCCESS) throw CLException(status, "compile()");
 
-         openclProgramContext->kernel = clCreateKernel(openclProgramContext->program, "run", &status);
+         openclProgramContext->kernel = clCreateKernel(
+                 openclProgramContext->program, "run", &status);
          if(status != CL_SUCCESS) throw CLException(status,"clCreateKernel()");
 
          cl_command_queue_properties queue_props = 0;
