@@ -105,7 +105,7 @@ JNI_JAVA(jobject, OpenCLJNI, createProgram)
 
 
       jstring log=NULL;
-      cl_program program = CLHelper::compile(jenv, context, 1, &deviceId, source, &log, &status);
+      cl_program program = CLHelper::compile(jenv, context, 1, &deviceId, source, &log, &status, NULL);
       cl_command_queue queue = NULL;
       if(status == CL_SUCCESS) {
          cl_command_queue_properties queue_props = CL_QUEUE_PROFILING_ENABLE;
