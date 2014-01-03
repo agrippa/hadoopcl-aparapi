@@ -220,4 +220,129 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    return status;
 }
 
+void static dumpTypeToFile(FILE *fp) {
+    char buffer[128];
+    buffer[0] = '\0';
+
+    if (isFloat()) {
+        strcat(buffer, "float");
+    } else if (isInt()) {
+        strcat(buffer, "int");
+    } else if (isBoolean()) {
+        strcat(buffer, "bool");
+    } else if (isByte()) {
+        strcat(buffer, "byte");
+    } else if (isLong()) {
+        strcat(buffer, "long");
+    } else if (isDouble()) {
+        strcat(buffer, "double");
+    }
+
+    if (isArray()) {
+        strcat("[]");
+    }
+
+    fwrite(buffer, sizeof(char), strlen(buffer) + 1, fp);
+}
+
+void static getLengthForType() {
+    size_t length = 0;
+    if (isFloat() || isInt()) {
+        length = 4;
+    } else if (isBoolean()) {
+        length = sizeof(jboolean);
+    } else if (isByte()) {
+        length = sizeof(jbyte);
+    } else if (isLong() || isDouble()) {
+        length = 9;
+    }
+    return length;
+}
+
+void static dumpLengthInBytesToFile(FILE *fp, int relaunch) {
+    if (!isArray()) {
+        if (relaunch) {
+            fwrite(&cachedValueLength, sizeof(size_t), 1, fp);
+        } else {
+            size_t length = getLengthForType();
+            fwrite(&length, sizeof(size_t), 1, fp);
+        }
+    } else {
+         if (relaunch == 0) {
+             arg->syncSizeInBytes(jenv);
+         }
+         fwrite(&arrayBuffer->lengthInBytes, sizeof(size_t), 1, fp);
+    }
+}
+
+void static dumpData(FILE *fp, int relaunch) {
+    if (!isArray()) {
+        if (relaunch) {
+            fwrite(cachedValue, getLengthForType(), 1, fp);
+        } else {
+            if (isFloat()) {
+                jfloat f;
+                getPrimitive(jenv, 0, 0, 0, &f);
+                fwrite(&f, sizeof(float), 1, fp);
+            }
+            else if (isInt()) {
+                jint i;
+                getPrimitive(jenv, argIdx, argPos, verbose, &i);
+                fwrite(&i, sizeof(int), 1, fp);
+            }
+            else if (isBoolean()) {
+                jboolean z;
+                getPrimitive(jenv, argIdx, argPos, verbose, &z);
+                fwrite(&z, sizeof(z), 1, fp);
+            }
+            else if (isByte()) {
+                jbyte b;
+                getPrimitive(jenv, argIdx, argPos, verbose, &b);
+                fwrite(&b, sizeof(b), 1, fp);
+            }
+            else if (isLong()) {
+                jlong l;
+                getPrimitive(jenv, argIdx, argPos, verbose, &l);
+                fwrite(&l, sizeof(l), 1, fp);
+            }
+            else if (isDouble()) {
+                jdouble d;
+                getPrimitive(jenv, argIdx, argPos, verbose, &d);
+                fwrite(&d, sizeof(d), 1, fp);
+            }
+        }
+    } else {
+        if (relaunch == 0) {
+            arrayBuffer->javaArray = (jarray)jenv->GetObjectField(javaArg,
+                    javaArrayFieldID);
+        }
+
+        if (zeroBeforeKernel) {
+            char zeroBuf[4096];
+            memset(zeroBuf, 0x00, sizeof(char) * 4096);
+            int soFar = 0;
+            while (soFar < arrayBuffer->lengthInBytes) {
+                int toWrite = 4096;
+                if (toWrite > arrayBuffer->lengthInBytes - soFar) {
+                    toWrite = arrayBuffer->lengthInBytes - soFar;
+                }
+                fwrite(zeroBuf, 1, toWrite, fp);
+                soFar += toWrite;
+            }
+        } else {
+            pin(jenv);
+            fwrite(arrayBuffer->addr, getLengthForType(),
+                    arrayBuffer->lengthInBytes / getLengthForType(), fp);
+            unpinAbort(jenv);
+        }
+    }
+}
+
+void KernelArg::dumpToFile(FILE *fp, int relaunch) {
+    dumpTypeToFile(fp);
+    fwrite(name, sizeof(char), strlen(name) + 1, fp);
+    dumpLengthInBytesToFile(fp, relaunch);
+    dumpData(fp, relaunch);
+}
+
 

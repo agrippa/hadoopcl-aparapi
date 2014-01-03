@@ -21,9 +21,11 @@ class JNIContext {
 private: 
    jint flags;
    jboolean valid;
-   jint contextId;
 
 public:
+   jint contextId;
+   unsigned int kernelLaunchCounter;
+
    jobject kernelObject;
    jobject openCLDeviceObject;
    jclass kernelClass;

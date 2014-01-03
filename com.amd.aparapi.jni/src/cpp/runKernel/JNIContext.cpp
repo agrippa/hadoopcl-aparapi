@@ -124,6 +124,7 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
       valid(JNI_FALSE){
 
    contextId = setContextId;
+   kernelLaunchCounter = 0;
    memset(&clctx, 0x00, sizeof(OpenCLContext));
    hadoopclParams = NULL;
    nHadoopclParams = 0;

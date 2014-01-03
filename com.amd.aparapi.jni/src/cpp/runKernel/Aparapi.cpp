@@ -37,7 +37,7 @@
    */
 
 #define APARAPI_SOURCE
-
+#define DUMP_DEBUG
 // #define PROFILE_HADOOPCL
 
 //this is a workaround for windows machines since <windows.h> defines min/max that break code.
@@ -1168,6 +1168,17 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       cl_event *fillEvents = NULL;
       int fillEventsSoFar = 0;
 
+#ifdef DUMP_DEBUG
+         int thisLaunchId = jniContext->kernelLaunchCounter;
+         jniContext->kernelLaunchCounter = jniContext->kernelLaunchCounter + 1;
+
+         char dump_filename[512];
+         sprintf(dump_filename, "/tmp/kernel-dump-%d-%d", jniContext->contextId,
+                 thisLaunchId);
+         FILE *dump = fopen(dump_filename, "w");
+         fwrite(&jniContext->argc, sizeof(int), 1, dump);
+#endif
+
       try {
 #ifdef PROFILE_HADOOPCL
          jniContext->startWrite = read_timer();
@@ -1175,6 +1186,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          int argpos = 0;
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
+#ifdef DUMP_DEBUG
+             arg->dumpToFile(dump, relaunch);
+#endif
              if (!arg->isArray()) {
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
                          config->isVerbose(), relaunch);
@@ -1280,6 +1294,11 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              }
              free(fillEvents);
          }
+
+#ifdef DUMP_DEBUG
+         fclose(dump);
+#endif
+
 
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
