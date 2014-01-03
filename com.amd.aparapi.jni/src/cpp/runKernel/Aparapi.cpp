@@ -1443,7 +1443,7 @@ JNI_JAVA(jint, KernelRunnerJNI, runKernelJNI)
 
 // we return the JNIContext from here 
 JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
-   (JNIEnv *jenv, jobject jobj, jobject kernelObject, jobject openCLDeviceObject, jint flags) {
+   (JNIEnv *jenv, jobject jobj, jobject kernelObject, jobject openCLDeviceObject, jint flags, jint id) {
       if (openCLDeviceObject == NULL){
          fprintf(stderr, "no device object!\n");
       }
@@ -1451,7 +1451,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
          config = new Config(jenv);
       }
       cl_int status = CL_SUCCESS;
-      JNIContext* jniContext = new JNIContext(jenv, kernelObject, openCLDeviceObject, flags);
+      JNIContext* jniContext = new JNIContext(jenv, kernelObject, openCLDeviceObject, flags, id);
 
       if (jniContext->isValid()) {
 
