@@ -67,6 +67,11 @@ class KernelArg{
          }
       }
 
+      void dumpTypeToFile(FILE *fp);
+      size_t getLengthForType();
+      void dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv);
+      void dumpData(FILE *fp, int relaunch, JNIEnv *jenv);
+
 
    public:
       static jfieldID javaArrayFieldID; 
@@ -209,7 +214,7 @@ class KernelArg{
       cl_int setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       // Uses JNIContext so can't inline here we below.  
       cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached);
-      void dumpToFile(FILE *fp, int relaunch);
+      void dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv);
 };
 
 

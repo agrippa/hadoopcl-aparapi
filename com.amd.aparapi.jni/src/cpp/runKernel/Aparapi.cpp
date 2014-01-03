@@ -1187,7 +1187,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
 #ifdef DUMP_DEBUG
-             arg->dumpToFile(dump, relaunch);
+             arg->dumpToFile(dump, relaunch, jenv);
 #endif
              if (!arg->isArray()) {
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,

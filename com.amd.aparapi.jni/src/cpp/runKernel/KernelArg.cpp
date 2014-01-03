@@ -220,7 +220,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    return status;
 }
 
-void static dumpTypeToFile(FILE *fp) {
+void KernelArg::dumpTypeToFile(FILE *fp) {
     char buffer[128];
     buffer[0] = '\0';
 
@@ -239,13 +239,13 @@ void static dumpTypeToFile(FILE *fp) {
     }
 
     if (isArray()) {
-        strcat("[]");
+        strcat(buffer, "[]");
     }
 
     fwrite(buffer, sizeof(char), strlen(buffer) + 1, fp);
 }
 
-void static getLengthForType() {
+size_t KernelArg::getLengthForType() {
     size_t length = 0;
     if (isFloat() || isInt()) {
         length = 4;
@@ -259,7 +259,7 @@ void static getLengthForType() {
     return length;
 }
 
-void static dumpLengthInBytesToFile(FILE *fp, int relaunch) {
+void KernelArg::dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
     if (!isArray()) {
         if (relaunch) {
             fwrite(&cachedValueLength, sizeof(size_t), 1, fp);
@@ -269,13 +269,13 @@ void static dumpLengthInBytesToFile(FILE *fp, int relaunch) {
         }
     } else {
          if (relaunch == 0) {
-             arg->syncSizeInBytes(jenv);
+             syncSizeInBytes(jenv);
          }
          fwrite(&arrayBuffer->lengthInBytes, sizeof(size_t), 1, fp);
     }
 }
 
-void static dumpData(FILE *fp, int relaunch) {
+void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv) {
     if (!isArray()) {
         if (relaunch) {
             fwrite(cachedValue, getLengthForType(), 1, fp);
@@ -287,27 +287,27 @@ void static dumpData(FILE *fp, int relaunch) {
             }
             else if (isInt()) {
                 jint i;
-                getPrimitive(jenv, argIdx, argPos, verbose, &i);
+                getPrimitive(jenv, 0, 0, 0, &i);
                 fwrite(&i, sizeof(int), 1, fp);
             }
             else if (isBoolean()) {
                 jboolean z;
-                getPrimitive(jenv, argIdx, argPos, verbose, &z);
+                getPrimitive(jenv, 0, 0, 0, &z);
                 fwrite(&z, sizeof(z), 1, fp);
             }
             else if (isByte()) {
                 jbyte b;
-                getPrimitive(jenv, argIdx, argPos, verbose, &b);
+                getPrimitive(jenv, 0, 0, 0, &b);
                 fwrite(&b, sizeof(b), 1, fp);
             }
             else if (isLong()) {
                 jlong l;
-                getPrimitive(jenv, argIdx, argPos, verbose, &l);
+                getPrimitive(jenv, 0, 0, 0, &l);
                 fwrite(&l, sizeof(l), 1, fp);
             }
             else if (isDouble()) {
                 jdouble d;
-                getPrimitive(jenv, argIdx, argPos, verbose, &d);
+                getPrimitive(jenv, 0, 0, 0, &d);
                 fwrite(&d, sizeof(d), 1, fp);
             }
         }
@@ -338,11 +338,11 @@ void static dumpData(FILE *fp, int relaunch) {
     }
 }
 
-void KernelArg::dumpToFile(FILE *fp, int relaunch) {
+void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
     dumpTypeToFile(fp);
     fwrite(name, sizeof(char), strlen(name) + 1, fp);
-    dumpLengthInBytesToFile(fp, relaunch);
-    dumpData(fp, relaunch);
+    dumpLengthInBytesToFile(fp, relaunch, jenv);
+    dumpData(fp, relaunch, jenv);
 }
 
 
