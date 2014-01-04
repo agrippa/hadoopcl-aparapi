@@ -359,12 +359,10 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniCo
 
 void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv,
         JNIContext *jniContext) {
-    fprintf(stderr, "Dumping %s... ", name);
     dumpTypeToFile(fp);
     fwrite(name, sizeof(char), strlen(name) + 1, fp);
     dumpLengthInBytesToFile(fp, relaunch, jenv);
     dumpData(fp, relaunch, jenv, jniContext);
-    fprintf(stderr,"Done\n");
 }
 
 
