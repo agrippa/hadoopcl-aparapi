@@ -275,8 +275,11 @@ void KernelArg::dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
     }
 }
 
-void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv) {
+void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext) {
+    int willDumpData = 1;
+    int wontDumpData = 0;
     if (!isArray()) {
+        fwrite(&willDumpData, sizeof(int), 1, fp);
         if (relaunch) {
             fwrite(cachedValue, getLengthForType(), 1, fp);
         } else {
@@ -318,6 +321,7 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv) {
         }
 
         if (zeroBeforeKernel) {
+            fwrite(&willDumpData, sizeof(int), 1, fp);
             char zeroBuf[4096];
             memset(zeroBuf, 0x00, sizeof(char) * 4096);
             int soFar = 0;
@@ -329,20 +333,38 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv) {
                 fwrite(zeroBuf, 1, toWrite, fp);
                 soFar += toWrite;
             }
+        } else if (dir != OUT) {
+            fwrite(&willDumpData, sizeof(int), 1, fp);
+
+            if (relaunch) {
+                cl_mem mem = jniContext->hadoopclRefresh(this, relaunch);
+                void *buf = malloc(arrayBuffer->lengthInBytes);
+                clEnqueueReadBuffer(jniContext->clctx.commandQueue, mem, CL_TRUE,
+                    0, arrayBuffer->lengthInBytes, buf, 0, NULL, NULL);
+                fwrite(buf, getLengthForType(),
+                    arrayBuffer->lengthInBytes / getLengthForType(),
+                    fp);
+                free(buf);
+            } else {
+                pin(jenv);
+                fwrite(arrayBuffer->addr, getLengthForType(),
+                        arrayBuffer->lengthInBytes / getLengthForType(), fp);
+                unpinAbort(jenv);
+            }
         } else {
-            pin(jenv);
-            fwrite(arrayBuffer->addr, getLengthForType(),
-                    arrayBuffer->lengthInBytes / getLengthForType(), fp);
-            unpinAbort(jenv);
+            fwrite(&wontDumpData, sizeof(int), 1, fp);
         }
     }
 }
 
-void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
+void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv,
+        JNIContext *jniContext) {
+    fprintf(stderr, "Dumping %s... ", name);
     dumpTypeToFile(fp);
     fwrite(name, sizeof(char), strlen(name) + 1, fp);
     dumpLengthInBytesToFile(fp, relaunch, jenv);
-    dumpData(fp, relaunch, jenv);
+    dumpData(fp, relaunch, jenv, jniContext);
+    fprintf(stderr,"Done\n");
 }
 
 

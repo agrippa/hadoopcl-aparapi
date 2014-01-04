@@ -136,8 +136,8 @@ cl_program CLHelper::compile(JNIEnv *jenv, cl_context context, size_t deviceCoun
    size_t sourceSize[] = { strlen(sourceChars) };
 
    if (outsource != NULL) {
-       *outsource = (char *)malloc(sizeof(char) * sourceSize[0] + 1);
-       memcpy(outsource, sourceChars, sizeof(char) * sourceSize[0] + 1);
+       *outsource = (char *)malloc(sizeof(char) * (sourceSize[0] + 1));
+       memcpy(*outsource, sourceChars, sizeof(char) * (sourceSize[0] + 1));
    }
 
    cl_program program = clCreateProgramWithSource(context, 1, &sourceChars, sourceSize, status); 

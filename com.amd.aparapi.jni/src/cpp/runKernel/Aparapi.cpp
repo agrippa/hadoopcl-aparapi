@@ -37,7 +37,7 @@
    */
 
 #define APARAPI_SOURCE
-#define DUMP_DEBUG
+// #define DUMP_DEBUG
 // #define PROFILE_HADOOPCL
 
 //this is a workaround for windows machines since <windows.h> defines min/max that break code.
@@ -1188,7 +1188,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
 #ifdef DUMP_DEBUG
-             arg->dumpToFile(dump, relaunch, jenv);
+             arg->dumpToFile(dump, relaunch, jenv, jniContext);
 #endif
              if (!arg->isArray()) {
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
@@ -1262,11 +1262,13 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 
          int dummy_pass = 0;
 #ifdef DUMP_DEBUG
+         fprintf(stderr, "Dumping dummy_pass\n");
          size_t dummy_pass_len = sizeof(dummy_pass);
          fwrite("int", 1, 4, dump);
          fwrite("pass", 1, 5, dump);
          fwrite(&dummy_pass_len, sizeof(size_t), 1, dump);
          fwrite(&dummy_pass, dummy_pass_len, 1, dump); 
+         fprintf(stderr, "Done with the dumps\n");
 #endif
          err = clSetKernelArg(jniContext->clprgctx.kernel, argpos, sizeof(int),
                  &dummy_pass);
@@ -1280,6 +1282,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          fwrite(&sourceLength, sizeof(sourceLength), 1, dump);
          fwrite(jniContext->clprgctx.source, 1, sourceLength + 1, dump);
          fclose(dump);
+         fprintf(stderr, "Dump file close\n");
 #endif
 
          // -----------
