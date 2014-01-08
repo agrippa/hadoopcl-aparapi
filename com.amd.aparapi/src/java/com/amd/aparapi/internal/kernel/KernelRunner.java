@@ -44,6 +44,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -98,30 +99,46 @@ public class KernelRunner extends KernelRunnerJNI {
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private long jniContextHandle = 0;
-   private static long openclContextHandle = 0;
+   private long myOpenCLDataHandle = 0;
+   private long myOpenCLContextHandle = 0;
+   private static Map<OpenCLDevice, Long> openclContextHandles =
+     new HashMap<OpenCLDevice, Long>();
    private static Map<Kernel.TaskType, Long> openclProgramContextHandles =
      new HashMap<Kernel.TaskType, Long>();
+   private static Map<Kernel.TaskType, List<Long>> openclDataHandles =
+     new HashMap<Kernel.TaskType, List<Long>>();
 
    static {
-     openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
-     openclProgramContextHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
-     openclProgramContextHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
+       openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
+       openclProgramContextHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
+       openclProgramContextHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
+
+       openclDataHandles.put(Kernel.TaskType.MAPPER, new LinkedList<Long>());
+       openclDataHandles.put(Kernel.TaskType.COMBINER, new LinkedList<Long>());
+       openclDataHandles.put(Kernel.TaskType.REDUCER, new LinkedList<Long>());
    }
 
-   private static void initOpenCLContext(OpenCLDevice dev, int flags) {
-     synchronized(KernelRunner.class) {
-       if (openclContextHandle == 0) {
-         openclContextHandle = initOpenCL(dev, flags);
+   private void initOpenCLContext(OpenCLDevice dev, int flags) {
+       synchronized(openclContextHandles) {
+           if (myOpenCLContextHandle == 0) {
+               long tmpContextHandle;
+               if (openclContextHandles.containsKey(dev)) {
+                   tmpContextHandle = openclContextHandles.get(dev);
+               } else {
+                   tmpContextHandle = initOpenCL(dev, flags);
+                   openclContextHandles.put(dev, tmpContextHandle);
+               }
+               this.myOpenCLContextHandle = tmpContextHandle;
+           }
        }
-     }
    }
 
    private void buildOpenCLContext(String src) {
      synchronized (KernelRunner.class) {
-       if (openclContextHandle == 0) {
+       if (myOpenCLContextHandle == 0) {
          throw new RuntimeException("Got to building before initialization?");
        }
-       long openclProgramContextHandle = buildProgramJNI(openclContextHandle, src);
+       long openclProgramContextHandle = buildProgramJNI(myOpenCLContextHandle, src);
        if (openclProgramContextHandle == 0L) {
          throw new RuntimeException("Failure building OpenCL context");
        }
@@ -164,6 +181,15 @@ public class KernelRunner extends KernelRunnerJNI {
    public void dispose() {
       if (kernel.getExecutionMode().isOpenCL()) {
          disposeJNI(jniContextHandle);
+      }
+
+      if (this.myOpenCLDataHandle != 0) {
+          List<Long> dataHandlesForType =
+              openclDataHandles.get(kernel.checkTaskType());
+          synchronized(dataHandlesForType) {
+              dataHandlesForType.add(this.myOpenCLDataHandle);
+          }
+          this.myOpenCLDataHandle = 0;
       }
       threadPool.shutdownNow();
    }
@@ -558,10 +584,10 @@ public class KernelRunner extends KernelRunnerJNI {
          _barrier.await();
       } catch (final InterruptedException e) {
          // TODO Auto-generated catch block
-         e.printStackTrace(); System.out.println("Hello");
+         e.printStackTrace();
       } catch (final BrokenBarrierException e) {
          // TODO Auto-generated catch block
-         e.printStackTrace(); System.out.println("Hello");
+         e.printStackTrace();
       }
    }
 
@@ -897,7 +923,7 @@ public class KernelRunner extends KernelRunnerJNI {
       // native side will reallocate array buffers if necessary
       int execID;
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
-              openclContextHandle, _range, isRelaunch ? 1 : 0)) != 0) {
+              myOpenCLContextHandle, _range, isRelaunch ? 1 : 0)) != 0) {
          return null;
       }
 
@@ -925,7 +951,7 @@ public class KernelRunner extends KernelRunnerJNI {
        } catch (Exception e) {
            throw new RuntimeException(e);
        }
-       return hadoopclReadbackJNI(jniContextHandle, openclContextHandle);
+       return hadoopclReadbackJNI(jniContextHandle, myOpenCLContextHandle);
    }
 
    synchronized public void waitForEvent(int id) {
@@ -951,7 +977,7 @@ public class KernelRunner extends KernelRunnerJNI {
          Exception _exception, boolean enableStrided, boolean isRelaunch) {
       if (logger.isLoggable(Level.WARNING)) {
          logger.warning("Reverting to Java Thread Pool (JTP) for " + kernel.getClass() + ": " + _exception.getMessage());
-         _exception.printStackTrace(); System.out.println("Hello");
+         _exception.printStackTrace();
       }
       return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
    }
@@ -974,7 +1000,6 @@ public class KernelRunner extends KernelRunnerJNI {
 
       /* for backward compatibility reasons we still honor execution mode */
       if (kernel.getExecutionMode().isOpenCL()) {
-         // System.out.println("OpenCL");
 
          // See if user supplied a Device
          Device device = _range.getDevice();
@@ -1039,7 +1064,7 @@ public class KernelRunner extends KernelRunnerJNI {
                      return warnFallBackAndExecute(_entrypointName, _range, _passes, "initJNI failed to return a valid handle", enableStrided, isRelaunch);
                   }
 
-                  final String extensions = getExtensionsJNI(openclContextHandle);
+                  final String extensions = getExtensionsJNI(myOpenCLContextHandle);
                   capabilitiesSet = new HashSet<String>();
 
                   final StringTokenizer strTok = new StringTokenizer(extensions);
@@ -1088,9 +1113,24 @@ public class KernelRunner extends KernelRunnerJNI {
 
                   // Send the string to OpenCL to compile it
                   buildOpenCLContext(openCL);
-                  initJNIContextFromOpenCLContext(jniContextHandle, openclContextHandle);
+                  initJNIContextFromOpenCLContext(jniContextHandle, myOpenCLContextHandle);
                   initJNIContextFromOpenCLProgramContext(jniContextHandle,
                       openclProgramContextHandles.get(kernel.checkTaskType()));
+
+                  List<Long> dataHandlesForType =
+                      openclDataHandles.get(kernel.checkTaskType());
+                  synchronized (dataHandlesForType) {
+                      long dataHandle;
+                      if (dataHandlesForType.isEmpty()) {
+                          dataHandle = initOpenCLData();
+                      } else {
+                          dataHandle = dataHandlesForType.remove(0);
+                      }
+                      this.myOpenCLDataHandle = dataHandle;
+                  }
+
+                  initJNIContextFromOpenCLDataContext(jniContextHandle,
+                      this.myOpenCLDataHandle);
 
                   args = new KernelArg[entryPoint.getReferencedFields().size()];
                   int i = 0;
@@ -1143,7 +1183,6 @@ public class KernelRunner extends KernelRunnerJNI {
                               try {
                                  setMultiArrayType(args[i], type);
                               } catch(AparapiException e) {
-                                 System.out.println("Exception during array translation");
                                  return warnFallBackAndExecute(_entrypointName,
                                          _range, _passes, "failed to set kernel arguement "
                                          + args[i].getName() + ".  Aparapi only supports 2D and 3D arrays.",
@@ -1203,7 +1242,7 @@ public class KernelRunner extends KernelRunnerJNI {
                         }
                         // System.out.printf("in execute, arg %d %s %08x\n", i,args[i].name,args[i].type );
                      } catch (final IllegalArgumentException e) {
-                        e.printStackTrace(); System.out.println("Hello");
+                        e.printStackTrace();
                      }
 
                      args[i].setPrimitiveSize(getPrimitiveSize(args[i].getType()));
@@ -1237,7 +1276,6 @@ public class KernelRunner extends KernelRunnerJNI {
                try {
                   ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
                } catch (final AparapiException e) {
-                  System.out.println("Exception during execution");
                   warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided, isRelaunch);
                }
             }
@@ -1295,7 +1333,7 @@ public class KernelRunner extends KernelRunnerJNI {
       try {
          buffer = arg.getField().get(kernel);
       } catch(IllegalAccessException e) {
-         e.printStackTrace(); System.out.println("Hello");
+         e.printStackTrace();
       }
       arg.setJavaBuffer(buffer);
       arg.setNumDims(numDims);

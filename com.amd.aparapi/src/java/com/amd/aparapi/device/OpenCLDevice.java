@@ -57,6 +57,19 @@ public class OpenCLDevice extends Device{
       type = _type;
    }
 
+   @Override
+   public boolean equals(Object obj) {
+      if (obj instanceof OpenCLDevice) {
+          return this.deviceId == ((OpenCLDevice)obj).deviceId;
+      }
+      return false;
+   }
+
+   @Override
+   public int hashCode() {
+      return (int)this.deviceId;
+   }
+
    public OpenCLPlatform getOpenCLPlatform() {
       return platform;
    }

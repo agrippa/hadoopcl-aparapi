@@ -1,7 +1,7 @@
 #ifndef JNI_CONTEXT_H
 #define JNI_CONTEXT_H
 
-
+#include "OpenCLDataContext.h"
 #include "OpenCLProgramContext.h"
 #include "OpenCLContext.h"
 #include "Common.h"
@@ -10,27 +10,18 @@
 #include "com_amd_aparapi_internal_jni_KernelRunnerJNI.h"
 #include "Config.h"
 
-typedef struct _hadoopclParameter {
-    char *name;
-    cl_mem allocatedMem;
-    size_t allocatedSize;
-    cl_mem_flags createFlags;
-} hadoopclParameter;
-
 class JNIContext {
 private: 
    jint flags;
    jboolean valid;
 
 public:
-   jint contextId;
+   int randomId;
    unsigned int kernelLaunchCounter;
 
    jobject kernelObject;
    jobject openCLDeviceObject;
    jclass kernelClass;
-   OpenCLContext clctx;
-   OpenCLProgramContext clprgctx;
    jint argc;
    KernelArg** args;
    cl_event* executeEvents;
@@ -47,18 +38,13 @@ public:
    /*
     * HadoopCL stuff
     */
-   hadoopclParameter *hadoopclParams;
-   int nHadoopclParams;
+   OpenCLContext clctx;
+   OpenCLProgramContext clprgctx;
+   OpenCLDataContext *datactx;
    cl_event exec_event;
    unsigned long startWrite;
    unsigned long stopWrite;
    unsigned long startKernel;
-
-   cl_mem hadoopclRefresh(KernelArg *arg, int relaunch);
-   hadoopclParameter* addHadoopclParam(KernelArg *arg);
-   hadoopclParameter* findHadoopclParam(KernelArg *arg);
-   void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam);
-   void printOpenclMemChecks();
 
    JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setContextId);
    

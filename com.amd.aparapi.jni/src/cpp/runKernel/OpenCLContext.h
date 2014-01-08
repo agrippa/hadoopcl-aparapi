@@ -9,7 +9,8 @@ typedef struct _OpenCLContext {
         cl_device_id deviceId; // initOpenCL
         cl_int deviceType; // initOpenCL
         cl_context context; // initOpenCL
-        cl_command_queue commandQueue; // buildProgramJNI
+        cl_command_queue copyCommandQueue; // buildProgramJNI
+        cl_command_queue execCommandQueue;
         cl_event prevExecEvent;
 } OpenCLContext;
 

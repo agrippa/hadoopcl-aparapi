@@ -60,6 +60,13 @@ unsigned long read_timer() {
   return tm.time * 1000 + tm.millitm;
 }
 
+void reliableWrite(const void *ptr, size_t size, size_t count, FILE *fp) {
+    size_t soFar = 0;
+    while (soFar < count) {
+        soFar += fwrite(((char *)ptr) + (soFar * size), size, count - soFar, fp);
+    }
+}
+
 //compiler dependant code
 /**
  * calls either clEnqueueMarker or clEnqueueMarkerWithWaitList 
@@ -329,7 +336,7 @@ void profileFirstRun(JNIContext* jniContext) {
    cl_event firstEvent;
    int status = CL_SUCCESS;
 
-   status = enqueueMarker(jniContext->clctx.commandQueue, &firstEvent);
+   status = enqueueMarker(jniContext->clctx.execCommandQueue, &firstEvent);
    if (status != CL_SUCCESS) throw CLException(status, "clEnqueueMarker endOfTxfers");
 
    status = clWaitForEvents(1, &firstEvent);
@@ -600,10 +607,10 @@ void updateWriteEvents(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int
    }
 
    if(arg->isArray()) {
-      status = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, CL_FALSE, 0, 
+      status = clEnqueueWriteBuffer(jniContext->clctx.execCommandQueue, arg->arrayBuffer->mem, CL_FALSE, 0,
          arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 0, NULL, &(jniContext->writeEvents[writeEventCount]));
    } else if(arg->isAparapiBuffer()) {
-      status = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, CL_FALSE, 0, 
+      status = clEnqueueWriteBuffer(jniContext->clctx.execCommandQueue, arg->aparapiBuffer->mem, CL_FALSE, 0,
          arg->aparapiBuffer->lengthInBytes, arg->aparapiBuffer->data, 0, NULL, &(jniContext->writeEvents[writeEventCount]));
    }
 
@@ -876,7 +883,7 @@ void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos,
       }
 
       status = clEnqueueNDRangeKernel(
-            jniContext->clctx.commandQueue,
+            jniContext->clctx.execCommandQueue,
             jniContext->clprgctx.kernel,
             range.dims,
             range.offsets,
@@ -949,12 +956,12 @@ int getReadEvents(JNIEnv* jenv, JNIContext* jniContext) {
          }
 
          if(arg->isArray()) {
-            status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, 
+            status = clEnqueueReadBuffer(jniContext->clctx.execCommandQueue, arg->arrayBuffer->mem,
                 CL_FALSE, 0, arg->arrayBuffer->lengthInBytes, arg->arrayBuffer->addr, 1, 
                 jniContext->executeEvents, &(jniContext->readEvents[readEventCount]));
             readEventCount++;
          } else if(arg->isAparapiBuffer()) {
-            status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, 
+            status = clEnqueueReadBuffer(jniContext->clctx.execCommandQueue, arg->aparapiBuffer->mem,
                 CL_TRUE, 0, arg->aparapiBuffer->lengthInBytes, arg->aparapiBuffer->data, 1, 
                 jniContext->executeEvents, &(jniContext->readEvents[readEventCount]));
             arg->aparapiBuffer->inflate(jenv, arg);
@@ -1169,15 +1176,26 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       int fillEventsSoFar = 0;
 
 #ifdef DUMP_DEBUG
+
          int thisLaunchId = jniContext->kernelLaunchCounter;
          jniContext->kernelLaunchCounter = jniContext->kernelLaunchCounter + 1;
          int nArgs = jniContext->argc + 1;
+         int nArgsUsingLength = 0;
+         for (int argidx = 0; argidx < jniContext->argc; argidx++) {
+             KernelArg *arg = jniContext->args[argidx];
+             if (arg->usesArrayLength()) {
+                nArgsUsingLength++;
+             }
+         }
+         nArgs += nArgsUsingLength;
 
          char dump_filename[512];
-         sprintf(dump_filename, "/tmp/kernel-dump-%d-%d", jniContext->contextId,
-                 thisLaunchId);
+         srand(time(NULL));
+         sprintf(dump_filename, "/tmp/kernel-dump-%d-%d", jniContext->randomId, rand());
+         // sprintf(dump_filename, "/tmp/kernel-dump-%d-%d", jniContext->contextId,
+         //         thisLaunchId);
          FILE *dump = fopen(dump_filename, "w");
-         fwrite(&nArgs, sizeof(int), 1, dump);
+         reliableWrite(&nArgs, sizeof(int), 1, dump);
 #endif
 
       try {
@@ -1191,6 +1209,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
              arg->dumpToFile(dump, relaunch, jenv, jniContext);
 #endif
              if (!arg->isArray()) {
+
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
                          config->isVerbose(), relaunch);
                  if (err != CL_SUCCESS) {
@@ -1205,13 +1224,14 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                              arg->javaArg, KernelArg::javaArrayFieldID);
                  }
 
-                 cl_mem mem = jniContext->hadoopclRefresh(arg, relaunch);
+                 cl_mem mem = jniContext->datactx->hadoopclRefresh(arg,
+                     relaunch, jniContext);
 
                  if (arg->zeroBeforeKernel) {
                      int zero = 0;
                      fillEvents = (cl_event *)realloc(fillEvents, sizeof(cl_event) *
                          (fillEventsSoFar + 1));
-                     err = clEnqueueFillBuffer(jniContext->clctx.commandQueue, mem,
+                     err = clEnqueueFillBuffer(jniContext->clctx.copyCommandQueue, mem,
                              &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
                              0, NULL, fillEvents + fillEventsSoFar);
                      if (err != CL_SUCCESS) {
@@ -1222,7 +1242,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  } else if (arg->dir != OUT) {
                    if (relaunch == 0) {
                        arg->pin(jenv);
-                       err = clEnqueueWriteBuffer(jniContext->clctx.commandQueue, mem,
+                       err = clEnqueueWriteBuffer(jniContext->clctx.copyCommandQueue, mem,
                                CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
                                arg->arrayBuffer->addr, 0, NULL, NULL);
                        if (err != CL_SUCCESS) {
@@ -1262,13 +1282,15 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 
          int dummy_pass = 0;
 #ifdef DUMP_DEBUG
-         fprintf(stderr, "Dumping dummy_pass\n");
          size_t dummy_pass_len = sizeof(dummy_pass);
-         fwrite("int", 1, 4, dump);
-         fwrite("pass", 1, 5, dump);
-         fwrite(&dummy_pass_len, sizeof(size_t), 1, dump);
-         fwrite(&dummy_pass, dummy_pass_len, 1, dump); 
-         fprintf(stderr, "Done with the dumps\n");
+         int willWriteData = 1;
+         int isNotRef = 0;
+         reliableWrite("int", 1, 4, dump);
+         reliableWrite("pass", 1, 5, dump);
+         reliableWrite(&dummy_pass_len, sizeof(size_t), 1, dump);
+         reliableWrite(&isNotRef, sizeof(int), 1, dump);
+         reliableWrite(&willWriteData, sizeof(int), 1, dump);
+         reliableWrite(&dummy_pass, dummy_pass_len, 1, dump);
 #endif
          err = clSetKernelArg(jniContext->clprgctx.kernel, argpos, sizeof(int),
                  &dummy_pass);
@@ -1279,10 +1301,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
 
 #ifdef DUMP_DEBUG
          int sourceLength = strlen(jniContext->clprgctx.source);
-         fwrite(&sourceLength, sizeof(sourceLength), 1, dump);
-         fwrite(jniContext->clprgctx.source, 1, sourceLength + 1, dump);
+         reliableWrite(&sourceLength, sizeof(sourceLength), 1, dump);
+         reliableWrite(jniContext->clprgctx.source, 1, sourceLength + 1, dump);
          fclose(dump);
-         fprintf(stderr, "Dump file close\n");
 #endif
 
          // -----------
@@ -1317,7 +1338,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          jniContext->startKernel = read_timer();
 #endif
          err = clEnqueueNDRangeKernel(
-               jniContext->clctx.commandQueue,
+               jniContext->clctx.execCommandQueue,
                jniContext->clprgctx.kernel,
                range.dims,
                range.offsets,
@@ -1332,7 +1353,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          }
          openclContext->prevExecEvent = jniContext->exec_event;
 
-         clFlush(jniContext->clctx.commandQueue);
+         clFlush(jniContext->clctx.execCommandQueue);
       } catch(CLException& cle) {
          cle.printError();
          return cle.status();
@@ -1366,8 +1387,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
 
                  arg->pin(jenv);
 
-                 cl_mem mem = jniContext->findHadoopclParam(arg)->allocatedMem;
-                 err = clEnqueueReadBuffer(jniContext->clctx.commandQueue, mem,
+                 cl_mem mem = jniContext->datactx->findHadoopclParam(arg)->allocatedMem;
+                 err = clEnqueueReadBuffer(jniContext->clctx.copyCommandQueue, mem,
                          CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
                          arg->arrayBuffer->addr, 1, &(jniContext->exec_event),
                          NULL);
@@ -1519,13 +1540,28 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
       clGetDeviceInfo(clctx->deviceId, CL_DEVICE_TYPE,  sizeof(returnedDeviceType),
               &returnedDeviceType, NULL);
 
-
       cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM,
           (cl_context_properties)platformId, 0 };
       cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
       clctx->context = clCreateContext( cprops, 1, &clctx->deviceId, NULL, NULL,
           &status);
       CLException::checkCLError(status, "clCreateContextFromType()");
+
+      cl_command_queue_properties queue_props = 0;
+      // queue_props |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+#ifdef PROFILE_HADOOPCL
+      queue_props |= CL_QUEUE_PROFILING_ENABLE;
+#endif
+
+      clctx->execCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
+            queue_props, &status);
+      if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
+      clctx->copyCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
+            queue_props, &status);
+      if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
+
+      commandQueueList.add(clctx->execCommandQueue, __LINE__, __FILE__);
+      commandQueueList.add(clctx->copyCommandQueue, __LINE__, __FILE__);
 
       return ((jlong)clctx);
   }
@@ -1539,6 +1575,18 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCLProgram)
       OpenCLProgramContext *ctx =
         (OpenCLProgramContext *)malloc(sizeof(OpenCLProgramContext));
       memset(ctx, 0x00, sizeof(OpenCLProgramContext));
+
+      return ((jlong)ctx);
+  }
+
+JNI_JAVA(jlong, KernelRunnerJNI, initOpenCLData)
+  (JNIEnv *jenv, jclass clazz) {
+      if (config == NULL) {
+          config = new Config(jenv);
+      }
+
+      OpenCLDataContext *ctx = (OpenCLDataContext *)malloc(sizeof(OpenCLDataContext));
+      memset(ctx, 0x00, sizeof(OpenCLDataContext));
 
       return ((jlong)ctx);
   }
@@ -1582,6 +1630,23 @@ JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLProgramContext)
 
       memcpy(&jniContext->clprgctx, openclProgramContext, sizeof(OpenCLProgramContext));
 }
+
+JNI_JAVA(jint, KernelRunnerJNI, initJNIContextFromOpenCLDataContext)
+  (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong dataContextHandle) {
+      if (config == NULL) {
+          config = new Config(jenv);
+      }
+      OpenCLDataContext *openclDataContext = ((OpenCLDataContext*)dataContextHandle);
+      if (openclDataContext == NULL) {
+          return 0;
+      }
+
+      JNIContext *jniContext = JNIContext::getJNIContext(jniContextHandle);
+      if (jniContext == NULL) {
+          return 0;
+      }
+      jniContext->datactx = openclDataContext;
+  }
 
 void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
    // compute profile filename
@@ -1654,20 +1719,6 @@ JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
          openclProgramContext->kernel = clCreateKernel(
                  openclProgramContext->program, "run", &status);
          if(status != CL_SUCCESS) throw CLException(status,"clCreateKernel()");
-
-         cl_command_queue_properties queue_props = 0;
-         queue_props |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-#ifdef PROFILE_HADOOPCL
-         queue_props |= CL_QUEUE_PROFILING_ENABLE;
-#endif
-
-         openclContext->commandQueue = clCreateCommandQueue(openclContext->context, (cl_device_id)openclContext->deviceId,
-               queue_props,
-               &status);
-         if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
-
-         commandQueueList.add(openclContext->commandQueue, __LINE__, __FILE__);
-
       } catch(CLException& cle) {
          cle.printError();
          return 0;
@@ -1821,7 +1872,7 @@ JNI_JAVA(jint, KernelRunnerJNI, getJNI)
                arg->pin(jenv);
 
                try {
-                  status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->arrayBuffer->mem, 
+                  status = clEnqueueReadBuffer(jniContext->clctx.execCommandQueue, arg->arrayBuffer->mem,
                                                CL_FALSE, 0, 
                                                arg->arrayBuffer->lengthInBytes,
                                                arg->arrayBuffer->addr , 0, NULL, 
@@ -1857,7 +1908,7 @@ JNI_JAVA(jint, KernelRunnerJNI, getJNI)
             } else if(arg->isAparapiBuffer()) {
 
                try {
-                  status = clEnqueueReadBuffer(jniContext->clctx.commandQueue, arg->aparapiBuffer->mem, 
+                  status = clEnqueueReadBuffer(jniContext->clctx.execCommandQueue, arg->aparapiBuffer->mem,
                                                CL_FALSE, 0, 
                                                arg->aparapiBuffer->lengthInBytes,
                                                arg->aparapiBuffer->data, 0, NULL, 

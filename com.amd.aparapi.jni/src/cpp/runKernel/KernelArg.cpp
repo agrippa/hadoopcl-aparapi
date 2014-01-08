@@ -7,6 +7,8 @@ using std::string;
 using std::cerr;
 using std::endl;
 
+extern void reliableWrite(const void *ptr, size_t size, size_t count, FILE *fp);
+
 jclass KernelArg::argClazz=(jclass)0;
 jfieldID KernelArg::nameFieldID=0;
 jfieldID KernelArg::typeFieldID=0; 
@@ -242,7 +244,7 @@ void KernelArg::dumpTypeToFile(FILE *fp) {
         strcat(buffer, "[]");
     }
 
-    fwrite(buffer, sizeof(char), strlen(buffer) + 1, fp);
+    reliableWrite(buffer, sizeof(char), strlen(buffer) + 1, fp);
 }
 
 size_t KernelArg::getLengthForType() {
@@ -254,7 +256,7 @@ size_t KernelArg::getLengthForType() {
     } else if (isByte()) {
         length = sizeof(jbyte);
     } else if (isLong() || isDouble()) {
-        length = 9;
+        length = 8;
     }
     return length;
 }
@@ -262,56 +264,58 @@ size_t KernelArg::getLengthForType() {
 void KernelArg::dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
     if (!isArray()) {
         if (relaunch) {
-            fwrite(&cachedValueLength, sizeof(size_t), 1, fp);
+            reliableWrite(&cachedValueLength, sizeof(size_t), 1, fp);
         } else {
             size_t length = getLengthForType();
-            fwrite(&length, sizeof(size_t), 1, fp);
+            reliableWrite(&length, sizeof(size_t), 1, fp);
         }
     } else {
          if (relaunch == 0) {
              syncSizeInBytes(jenv);
          }
-         fwrite(&arrayBuffer->lengthInBytes, sizeof(size_t), 1, fp);
+         reliableWrite(&arrayBuffer->lengthInBytes, sizeof(size_t), 1, fp);
     }
 }
 
-void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext) {
+void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv,
+        JNIContext *jniContext) {
     int willDumpData = 1;
     int wontDumpData = 0;
+
     if (!isArray()) {
-        fwrite(&willDumpData, sizeof(int), 1, fp);
+        reliableWrite(&willDumpData, sizeof(int), 1, fp);
         if (relaunch) {
-            fwrite(cachedValue, getLengthForType(), 1, fp);
+            reliableWrite(cachedValue, getLengthForType(), 1, fp);
         } else {
             if (isFloat()) {
                 jfloat f;
                 getPrimitive(jenv, 0, 0, 0, &f);
-                fwrite(&f, sizeof(float), 1, fp);
+                reliableWrite(&f, sizeof(float), 1, fp);
             }
             else if (isInt()) {
                 jint i;
                 getPrimitive(jenv, 0, 0, 0, &i);
-                fwrite(&i, sizeof(int), 1, fp);
+                reliableWrite(&i, sizeof(int), 1, fp);
             }
             else if (isBoolean()) {
                 jboolean z;
                 getPrimitive(jenv, 0, 0, 0, &z);
-                fwrite(&z, sizeof(z), 1, fp);
+                reliableWrite(&z, sizeof(z), 1, fp);
             }
             else if (isByte()) {
                 jbyte b;
                 getPrimitive(jenv, 0, 0, 0, &b);
-                fwrite(&b, sizeof(b), 1, fp);
+                reliableWrite(&b, sizeof(b), 1, fp);
             }
             else if (isLong()) {
                 jlong l;
                 getPrimitive(jenv, 0, 0, 0, &l);
-                fwrite(&l, sizeof(l), 1, fp);
+                reliableWrite(&l, sizeof(l), 1, fp);
             }
             else if (isDouble()) {
                 jdouble d;
                 getPrimitive(jenv, 0, 0, 0, &d);
-                fwrite(&d, sizeof(d), 1, fp);
+                reliableWrite(&d, sizeof(d), 1, fp);
             }
         }
     } else {
@@ -321,7 +325,7 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniCo
         }
 
         if (zeroBeforeKernel) {
-            fwrite(&willDumpData, sizeof(int), 1, fp);
+            reliableWrite(&willDumpData, sizeof(int), 1, fp);
             char zeroBuf[4096];
             memset(zeroBuf, 0x00, sizeof(char) * 4096);
             int soFar = 0;
@@ -330,39 +334,64 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniCo
                 if (toWrite > arrayBuffer->lengthInBytes - soFar) {
                     toWrite = arrayBuffer->lengthInBytes - soFar;
                 }
-                fwrite(zeroBuf, 1, toWrite, fp);
+                reliableWrite(zeroBuf, 1, toWrite, fp);
                 soFar += toWrite;
             }
         } else if (dir != OUT) {
-            fwrite(&willDumpData, sizeof(int), 1, fp);
+            reliableWrite(&willDumpData, sizeof(int), 1, fp);
 
             if (relaunch) {
-                cl_mem mem = jniContext->hadoopclRefresh(this, relaunch);
+                cl_mem mem = jniContext->datactx->hadoopclRefresh(this, relaunch,
+                    jniContext);
                 void *buf = malloc(arrayBuffer->lengthInBytes);
-                clEnqueueReadBuffer(jniContext->clctx.commandQueue, mem, CL_TRUE,
+                clEnqueueReadBuffer(jniContext->clctx.copyCommandQueue, mem, CL_TRUE,
                     0, arrayBuffer->lengthInBytes, buf, 0, NULL, NULL);
-                fwrite(buf, getLengthForType(),
+                reliableWrite(buf, getLengthForType(),
                     arrayBuffer->lengthInBytes / getLengthForType(),
                     fp);
                 free(buf);
             } else {
                 pin(jenv);
-                fwrite(arrayBuffer->addr, getLengthForType(),
+                reliableWrite(arrayBuffer->addr, getLengthForType(),
                         arrayBuffer->lengthInBytes / getLengthForType(), fp);
                 unpinAbort(jenv);
             }
         } else {
-            fwrite(&wontDumpData, sizeof(int), 1, fp);
+            reliableWrite(&wontDumpData, sizeof(int), 1, fp);
         }
     }
 }
 
 void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv,
         JNIContext *jniContext) {
-    dumpTypeToFile(fp);
-    fwrite(name, sizeof(char), strlen(name) + 1, fp);
-    dumpLengthInBytesToFile(fp, relaunch, jenv);
-    dumpData(fp, relaunch, jenv, jniContext);
-}
+    int isRef = 1;
+    int isNotRef = 0;
 
+    dumpTypeToFile(fp);
+    reliableWrite(name, sizeof(char), strlen(name) + 1, fp);
+    dumpLengthInBytesToFile(fp, relaunch, jenv);
+    if (isArray()) {
+        reliableWrite(&isRef, sizeof(int), 1, fp);
+    } else {
+        reliableWrite(&isNotRef, sizeof(int), 1, fp);
+    }
+    dumpData(fp, relaunch, jenv, jniContext);
+
+    if (usesArrayLength()) {
+        int hasData = 1;
+        char lengthNameBuf[128];
+        size_t lengthOfLength = sizeof(int);
+        if (relaunch == 0) {
+            syncJavaArrayLength(jenv);
+        }
+        sprintf(lengthNameBuf, "%s_length", name);
+
+        reliableWrite("int", 1, 4, fp);
+        reliableWrite(lengthNameBuf, 1, strlen(lengthNameBuf) + 1, fp);
+        reliableWrite(&lengthOfLength, sizeof(size_t), 1, fp);
+        reliableWrite(&isNotRef, sizeof(int), 1, fp);
+        reliableWrite(&hasData, sizeof(int), 1, fp);
+        reliableWrite(&(arrayBuffer->length), lengthOfLength, 1, fp);
+    }
+}
 

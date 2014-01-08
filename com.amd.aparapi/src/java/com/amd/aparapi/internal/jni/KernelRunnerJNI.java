@@ -315,8 +315,11 @@ public abstract class KernelRunnerJNI{
    protected native int hadoopclWaitForKernel(long _jniContextHandle);
    protected native static long initOpenCL(OpenCLDevice _device, int _flags);
    protected native static long initOpenCLProgram();
+   protected native static long initOpenCLData();
    protected native int initJNIContextFromOpenCLContext(long _jniContextHandle,
        long _openclContextHandle);
    protected native int initJNIContextFromOpenCLProgramContext(long _jniContextHandle,
        long _openclProgramContextHandle);
+   protected native int initJNIContextFromOpenCLDataContext(long _jniContextHandle,
+       long _openclDataContextHandle);
 }

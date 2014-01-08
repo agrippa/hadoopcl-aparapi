@@ -570,9 +570,13 @@ public abstract class KernelWriter extends BlockWriter{
       }
 
 
-      if (this.khrFp64Support) {
+      /*
+       * Comment out because OpenCL 1.2 (?) now includes khr_fp64 as part of core,
+       * and will print warnings if it detects it.
+       */
+      /* if (this.khrFp64Support) {
           writePragma("cl_khr_fp64", true);
-      } else if (this.amdFp64Support) {
+      } else */ if (this.amdFp64Support) {
           writePragma("cl_amd_fp64", true);
       }
       newLine();
