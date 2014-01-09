@@ -1303,6 +1303,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
          int sourceLength = strlen(jniContext->clprgctx.source);
          reliableWrite(&sourceLength, sizeof(sourceLength), 1, dump);
          reliableWrite(jniContext->clprgctx.source, 1, sourceLength + 1, dump);
+         reliableWrite("DONE", 1, 4, dump);
          fclose(dump);
 #endif
 

@@ -6,7 +6,7 @@
 #define CHECK(func_call) { cl_int err; if ( (err = (func_call)) != CL_SUCCESS) { fprintf(stderr, "Error %d at %s:%d\n", err, __FILE__, __LINE__); exit(1); } }
 #define CHECK_ERR(my_err) { if (my_err != CL_SUCCESS) { fprintf(stderr, "Error %d at %s:%d\n", my_err, __FILE__, __LINE__); exit(1); } }
 
-char *varsToPrint[] = { "isGPU", "nPairs", "\0" };
+char *varsToPrint[] = { "isGPU", "nPairs", "nKeys", "nVals", "individualInputValsCount", "outputLength", "outputAuxIntLength", "outputAuxDoubleLength", "\0" };
 
 typedef struct _Arg {
     char *name;
@@ -27,15 +27,30 @@ static int isVariableToPrint(const char *name) {
     return -1;
 }
 
+static int sizeOfType(char *typeName) {
+    if (strncmp(typeName, "int", 3) == 0) {
+        return 4;
+    } else if (strncmp(typeName, "long", 4) == 0) {
+        return 8;
+    } else if (strncmp(typeName, "float", 5) == 0) {
+        return 4;
+    } else if (strncmp(typeName, "double", 6) == 0) {
+        return 8;
+    } else {
+        fprintf(stderr, "Unsupported variable type %s\n", typeName);
+        exit(1);
+    }
+}
+
 static void printVar(Arg *a) {
     if (!(a->isref)) {
-        if (strcmp(a->type, "int") == 0) {
+        if (strncmp(a->type, "int", 3) == 0) {
             printf("%s has value %d\n", a->name, *((int *)(a->data)));
-        } else if (strcmp(a->type, "long") == 0) {
+        } else if (strncmp(a->type, "long", 4) == 0) {
             printf("%s has value %l\n", a->name, *((long *)(a->data)));
-        } else if (strcmp(a->type, "float") == 0) {
+        } else if (strncmp(a->type, "float", 5) == 0) {
             printf("%s has value %f\n", a->name, *((float *)(a->data)));
-        } else if (strcmp(a->type, "double") == 0) {
+        } else if (strncmp(a->type, "double", 6) == 0) {
             printf("%s has value %f\n", a->name, *((double *)(a->data)));
         } else {
             fprintf(stderr, "Unsupported variable type %s\n", a->type);
@@ -44,18 +59,6 @@ static void printVar(Arg *a) {
     } else {
         fprintf(stderr, "Don't support printing vector types yet\n");
         exit(1);
-    }
-}
-
-static void printKnownVariables(Arg *arguments, int nArgs) {
-    char formatter[128];
-    int i;
-    for (i = 0 ; i < nArgs; i++) {
-        Arg *curr = arguments + i;
-        int knownIndex = isVariableToPrint(curr->name);
-        if (knownIndex >= 0) {
-            printVar(curr);
-        }
     }
 }
 
@@ -195,6 +198,76 @@ static cl_mem *constructMemObjects(Arg *arguments, int nArgs, cl_context ctx,
     return bufs;
 }
 
+static void printValue(Arg *a, void *buf) {
+    int i;
+    int lengthToPrint = a->len / sizeOfType(a->type);
+    if (strncmp(a->name, "nWrites", 7) != 0 && lengthToPrint > 100) lengthToPrint = 100;
+
+    printf("%s %s:\n", a->type, a->name);
+    printf("  ");
+    for (i = 0; i < lengthToPrint; i++) {
+        if (strncmp(a->type, "int", 3) == 0) {
+            printf("%d ",((int *)buf)[i]);
+        } else if (strncmp(a->type, "long", 4) == 0) {
+            printf("%ld ",((long *)buf)[i]);
+        } else if (strncmp(a->type, "float", 5) == 0) {
+            printf("%f ",((float *)buf)[i]);
+        } else if (strncmp(a->type, "double", 6) == 0) {
+            printf("%f ",((double *)buf)[i]);
+        } else {
+            fprintf(stderr, "Unsupported variable type %s\n", a->type);
+            exit(1);
+        }
+    }
+    printf("\n");
+}
+
+static void checkInputs(Arg *arguments, int nArgs) {
+    int i;
+    for (i = 0; i < nArgs; i++) {
+        if (arguments[i].isref) {
+            void *copy = NULL;
+            if (strncmp(arguments[i].name, "input", 5) == 0 ||
+                    strncmp(arguments[i].name, "nWrites", 7) == 0) {
+                printValue(arguments + i, arguments[i].data);
+            }
+            if (copy) free(copy);
+        }
+    }
+}
+
+static void checkOutputs(Arg *arguments, int nArgs, cl_mem *bufs, cl_command_queue cmd) {
+    int i;
+
+    for (i = 0; i < nArgs; i++) {
+        if (arguments[i].isref) {
+            void *copy = NULL;
+            if (strncmp(arguments[i].name, "mem", 3) == 0 ||
+                    strncmp(arguments[i].name, "output", 6) == 0 ||
+                    strncmp(arguments[i].name, "nWrites", 7) == 0) {
+                copy = malloc(arguments[i].len);
+                fprintf(stderr, "reading %d for %s\n",arguments[i].len, arguments[i].name);
+                CHECK(clEnqueueReadBuffer(cmd, bufs[i], CL_TRUE, 0, arguments[i].len,
+                      copy, 0, NULL, NULL));
+                printValue(arguments + i, copy);
+            }
+            if (copy) free(copy);
+        }
+    }
+}
+
+static void printKnownVariables(Arg *arguments, int nArgs) {
+    char formatter[128];
+    int i;
+    for (i = 0 ; i < nArgs; i++) {
+        Arg *curr = arguments + i;
+        int knownIndex = isVariableToPrint(curr->name);
+        if (knownIndex >= 0) {
+            printVar(curr);
+        }
+    }
+}
+
 static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type device_type, int verbose) {
     cl_platform_id *platforms;
     cl_device_id *devs;
@@ -223,6 +296,12 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
     fprintf(stderr, "  Done launching kernel\n");
 
     CHECK(clWaitForEvents(1, &exec_event));
+
+    if (verbose) {
+        printKnownVariables(arguments, nArgs);
+        checkInputs(arguments, nArgs);
+        checkOutputs(arguments, nArgs, bufs, cmd);
+    }
     fprintf(stderr, "  Done waiting for events\n");
 }
 
@@ -312,23 +391,29 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (verbose) {
-        printf("\n");
-        printKnownVariables(arguments, nArgs);
-    }
+    int sourceLength;
+    reliableRead(&sourceLength, sizeof(int), 1, in);
 
     if (source == NULL) {
-        int sourceLength;
-        reliableRead(&sourceLength, sizeof(int), 1, in);
-        source = (char *)malloc(sourceLength);
-        reliableRead(source, 1, sourceLength, in);
+        source = (char *)malloc(sourceLength + 1);
+        reliableRead(source, 1, sourceLength + 1, in);
+    } else {
+        fseek(in, sourceLength + 1, SEEK_CUR);
     }
-
-    fclose(in);
 
     if (verbose) {
         printf("%s\n", source);
     }
+
+    char endMarker[5];
+    reliableRead(endMarker, 1, 4, in);
+    endMarker[4] = '\0';
+    if (strncmp(endMarker, "DONE", 4) != 0) {
+        fprintf(stderr, "Unexpected value %s for endMarker\n", endMarker);
+        exit(1);
+    }
+
+    fclose(in);
 
     runOpenCL(arguments, nArgs, source, device_type, verbose);
     printf("Done!\n");
