@@ -1007,10 +1007,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 write("      int pastWrites = this->nWrites[this->iter];\n");
+                 write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValLookAsideBuffer[index] = vals - this->outputVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
-                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1026,11 +1027,12 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 write("      int pastWrites = this->nWrites[this->iter];\n");
+                 write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValFloatLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
-                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1099,11 +1101,12 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 write("      int pastWrites = this->nWrites[this->iter];\n");
+                 write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValIntLookAsideBuffer[index] = (valIndices + indicesOffset) - this->outputValIndices;\n");
                  write("      this->outputValDoubleLookAsideBuffer[index] = (valVals + valsOffset) - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
-                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1119,10 +1122,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 write("      int pastWrites = this->nWrites[this->iter];\n");
+                 write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValLookAsideBuffer[index] = (vals + offset) - this->outputVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
-                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1138,11 +1142,12 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
                  write("   } else {\n");
-                 write("      int pastWrites = this->nWrites[this->iter]++;\n");
+                 write("      this->outputIterMarkers[index] = this->iter;\n");
+                 write("      int pastWrites = this->nWrites[this->iter];\n");
+                 write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValIntLookAsideBuffer[index] = (valIndices + indicesOffset) - this->outputValIndices;\n");
                  write("      this->outputValFloatLookAsideBuffer[index] = (valVals + valsOffset) - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
-                 write("      this->outputIterMarkers[index] = this->iter;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
