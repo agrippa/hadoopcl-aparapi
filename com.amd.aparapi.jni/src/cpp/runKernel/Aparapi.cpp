@@ -1172,7 +1172,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       Range range(jenv, _range);
 
       cl_int err = CL_SUCCESS;
-      cl_event *fillEvents = NULL;
+      cl_event *fillEvents = (cl_event *)malloc(sizeof(cl_event) * jniContext->argc);
       int fillEventsSoFar = 0;
 
 #ifdef DUMP_DEBUG
@@ -1213,7 +1213,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
                          config->isVerbose(), relaunch);
                  if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
+                     fprintf(stderr,"Error setting kernel primitive arg for %d,%s: %d\n",
                              argpos, arg->name, err);
                      exit(8);
                  }
@@ -1228,9 +1228,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                      relaunch, jniContext);
 
                  if (arg->zeroBeforeKernel) {
+                     // fprintf(stderr, "Filling argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
                      int zero = 0;
-                     fillEvents = (cl_event *)realloc(fillEvents, sizeof(cl_event) *
-                         (fillEventsSoFar + 1));
                      err = clEnqueueFillBuffer(jniContext->clctx.copyCommandQueue, mem,
                              &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
                              0, NULL, fillEvents + fillEventsSoFar);
@@ -1240,7 +1239,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                      }
                      fillEventsSoFar++;
                  } else if (arg->dir != OUT) {
-                   if (relaunch == 0) {
+                   if (relaunch == 0 &&
+                           (arg->dir != GLOBAL || jniContext->datactx->writtenAtleastOnce == 0)) {
+                       // fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
                        arg->pin(jenv);
                        err = clEnqueueWriteBuffer(jniContext->clctx.copyCommandQueue, mem,
                                CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
@@ -1256,8 +1257,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  err = clSetKernelArg(jniContext->clprgctx.kernel, argpos,
                          sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                             argpos, arg->name, err);
+                     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p\n",
+                             argpos, arg->name, err, jniContext->clprgctx.kernel);
                      exit(9);
                  }
 
@@ -1276,6 +1277,7 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                  }
              }
          }
+
 #ifdef PROFILE_HADOOPCL
          jniContext->stopWrite = read_timer();
 #endif
@@ -1326,14 +1328,18 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
                     max_group_size[0]);
          }
 
-         if (fillEvents != NULL) {
+
+         if (fillEventsSoFar > 0) {
              int i;
              clWaitForEvents(fillEventsSoFar, fillEvents);
              for (i = 0; i < fillEventsSoFar; i++) {
                  clReleaseEvent(fillEvents[i]);
              }
-             free(fillEvents);
          }
+         free(fillEvents);
+
+
+         jniContext->datactx->writtenAtleastOnce = 1;
 
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
@@ -1381,12 +1387,14 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
 #endif
          for (int argidx = 0; argidx < jniContext->argc; argidx++) {
              KernelArg *arg = jniContext->args[argidx];
-             if (arg->isArray() && arg->dir != IN) {
+             if (arg->isArray() && arg->dir != IN && arg->dir != GLOBAL) {
                  arg->syncSizeInBytes(jenv);
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                          arg->javaArg, KernelArg::javaArrayFieldID);
 
                  arg->pin(jenv);
+
+                 // fprintf(stderr, "Reading back argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
 
                  cl_mem mem = jniContext->datactx->findHadoopclParam(arg)->allocatedMem;
                  err = clEnqueueReadBuffer(jniContext->clctx.copyCommandQueue, mem,
@@ -1537,10 +1545,6 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
                  == com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
                    ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU);
 
-      cl_device_type returnedDeviceType;
-      clGetDeviceInfo(clctx->deviceId, CL_DEVICE_TYPE,  sizeof(returnedDeviceType),
-              &returnedDeviceType, NULL);
-
       cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM,
           (cl_context_properties)platformId, 0 };
       cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
@@ -1555,14 +1559,14 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
 #endif
 
       clctx->execCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
-            queue_props, &status);
+            queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
       if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
       clctx->copyCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
-            queue_props, &status);
+            queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
       if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
 
-      commandQueueList.add(clctx->execCommandQueue, __LINE__, __FILE__);
-      commandQueueList.add(clctx->copyCommandQueue, __LINE__, __FILE__);
+      // commandQueueList.add(clctx->execCommandQueue, __LINE__, __FILE__);
+      // commandQueueList.add(clctx->copyCommandQueue, __LINE__, __FILE__);
 
       return ((jlong)clctx);
   }

@@ -58,6 +58,7 @@ import com.amd.aparapi.internal.kernel.KernelRunner;
 import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodReferenceEntry;
 import com.amd.aparapi.internal.opencl.OpenCLLoader;
 import com.amd.aparapi.internal.util.UnsafeWrapper;
+import com.amd.aparapi.device.Device;
 
 /**
  * A <i>kernel</i> encapsulates a data parallel algorithm that will execute either on a GPU
@@ -260,7 +261,7 @@ public abstract class Kernel implements Cloneable {
       public abstract void run();
 
       public Kernel execute(Range _range, final boolean isRelaunch) {
-         return (Kernel.this.execute("foo", _range, 1, isRelaunch));
+         return (Kernel.this.execute("foo", _range, 1, isRelaunch, false));
       }
    }
 
@@ -1911,11 +1912,11 @@ public abstract class Kernel implements Cloneable {
     * 
     */
    public synchronized Kernel execute(Range _range) {
-      return (execute(_range, 1, false));
+      return (execute(_range, 1, false, false));
    }
 
    public synchronized Kernel reExecute(Range _range) {
-      return (execute(_range, 1, true));
+      return (execute(_range, 1, true, false));
    }
 
    public synchronized int waitFor() {
@@ -1930,6 +1931,13 @@ public abstract class Kernel implements Cloneable {
        return kernelRunner.isOpenCLComplete();
    }
 
+   public synchronized void doEntrypointInit(Device dev) {
+      if (kernelRunner == null) {
+         kernelRunner = new KernelRunner(this);
+      }
+      kernelRunner.doEntrypointInit("run", this.enableStrided, dev, false);
+   }
+
    /**
     * Start execution of <code>_range</code> kernels.
     * <p>
@@ -1942,7 +1950,11 @@ public abstract class Kernel implements Cloneable {
     * 
     */
    public synchronized Kernel execute(int _range) {
-      return (execute(Range.create(_range), 1, false));
+      return (execute(Range.create(_range), 1, false, false));
+   }
+
+   public synchronized Kernel execute(int _range, boolean dryRun) {
+      return (execute(Range.create(_range), 1, false, dryRun));
    }
 
    /**
@@ -1956,8 +1968,8 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Range _range, int _passes, final boolean isRelaunch) {
-      return (execute("run", _range, _passes, isRelaunch));
+   public synchronized Kernel execute(Range _range, int _passes, final boolean isRelaunch, final boolean dryRun) {
+      return (execute("run", _range, _passes, isRelaunch, dryRun));
    }
 
    /**
@@ -1971,8 +1983,8 @@ public abstract class Kernel implements Cloneable {
     * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(int _range, int _passes, final boolean isRelaunch) {
-      return (execute(Range.create(_range), _passes, isRelaunch));
+   public synchronized Kernel execute(int _range, int _passes, final boolean isRelaunch, final boolean dryRun) {
+      return (execute(Range.create(_range), _passes, isRelaunch, dryRun));
    }
 
    /**
@@ -2005,8 +2017,8 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(String _entrypoint, Range _range, final boolean isRelaunch) {
-      return (execute(_entrypoint, _range, 1, isRelaunch));
+   public synchronized Kernel execute(String _entrypoint, Range _range, final boolean isRelaunch, final boolean dryRun) {
+      return (execute(_entrypoint, _range, 1, isRelaunch, dryRun));
    }
 
    /**
@@ -2020,12 +2032,12 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(String _entrypoint, Range _range, int _passes, final boolean isRelaunch) {
+   public synchronized Kernel execute(String _entrypoint, Range _range, int _passes, final boolean isRelaunch, final boolean dryRun) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
 
       }
-      return (kernelRunner.execute(_entrypoint, _range, _passes, enableStrided, isRelaunch));
+      return (kernelRunner.execute(_entrypoint, _range, _passes, enableStrided, isRelaunch, dryRun));
    }
 
    /**
@@ -2871,4 +2883,6 @@ public abstract class Kernel implements Cloneable {
        }
        kernelRunner.waitForEvent(launched.poll());
    }
+
+   public abstract String getKernelFile();
 }

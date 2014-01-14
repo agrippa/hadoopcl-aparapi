@@ -57,6 +57,12 @@ import java.util.logging.Logger;
 import java.util.Map;
 import java.util.HashMap;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+
 import com.amd.aparapi.Config;
 import com.amd.aparapi.Kernel;
 import com.amd.aparapi.Kernel.Constant;
@@ -107,6 +113,10 @@ public class KernelRunner extends KernelRunnerJNI {
      new HashMap<Kernel.TaskType, Long>();
    private static Map<Kernel.TaskType, List<Long>> openclDataHandles =
      new HashMap<Kernel.TaskType, List<Long>>();
+   private static Map<Kernel.TaskType, List<Entrypoint>> entrypoints =
+     new HashMap<Kernel.TaskType, List<Entrypoint>>();
+   private static Map<Kernel.TaskType, String> kernelCache =
+     new HashMap<Kernel.TaskType, String>();
 
    static {
        openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
@@ -116,6 +126,10 @@ public class KernelRunner extends KernelRunnerJNI {
        openclDataHandles.put(Kernel.TaskType.MAPPER, new LinkedList<Long>());
        openclDataHandles.put(Kernel.TaskType.COMBINER, new LinkedList<Long>());
        openclDataHandles.put(Kernel.TaskType.REDUCER, new LinkedList<Long>());
+
+       entrypoints.put(Kernel.TaskType.MAPPER, new LinkedList<Entrypoint>());
+       entrypoints.put(Kernel.TaskType.COMBINER, new LinkedList<Entrypoint>());
+       entrypoints.put(Kernel.TaskType.REDUCER, new LinkedList<Entrypoint>());
    }
 
    private void initOpenCLContext(OpenCLDevice dev, int flags) {
@@ -134,23 +148,26 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    private void buildOpenCLContext(String src) {
-     synchronized (KernelRunner.class) {
+     synchronized (openclProgramContextHandles) {
        if (myOpenCLContextHandle == 0) {
          throw new RuntimeException("Got to building before initialization?");
        }
-       long openclProgramContextHandle = buildProgramJNI(myOpenCLContextHandle, src);
-       if (openclProgramContextHandle == 0L) {
-         throw new RuntimeException("Failure building OpenCL context");
+       if (openclProgramContextHandles.get(kernel.checkTaskType()) == 0L) {
+           long openclProgramContextHandle = buildProgramJNI(myOpenCLContextHandle, src);
+           if (openclProgramContextHandle == 0L) {
+             throw new RuntimeException("Failure building OpenCL context");
+           }
+           openclProgramContextHandles.put(kernel.checkTaskType(),
+               new Long(openclProgramContextHandle));
        }
-       openclProgramContextHandles.put(kernel.checkTaskType(), new Long(openclProgramContextHandle));
      }
-
    }
 
    private final Kernel kernel;
 
    private Entrypoint entryPoint;
    private Entrypoint entryPointCopy;
+   private boolean fullyInitialized = false;
 
    private int argc;
    
@@ -163,14 +180,6 @@ public class KernelRunner extends KernelRunnerJNI {
    public KernelRunner(Kernel _kernel) {
       kernel = _kernel;
 
-   }
-   public Entrypoint getEntryPoint() {
-       return entryPoint;
-   }
-
-   public void setEntryPoint(Entrypoint ep, Entrypoint copy) {
-       entryPoint = ep;
-       entryPointCopy = copy;
    }
 
    /**
@@ -970,7 +979,7 @@ public class KernelRunner extends KernelRunnerJNI {
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
+      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
@@ -988,8 +997,356 @@ public class KernelRunner extends KernelRunnerJNI {
       return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
    }
 
+   private String readOpenCLAndArgs(String kernelFile, List<String> argsOut) {
+        String fileContents;
+        try {
+            File f = new File(kernelFile);
+            FileInputStream fs = new FileInputStream(f);
+            byte[] bytes = new byte[(int)f.length()];
+            fs.read(bytes);
+            fs.close();
+            fileContents = new String(bytes, "UTF-8");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        String[] lines = fileContents.split("\n");
+
+        int i = 0;
+        while (lines[i].length() > 0) {
+            argsOut.add(lines[i]);
+            i++;
+        }
+
+        i++;
+        StringBuilder openclBuilder = new StringBuilder();
+        for ( ; i < lines.length; i++) {
+            openclBuilder.append(lines[i]);
+            openclBuilder.append("\n");
+        }
+        return openclBuilder.toString();
+   }
+
+   public synchronized void doEntrypointInit(String _entrypointName, boolean enableStrided,
+       Device device, boolean dryRun) {
+      if (entryPoint == null && this.kernel.getKernelFile() == null ) {
+         if (dryRun || entrypoints.get(this.kernel.checkTaskType()).isEmpty()) {
+             try {
+                final ClassModel classModel = new ClassModel(kernel.getClass());
+                this.entryPoint = classModel.getEntrypoint(_entrypointName,
+                        kernel);
+                if (!dryRun) this.entrypoints.get(this.kernel.checkTaskType()).add(this.entryPoint);
+                if (enableStrided) {
+                    this.entryPointCopy = classModel.getEntrypoint(_entrypointName,
+                            kernel);
+                    if (!dryRun) this.entrypoints.get(this.kernel.checkTaskType()).add(this.entryPointCopy);
+                }
+             } catch (final Exception exception) {
+                throw new RuntimeException(exception);
+             }
+         } else {
+             List<Entrypoint> forThisType = entrypoints.get(kernel.checkTaskType());
+             this.entryPoint = forThisType.get(0);
+             if (enableStrided) {
+                this.entryPointCopy = forThisType.get(1);
+             }
+         }
+      }
+
+      if (!fullyInitialized) {
+         fullyInitialized = true;
+         OpenCLDevice openCLDevice = null;
+         synchronized (Kernel.class) { // This seems to be needed because of a race condition uncovered with issue #68 http://code.google.com/p/aparapi/issues/detail?id=68
+            if (device != null && !(device instanceof OpenCLDevice)) {
+               throw new IllegalStateException("range's device is not suitable for OpenCL ");
+            }
+
+            openCLDevice = (OpenCLDevice) device; // still might be null! 
+
+            int jniFlags = 0;
+            if (dryRun && openCLDevice == null) {
+                if (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU)) {
+                    openCLDevice = (OpenCLDevice) OpenCLDevice.best();
+                    jniFlags |= JNI_FLAG_USE_GPU;
+                } else {
+                    openCLDevice = (OpenCLDevice) OpenCLDevice.firstCPU();
+                }
+            }
+
+            if (openCLDevice == null) {
+              throw new RuntimeException("No HadoopCL device specified");
+            }
+
+            if (openCLDevice.getType() == Device.TYPE.GPU) {
+               jniFlags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
+            }
+
+            //  jniFlags |= (Config.enableProfiling ? JNI_FLAG_ENABLE_PROFILING : 0);
+            //  jniFlags |= (Config.enableProfilingCSV ? JNI_FLAG_ENABLE_PROFILING_CSV | JNI_FLAG_ENABLE_PROFILING : 0);
+            //  jniFlags |= (Config.enableVerboseJNI ? JNI_FLAG_ENABLE_VERBOSE_JNI : 0);
+            // jniFlags |= (Config.enableVerboseJNIOpenCLResourceTracking ? JNI_FLAG_ENABLE_VERBOSE_JNI_OPENCL_RESOURCE_TRACKING :0);
+            // jniFlags |= (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU) ? JNI_FLAG_USE_GPU : 0);
+            // Init the device to check capabilities before emitting the
+            // code that requires the capabilities.
+
+            initOpenCLContext(openCLDevice, jniFlags);
+            jniContextHandle = initJNI(kernel, openCLDevice, jniFlags, jniContextCounter.getAndIncrement()); // openCLDevice will not be null here
+         } // end of synchronized! issue 68
+
+         if (jniContextHandle == 0) {
+            throw new RuntimeException("initJNI failed to return a valid handle");
+         }
+
+         if (this.kernel.getKernelFile() == null) {
+             final String extensions = getExtensionsJNI(myOpenCLContextHandle);
+             capabilitiesSet = new HashSet<String>();
+
+             final StringTokenizer strTok = new StringTokenizer(extensions);
+             while (strTok.hasMoreTokens()) {
+                capabilitiesSet.add(strTok.nextToken());
+             }
+
+             if (logger.isLoggable(Level.FINE)) {
+                logger.fine("Capabilities initialized to :" + capabilitiesSet.toString());
+             }
+
+             if (entryPoint.requiresDoublePragma() && !hasFP64Support() && !hasAMDFP64Support()) {
+                throw new RuntimeException("FP64 required but not supported");
+             }
+
+             if (entryPoint.requiresByteAddressableStorePragma() && !hasByteAddressableStoreSupport()) {
+                throw new RuntimeException("Byte addressable stores required but not supported");
+             }
+
+             final boolean all32AtomicsAvailable = hasGlobalInt32BaseAtomicsSupport()
+                   && hasGlobalInt32ExtendedAtomicsSupport() && hasLocalInt32BaseAtomicsSupport()
+                   && hasLocalInt32ExtendedAtomicsSupport();
+
+             if (entryPoint.requiresAtomic32Pragma() && !all32AtomicsAvailable) {
+                throw new RuntimeException("32 bit Atomics required but not supported");
+             }
+         }
+
+         String openCL = null;
+         String readOpenCL = null;
+         KernelArg[] readArgs = null;
+
+         if (this.kernel.getKernelFile() != null) {
+            List<String> argLines = new LinkedList<String>();
+            readOpenCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
+            // System.err.println("OpenCL read from file:");
+            // System.err.println("----------------------------------------");
+            // System.err.println(readOpenCL);
+            // readOpenCL = null;
+
+            // Field[] fields = kernel.getClass().getDeclaredFields();
+            // HashMap<String, Field> nameToField = new HashMap<String, Field>();
+
+            // for (Field f : fields) {
+            //     nameToField.put(f.getName(), f);
+            // }
+            // fields = kernel.getClass().getFields();
+            // for (Field f : fields) {
+            //     nameToField.put(f.getName(), f);
+            // }
+
+            readArgs = new KernelArg[argLines.size()];
+            for (int i = 0; i < readArgs.length; i++) {
+                String line = argLines.get(i);
+                String[] tokens = line.split(" ");
+                readArgs[i] = new KernelArg();
+                readArgs[i].setName(tokens[0]);
+                readArgs[i].setType(Integer.parseInt(tokens[1]));
+                readArgs[i].setPrimitiveSize(Integer.parseInt(tokens[2]));
+                readArgs[i].setSizeInBytes(Integer.parseInt(tokens[3]));
+                readArgs[i].setNumElements(Integer.parseInt(tokens[4]));
+                int nDims = Integer.parseInt(tokens[5]);
+                int[] dims = new int[nDims];
+                for (int j = 7; j < 7 + nDims; j++) {
+                    dims[j-7] = Integer.parseInt(tokens[j]);
+                }
+                readArgs[i].setNumDims(nDims);
+                readArgs[i].setDims(dims);
+
+                Field f;
+                try {
+                    f = Entrypoint.getFieldFromClassHierarchy(kernel.getClass(), readArgs[i].getName());
+                } catch (AparapiException a) {
+                    throw new RuntimeException(a);
+                }
+
+                // Field f = nameToField.get(readArgs[i].getName());
+                if (f == null) {
+                    throw new RuntimeException("Failed to retrieve field for "+readArgs[i].getName());
+                }
+                readArgs[i].setField(f);
+                final Class<?> type = f.getType();
+                if (type.isArray()) {
+                    readArgs[i].setArray(null); // will get updated in updateKernelArrayRefs
+                }
+            }
+            // readArgs = null;
+         }
+
+         synchronized(kernelCache) {
+             try {
+                if (!dryRun && kernelCache.containsKey(kernel.checkTaskType())) {
+                  openCL = kernelCache.get(kernel.checkTaskType());
+                } else {
+                  if (readOpenCL != null) {
+                    openCL = readOpenCL;
+                  } else {
+                    openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
+                            openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
+                            hasFP64Support(), hasAMDFP64Support());
+                    System.err.println("OpenCL generated:");
+                    System.err.println("----------------------------------------");
+                    System.err.println(openCL);
+                  }
+                  if (!dryRun) kernelCache.put(kernel.checkTaskType(), openCL);
+                  if (Config.enableShowGeneratedOpenCL) {
+                     System.out.println(openCL);
+                  }
+                }
+             } catch (final CodeGenException codeGenException) {
+                throw new RuntimeException(codeGenException);
+             }
+         }
+
+         if (readArgs != null) {
+            args = readArgs;
+            argc = readArgs.length;
+         } else {
+             args = new KernelArg[entryPoint.getReferencedFields().size()];
+             int i = 0;
+
+             for (final Field field : entryPoint.getReferencedFields()) {
+                try {
+                   field.setAccessible(true);
+                   args[i] = new KernelArg();
+                   args[i].setName(field.getName());
+                   args[i].setField(field);
+                   if ((field.getModifiers() & Modifier.STATIC) == Modifier.STATIC) {
+                      args[i].setType(args[i].getType() | ARG_STATIC);
+                   }
+
+                   final Class<?> type = field.getType();
+                   if (type.isArray()) {
+                       args[i].setArray(null); // will get updated in updateKernelArrayRefs
+                       args[i].setType(args[i].getType() | ARG_ARRAY);
+
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(float[].class) ? ARG_FLOAT : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(int[].class) ? ARG_INT : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(boolean[].class) ? ARG_BOOLEAN : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(byte[].class) ? ARG_BYTE : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(char[].class) ? ARG_CHAR : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(double[].class) ? ARG_DOUBLE : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(long[].class) ? ARG_LONG : 0));
+                       args[i].setType(args[i].getType() | (type.isAssignableFrom(short[].class) ? ARG_SHORT : 0));
+
+                       // arrays whose length is used will have an int arg holding
+                       // the length as a kernel param
+                       if (entryPoint.getArrayFieldArrayLengthUsed().contains(args[i].getName())) {
+                          args[i].setType(args[i].getType() | ARG_ARRAYLENGTH);
+                       }
+                   } else if (type.isAssignableFrom(float.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_FLOAT);
+                   } else if (type.isAssignableFrom(int.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_INT);
+                   } else if (type.isAssignableFrom(double.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_DOUBLE);
+                   } else if (type.isAssignableFrom(long.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_LONG);
+                   } else if (type.isAssignableFrom(boolean.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_BOOLEAN);
+                   } else if (type.isAssignableFrom(byte.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_BYTE);
+                   } else if (type.isAssignableFrom(char.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_CHAR);
+                   } else if (type.isAssignableFrom(short.class)) {
+                      args[i].setType(args[i].getType() | ARG_PRIMITIVE);
+                      args[i].setType(args[i].getType() | ARG_SHORT);
+                   }
+                } catch (final IllegalArgumentException e) {
+                  throw new RuntimeException(e);
+                }
+
+                args[i].setPrimitiveSize(getPrimitiveSize(args[i].getType()));
+
+                if (logger.isLoggable(Level.FINE)) {
+                   logger.fine("arg " + i + ", " + args[i].getName() + ", type=" + Integer.toHexString(args[i].getType())
+                         + ", primitiveSize=" + args[i].getPrimitiveSize());
+                }
+
+                i++;
+
+             }
+             argc = i;
+         }
+
+         if (dryRun) {
+            try {
+                PrintWriter out = new PrintWriter("fields.dump");
+                for (int k = 0; k < args.length; k++) {
+                    KernelArg arg = args[k];
+
+                    out.write(arg.getName()+" "+arg.getType()+" "+
+                        arg.getPrimitiveSize()+" "+arg.getSizeInBytes()+" "+
+                        arg.getNumElements()+" "+arg.getNumDims()+" { ");
+                    for (int j = 0; j < arg.getNumDims(); j++) {
+                        out.write(arg.getDims()[j]+" ");
+                    }
+                    out.write("}\n");
+                }
+                out.write("\n");
+                out.write(openCL);
+                out.write("\n");
+                out.close();
+            } catch (Exception e) {
+                System.err.println("Error dumping file");
+                e.printStackTrace();
+                System.exit(1);
+            }
+            System.exit(0);
+         }
+         // at this point, i = the actual used number of arguments
+         // (private buffers do not get treated as arguments)
+
+         // Send the string to OpenCL to compile it
+         buildOpenCLContext(openCL);
+         initJNIContextFromOpenCLContext(jniContextHandle, myOpenCLContextHandle);
+         initJNIContextFromOpenCLProgramContext(jniContextHandle,
+             openclProgramContextHandles.get(kernel.checkTaskType()));
+
+         List<Long> dataHandlesForType =
+             openclDataHandles.get(kernel.checkTaskType());
+         synchronized (dataHandlesForType) {
+             long dataHandle;
+             if (dataHandlesForType.isEmpty()) {
+                 dataHandle = initOpenCLData();
+             } else {
+                 dataHandle = dataHandlesForType.remove(0);
+             }
+             this.myOpenCLDataHandle = dataHandle;
+         }
+
+         initJNIContextFromOpenCLDataContext(jniContextHandle,
+             this.myOpenCLDataHandle);
+
+         setArgsJNI(jniContextHandle, args, argc);
+      }
+   }
+
    public synchronized Kernel execute(String _entrypointName, final Range _range,
-           final int _passes, final boolean enableStrided, final boolean isRelaunch) {
+           final int _passes, final boolean enableStrided, final boolean isRelaunch,
+           final boolean dryRun) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -1005,280 +1362,13 @@ public class KernelRunner extends KernelRunnerJNI {
          Device device = _range.getDevice();
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
-            if (entryPoint == null) {
-               // System.err.println("entryPoint is null, device is "+(device == null ? "null" : Long.toString(((OpenCLDevice)device).getDeviceId())));
-               try {
-                  final ClassModel classModel = new ClassModel(kernel.getClass());
-                  entryPoint = classModel.getEntrypoint(_entrypointName,
-                          kernel);
-                  entryPointCopy = classModel.getEntrypoint(_entrypointName,
-                          kernel);
-               } catch (final Exception exception) {
-                  return warnFallBackAndExecute(_entrypointName, _range, _passes, exception, enableStrided, isRelaunch);
-               }
-
-               OpenCLDevice openCLDevice;
-
-               if ((entryPoint != null) && !entryPoint.shouldFallback()) {
-                  synchronized (Kernel.class) { // This seems to be needed because of a race condition uncovered with issue #68 http://code.google.com/p/aparapi/issues/detail?id=68
-                     if (device != null && !(device instanceof OpenCLDevice)) {
-                        throw new IllegalStateException("range's device is not suitable for OpenCL ");
-                     }
-
-                     openCLDevice = (OpenCLDevice) device; // still might be null! 
-
-                     int jniFlags = 0;
-                     if (openCLDevice == null) {
-                        if (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU)) {
-                           // We used to treat as before by getting first GPU device
-                           // now we get the best GPU
-                           openCLDevice = (OpenCLDevice) OpenCLDevice.best();
-                           jniFlags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
-                        } else {
-                           // We fetch the first CPU device 
-                           openCLDevice = (OpenCLDevice) OpenCLDevice.firstCPU();
-                           if (openCLDevice == null) {
-                              return warnFallBackAndExecute(_entrypointName, _range, _passes,
-                                    "CPU request can't be honored not CPU device", enableStrided, isRelaunch);
-                           }
-                        }
-                     } else {
-                        if (openCLDevice.getType() == Device.TYPE.GPU) {
-                           jniFlags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
-                        }
-                     }
-
-                     //  jniFlags |= (Config.enableProfiling ? JNI_FLAG_ENABLE_PROFILING : 0);
-                     //  jniFlags |= (Config.enableProfilingCSV ? JNI_FLAG_ENABLE_PROFILING_CSV | JNI_FLAG_ENABLE_PROFILING : 0);
-                     //  jniFlags |= (Config.enableVerboseJNI ? JNI_FLAG_ENABLE_VERBOSE_JNI : 0);
-                     // jniFlags |= (Config.enableVerboseJNIOpenCLResourceTracking ? JNI_FLAG_ENABLE_VERBOSE_JNI_OPENCL_RESOURCE_TRACKING :0);
-                     // jniFlags |= (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU) ? JNI_FLAG_USE_GPU : 0);
-                     // Init the device to check capabilities before emitting the
-                     // code that requires the capabilities.
-
-                     initOpenCLContext(openCLDevice, jniFlags);
-                     jniContextHandle = initJNI(kernel, openCLDevice, jniFlags, jniContextCounter.getAndIncrement()); // openCLDevice will not be null here
-                  } // end of synchronized! issue 68
-
-                  if (jniContextHandle == 0) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "initJNI failed to return a valid handle", enableStrided, isRelaunch);
-                  }
-
-                  final String extensions = getExtensionsJNI(myOpenCLContextHandle);
-                  capabilitiesSet = new HashSet<String>();
-
-                  final StringTokenizer strTok = new StringTokenizer(extensions);
-                  while (strTok.hasMoreTokens()) {
-                     capabilitiesSet.add(strTok.nextToken());
-                  }
-
-                  if (logger.isLoggable(Level.FINE)) {
-                     logger.fine("Capabilities initialized to :" + capabilitiesSet.toString());
-                  }
-
-                  if (entryPoint.requiresDoublePragma() && !hasFP64Support() && !hasAMDFP64Support()) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "FP64 required but not supported", enableStrided, isRelaunch);
-                  }
-
-                  if (entryPoint.requiresByteAddressableStorePragma() && !hasByteAddressableStoreSupport()) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes,
-                           "Byte addressable stores required but not supported", enableStrided, isRelaunch);
-                  }
-
-                  final boolean all32AtomicsAvailable = hasGlobalInt32BaseAtomicsSupport()
-                        && hasGlobalInt32ExtendedAtomicsSupport() && hasLocalInt32BaseAtomicsSupport()
-                        && hasLocalInt32ExtendedAtomicsSupport();
-
-                  if (entryPoint.requiresAtomic32Pragma() && !all32AtomicsAvailable) {
-
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, "32 bit Atomics required but not supported", enableStrided, isRelaunch);
-                  }
-
-                  String openCL = null;
-                  try {
-                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
-                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
-                             hasFP64Support(), hasAMDFP64Support());
-                  } catch (final CodeGenException codeGenException) {
-                     return warnFallBackAndExecute(_entrypointName, _range, _passes, codeGenException, enableStrided, isRelaunch);
-                  }
-
-                  if (Config.enableShowGeneratedOpenCL) {
-                     System.out.println(openCL);
-                  }
-
-                  if (logger.isLoggable(Level.INFO)) {
-                     logger.info(openCL);
-                  }
-
-                  // Send the string to OpenCL to compile it
-                  buildOpenCLContext(openCL);
-                  initJNIContextFromOpenCLContext(jniContextHandle, myOpenCLContextHandle);
-                  initJNIContextFromOpenCLProgramContext(jniContextHandle,
-                      openclProgramContextHandles.get(kernel.checkTaskType()));
-
-                  List<Long> dataHandlesForType =
-                      openclDataHandles.get(kernel.checkTaskType());
-                  synchronized (dataHandlesForType) {
-                      long dataHandle;
-                      if (dataHandlesForType.isEmpty()) {
-                          dataHandle = initOpenCLData();
-                      } else {
-                          dataHandle = dataHandlesForType.remove(0);
-                      }
-                      this.myOpenCLDataHandle = dataHandle;
-                  }
-
-                  initJNIContextFromOpenCLDataContext(jniContextHandle,
-                      this.myOpenCLDataHandle);
-
-                  args = new KernelArg[entryPoint.getReferencedFields().size()];
-                  int i = 0;
-
-                  for (final Field field : entryPoint.getReferencedFields()) {
-                     try {
-                        field.setAccessible(true);
-                        args[i] = new KernelArg();
-                        args[i].setName(field.getName());
-                        args[i].setField(field);
-                        if ((field.getModifiers() & Modifier.STATIC) == Modifier.STATIC) {
-                           args[i].setType(args[i].getType() | ARG_STATIC);
-                        }
-
-                        final Class<?> type = field.getType();
-                        if (type.isArray()) {
-
-                           if (field.getAnnotation(Local.class) != null || args[i].getName().endsWith(Kernel.LOCAL_SUFFIX)) {
-                              args[i].setType(args[i].getType() | ARG_LOCAL);
-                           } else if ((field.getAnnotation(Constant.class) != null)
-                                 || args[i].getName().endsWith(Kernel.CONSTANT_SUFFIX)) {
-                              args[i].setType(args[i].getType() | ARG_CONSTANT);
-                           } else {
-                              args[i].setType(args[i].getType() | ARG_GLOBAL);
-                           }
-                           if (isExplicit()) {
-                              args[i].setType(args[i].getType() | ARG_EXPLICIT);
-                           }
-                           // for now, treat all write arrays as read-write, see bugzilla issue 4859
-                           // we might come up with a better solution later
-                           args[i].setType(args[i].getType()
-                                 | (entryPoint.getArrayFieldAssignments().contains(field.getName()) ? (ARG_WRITE | ARG_READ) : 0));
-                           args[i].setType(args[i].getType()
-                                 | (entryPoint.getArrayFieldAccesses().contains(field.getName()) ? ARG_READ : 0));
-                           // args[i].type |= ARG_GLOBAL;
-
-
-                           if (type.getName().startsWith("[L")) {
-                              args[i].setType(args[i].getType()
-                                    | (ARG_OBJ_ARRAY_STRUCT | 
-                                       ARG_WRITE | 
-                                       ARG_READ | 
-                                       ARG_APARAPI_BUFFER));
-
-                              if (logger.isLoggable(Level.FINE)) {
-                                 logger.fine("tagging " + args[i].getName() + " as (ARG_OBJ_ARRAY_STRUCT | ARG_WRITE | ARG_READ)");
-                              }
-                           } else if (type.getName().startsWith("[[")) {
-
-                              try {
-                                 setMultiArrayType(args[i], type);
-                              } catch(AparapiException e) {
-                                 return warnFallBackAndExecute(_entrypointName,
-                                         _range, _passes, "failed to set kernel arguement "
-                                         + args[i].getName() + ".  Aparapi only supports 2D and 3D arrays.",
-                                         enableStrided, isRelaunch);
-                              }
-                           } else {
-
-                              args[i].setArray(null); // will get updated in updateKernelArrayRefs
-                              args[i].setType(args[i].getType() | ARG_ARRAY);
-
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(float[].class) ? ARG_FLOAT : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(int[].class) ? ARG_INT : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(boolean[].class) ? ARG_BOOLEAN : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(byte[].class) ? ARG_BYTE : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(char[].class) ? ARG_CHAR : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(double[].class) ? ARG_DOUBLE : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(long[].class) ? ARG_LONG : 0));
-                              args[i].setType(args[i].getType() | (type.isAssignableFrom(short[].class) ? ARG_SHORT : 0));
-
-                              // arrays whose length is used will have an int arg holding
-                              // the length as a kernel param
-                              if (entryPoint.getArrayFieldArrayLengthUsed().contains(args[i].getName())) {
-                                 args[i].setType(args[i].getType() | ARG_ARRAYLENGTH);
-                              }
-
-                              if (type.getName().startsWith("[L")) {
-                                 args[i].setType(args[i].getType() | (ARG_OBJ_ARRAY_STRUCT | ARG_WRITE | ARG_READ));
-                                 if (logger.isLoggable(Level.FINE)) {
-                                    logger.fine("tagging " + args[i].getName() + " as (ARG_OBJ_ARRAY_STRUCT | ARG_WRITE | ARG_READ)");
-                                 }
-                              }
-                           }
-                        } else if (type.isAssignableFrom(float.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_FLOAT);
-                        } else if (type.isAssignableFrom(int.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_INT);
-                        } else if (type.isAssignableFrom(double.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_DOUBLE);
-                        } else if (type.isAssignableFrom(long.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_LONG);
-                        } else if (type.isAssignableFrom(boolean.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_BOOLEAN);
-                        } else if (type.isAssignableFrom(byte.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_BYTE);
-                        } else if (type.isAssignableFrom(char.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_CHAR);
-                        } else if (type.isAssignableFrom(short.class)) {
-                           args[i].setType(args[i].getType() | ARG_PRIMITIVE);
-                           args[i].setType(args[i].getType() | ARG_SHORT);
-                        }
-                        // System.out.printf("in execute, arg %d %s %08x\n", i,args[i].name,args[i].type );
-                     } catch (final IllegalArgumentException e) {
-                        e.printStackTrace();
-                     }
-
-                     args[i].setPrimitiveSize(getPrimitiveSize(args[i].getType()));
-
-                     if (logger.isLoggable(Level.FINE)) {
-                        logger.fine("arg " + i + ", " + args[i].getName() + ", type=" + Integer.toHexString(args[i].getType())
-                              + ", primitiveSize=" + args[i].getPrimitiveSize());
-                     }
-
-                     i++;
-                  }
-
-                  // at this point, i = the actual used number of arguments
-                  // (private buffers do not get treated as arguments)
-
-                  argc = i;
-
-                  setArgsJNI(jniContextHandle, args, argc);
-
-                  conversionTime = System.currentTimeMillis() - executeStartTime;
-
-                  try {
-                     ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
-                  } catch (final AparapiException e) {
-                     warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided, isRelaunch);
-                  }
-               } else {
-                  warnFallBackAndExecute(_entrypointName, _range, _passes, "failed to locate entrypoint", enableStrided, isRelaunch);
-               }
-            } else {
+               // Should be a no-op except when called by translate.sh script
+               doEntrypointInit(_entrypointName, enableStrided, device, dryRun);
                try {
                   ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
                } catch (final AparapiException e) {
-                  warnFallBackAndExecute(_entrypointName, _range, _passes, e, enableStrided, isRelaunch);
+                  throw new RuntimeException(e);
                }
-            }
          } else {
             warnFallBackAndExecute(_entrypointName, _range, _passes,
                   "OpenCL was requested but Device supplied was not an OpenCLDevice", enableStrided, isRelaunch);

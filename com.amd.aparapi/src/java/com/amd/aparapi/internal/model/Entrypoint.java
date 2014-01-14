@@ -479,10 +479,10 @@ public class Entrypoint{
       String superClassName = superClass.getClassWeAreModelling().toString();
       superClassName = superClassName.substring(6);
       String kernelClass = superClassName.substring(superClassName.lastIndexOf('.')+1);
-      boolean isMapper = kernelClass.indexOf("Mapper") != -1;
-      //System.out.println("kernelClass = "+kernelClass);
-      //System.out.println("superClass = "+superClassName);
-      //System.out.println("isMapper = "+isMapper);
+      // boolean isMapper = kernelClass.indexOf("Mapper") != -1;
+      // System.out.println("kernelClass = "+kernelClass);
+      // System.out.println("superClass = "+superClassName);
+      // System.out.println("isMapper = "+isMapper);
 
       int[] indices = { -1, -1, -1, -1, -1 };
       int nFound = 0;
@@ -651,12 +651,6 @@ public class Entrypoint{
       if (!fallback) {
          calledMethods.addAll(methodMap.values());
          calledMethods.add(classModel.getMethodModel("getOutputPairsPerInput", "()I"));
-         // if(!isMapper) {
-         //     calledMethods.add(classModel.getAnyMethod("reduce"));
-         //     calledMethods.add(classModel.getAnyMethod("write"));
-         // }
-         //if(isMapper) calledMethods.add(classModel.getMethodModel("callMap", "()V"));
-         //else calledMethods.add(classModel.getMethodModel("callReduce", "(II)V"));
          Collections.reverse(calledMethods);
          final List<MethodModel> methods = new ArrayList<MethodModel>(calledMethods);
 

@@ -936,7 +936,7 @@ public abstract class KernelWriter extends BlockWriter{
 
          List<String> gatherArgumentNames = new ArrayList<String>();
          for (final LocalVariableInfo lvi : lvte) {
-            if (!lvi.getVariableDescriptor().equals("Lorg/apache/hadoop/mapreduce/HadoopCLSvecValueIterator;") &&
+            if (lvi.getVariableDescriptor().indexOf("ValueIterator") == -1 &&
                 (lvi.getStart() == 0) && ((lvi.getVariableIndex() != 0) || mm.getMethod().isStatic())) { // full scope but skip this
                final String descriptor = lvi.getVariableDescriptor();
                if (alreadyHasFirstArg) {
@@ -1709,7 +1709,8 @@ public abstract class KernelWriter extends BlockWriter{
        }
 
        @Override protected String removePreviousLine() {
-         return openCLStringBuilder.removePreviousLine();
+         String tmp = openCLStringBuilder.removePreviousLine();
+         return tmp;
        }
 
        @Override public String toString() {
@@ -1721,6 +1722,7 @@ public abstract class KernelWriter extends BlockWriter{
            Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided,
            boolean khrFp64Support, boolean amdFp64Support)
                throws CodeGenException {
+
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter(
               khrFp64Support, amdFp64Support);
 

@@ -19,6 +19,7 @@ class JNIContext;
 enum KernelArgDirection {
     IN,
     OUT,
+    GLOBAL,
     INOUT
 };
 

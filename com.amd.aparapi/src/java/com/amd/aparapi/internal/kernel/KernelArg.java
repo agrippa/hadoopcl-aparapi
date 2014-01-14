@@ -110,42 +110,42 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the primitiveSize
     */
-   protected int getPrimitiveSize() {
+   public int getPrimitiveSize() {
       return primitiveSize;
    }
 
    /**
     * @param primitiveSize the primitiveSize to set
     */
-   protected void setPrimitiveSize(int primitiveSize) {
+   public void setPrimitiveSize(int primitiveSize) {
       this.primitiveSize = primitiveSize;
    }
 
    /**
     * @return the type
     */
-   protected int getType() {
+   public int getType() {
       return type;
    }
 
    /**
     * @param type the type to set
     */
-   protected void setType(int type) {
+   public void setType(int type) {
       this.type = type;
    }
 
    /**
     * @return the name
     */
-   protected String getName() {
+   public String getName() {
       return name;
    }
 
    /**
     * @param name the name to set
     */
-   protected void setName(String name) {
+   public void setName(String name) {
       this.name = name;
    }
 
@@ -166,28 +166,28 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the sizeInBytes
     */
-   protected long getSizeInBytes() {
+   public long getSizeInBytes() {
       return sizeInBytes;
    }
 
    /**
     * @param sizeInBytes the sizeInBytes to set
     */
-   protected void setSizeInBytes(long sizeInBytes) {
+   public void setSizeInBytes(long sizeInBytes) {
       this.sizeInBytes = sizeInBytes;
    }
 
    /**
     * @return the numElements
     */
-   protected int getNumElements() {
+   public int getNumElements() {
       return numElements;
    }
 
    /**
     * @param numElements the numElements to set
     */
-   protected void setNumElements(int numElements) {
+   public void setNumElements(int numElements) {
       this.numElements = numElements;
    }
 
@@ -236,28 +236,28 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the number of dimensions to buffer
     */
-   protected int getNumDims() {
+   public int getNumDims() {
       return numDims;
    }
 
    /**
     * @param numDims the number of dimensions for the buffer
     */
-   protected void setNumDims(int numDims) {
+   public void setNumDims(int numDims) {
       this.numDims = numDims;
    }
 
    /**
     * @return the dimensions for the buffer
     */
-   protected int[] getDims() {
+   public int[] getDims() {
       return dims;
    }
 
    /**
     * @param dims the dimsensions for the buffer
     */
-   protected void setDims(int[] dims) {
+   public void setDims(int[] dims) {
       this.dims = dims;
    }
 }

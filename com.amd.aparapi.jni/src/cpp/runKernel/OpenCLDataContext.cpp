@@ -4,6 +4,7 @@
 OpenCLDataContext::OpenCLDataContext() {
     hadoopclParams = NULL;
     nHadoopclParams = 0;
+    writtenAtleastOnce = 0;
 }
 
 void OpenCLDataContext::cleanup() {
