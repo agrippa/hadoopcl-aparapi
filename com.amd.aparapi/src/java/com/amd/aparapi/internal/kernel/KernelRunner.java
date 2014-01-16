@@ -869,7 +869,7 @@ public class KernelRunner extends KernelRunnerJNI {
          final KernelArg arg = args[i];
          try {
             if ((arg.getType() & ARG_ARRAY) != 0) {
-                // System.err.println("Looking at array "+arg.getName());
+               // System.err.println("Looking at array "+arg.getName());
                Object newArrayRef;
                newArrayRef = arg.getField().get(kernel);
 

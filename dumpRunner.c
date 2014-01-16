@@ -159,7 +159,7 @@ static cl_program createAndBuildProgram(cl_context ctx, const char *source, cl_d
         char *log = (char *)malloc(log_size + 1);
         CHECK(clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, log_size, log, NULL));
         log[log_size] = '\0';
-        printf("%s\n", log);
+        fprintf(stderr, "%s\n", log);
         exit(1);
     }
     return program;
@@ -200,26 +200,39 @@ static cl_mem *constructMemObjects(Arg *arguments, int nArgs, cl_context ctx,
 
 static void printValue(Arg *a, void *buf) {
     int i;
-    int lengthToPrint = a->len / sizeOfType(a->type);
-    if (strncmp(a->name, "nWrites", 7) != 0 && lengthToPrint > 100) lengthToPrint = 100;
+    int isNWrites = 0;
+    int isLookAside = 0;
 
-    printf("%s %s:\n", a->type, a->name);
-    printf("  ");
+    if (strncmp(a->name, "nWrites", 7) == 0) isNWrites = 1;
+    if (strncmp(a->name, "inputValLookAsideBuffer", 23) == 0) isLookAside = 1;
+    int lengthToPrint = a->len / sizeOfType(a->type);
+    if (!isNWrites && !isLookAside && lengthToPrint > 100) lengthToPrint = 100;
+
+    int count = 0;
+
+    fprintf(stderr, "%s %s:\n", a->type, a->name);
+    fprintf(stderr, "  ");
     for (i = 0; i < lengthToPrint; i++) {
         if (strncmp(a->type, "int", 3) == 0) {
-            printf("%d ",((int *)buf)[i]);
+            if (isNWrites && ((int *)buf)[i] >= 0) count++;
+            fprintf(stderr, "%d ",((int *)buf)[i]);
+            if (isLookAside && i < lengthToPrint-1) fprintf(stderr, " (%d) ", ((int *)buf)[i+1] - ((int *)buf)[i]); 
         } else if (strncmp(a->type, "long", 4) == 0) {
-            printf("%ld ",((long *)buf)[i]);
+            fprintf(stderr, "%ld ",((long *)buf)[i]);
         } else if (strncmp(a->type, "float", 5) == 0) {
-            printf("%f ",((float *)buf)[i]);
+            fprintf(stderr, "%f ",((float *)buf)[i]);
         } else if (strncmp(a->type, "double", 6) == 0) {
-            printf("%f ",((double *)buf)[i]);
+            fprintf(stderr, "%f ",((double *)buf)[i]);
         } else {
             fprintf(stderr, "Unsupported variable type %s\n", a->type);
             exit(1);
         }
     }
-    printf("\n");
+
+    if (isNWrites) {
+      fprintf(stderr, "  Count = %d / %d\n", count, (a->len / sizeOfType(a->type)));
+    }
+    fprintf(stderr, "\n");
 }
 
 static void checkInputs(Arg *arguments, int nArgs) {
