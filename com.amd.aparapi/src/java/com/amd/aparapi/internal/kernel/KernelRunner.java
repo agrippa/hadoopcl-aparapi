@@ -37,6 +37,7 @@ under those regulations, please refer to the U.S. Bureau of Industry and Securit
 */
 package com.amd.aparapi.internal.kernel;
 
+import java.util.ArrayList;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -188,8 +189,8 @@ public class KernelRunner extends KernelRunnerJNI {
 
    private final Kernel kernel;
 
-   private Entrypoint entryPoint;
-   private Entrypoint entryPointCopy;
+   private Entrypoint entryPoint = null;
+   private Entrypoint entryPointCopy = null;
    private boolean fullyInitialized = false;
 
    private int argc;
@@ -218,22 +219,24 @@ public class KernelRunner extends KernelRunnerJNI {
       if (this.myOpenCLDataHandle != 0) {
           final List<Long> dataHandlesForType =
               openclDataHandles.get(kernel.checkTaskType());
-          final List<Entrypoint> entrypointsForType = entrypoints.get(
-                  this.kernel.checkTaskType());
           synchronized (dataHandlesForType) {
               dataHandlesForType.add(this.myOpenCLDataHandle);
           }
+          this.myOpenCLDataHandle = 0;
+      }
+
+      if (this.entryPoint != null) {
+          System.err.println("Disposing of "+this.entryPoint+" and "+this.entryPointCopy);
+          final List<Entrypoint> entrypointsForType = entrypoints.get(
+                  this.kernel.checkTaskType());
           synchronized (entrypointsForType) {
               entrypointsForType.add(this.entryPoint);
-              if (enabledStrided) {
+              if (this.entryPointCopy != null) {
                   entrypointsForType.add(this.entryPointCopy);
               }
           }
-          this.myOpenCLDataHandle = 0;
           this.entryPoint = null;
-          if (enableStrided) {
-              this.entryPointCopy = null;
-          }
+          this.entryPointCopy = null;
       }
       threadPool.shutdownNow();
    }
