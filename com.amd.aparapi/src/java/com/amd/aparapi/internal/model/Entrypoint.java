@@ -82,6 +82,8 @@ public class Entrypoint{
 
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
+   private final Map<String, Boolean> isMappedMethodCache = new HashMap<String, Boolean>();
+
    private final List<ClassModel.ClassModelField> referencedClassModelFields = new ArrayList<ClassModel.ClassModelField>();
 
    private final List<Field> referencedFields = new ArrayList<Field>();
@@ -127,6 +129,17 @@ public class Entrypoint{
    private boolean usesAtomic32;
 
    private boolean usesAtomic64;
+
+   private boolean isMappedMethod(MethodEntry entry) {
+       String name = entry.toString();
+       if (this.isMappedMethodCache.containsKey(name)) {
+           return this.isMappedMethodCache.get(name);
+       } else {
+           boolean isMapped = Kernel.isMappedMethod(entry);
+           this.isMappedMethodCache.put(name, isMapped);
+           return isMapped;
+       }
+   }
 
    public boolean requiresDoublePragma() {
       return usesDoubles;
@@ -417,7 +430,7 @@ public class Entrypoint{
    ClassModelMethod resolveCalledMethod(MethodCall methodCall, ClassModel classModel) throws AparapiException {
       MethodEntry methodEntry = methodCall.getConstantPoolMethodEntry();
       int thisClassIndex = classModel.getThisClassConstantPoolIndex();//arf
-      boolean isMapped = (thisClassIndex != methodEntry.getClassIndex()) && Kernel.isMappedMethod(methodEntry);
+      boolean isMapped = (thisClassIndex != methodEntry.getClassIndex()) && this.isMappedMethod(methodEntry);
       if (logger.isLoggable(Level.FINE)) {
          if (methodCall instanceof I_INVOKESPECIAL) {
             logger.fine("Method call to super: " + methodEntry);
@@ -796,7 +809,7 @@ public class Entrypoint{
                } else if (instruction instanceof I_INVOKEVIRTUAL) {
                   final I_INVOKEVIRTUAL invokeInstruction = (I_INVOKEVIRTUAL) instruction;
                   final MethodEntry methodEntry = invokeInstruction.getConstantPoolMethodEntry();
-                  if (Kernel.isMappedMethod(methodEntry)) { //only do this for intrinsics
+                  if (this.isMappedMethod(methodEntry)) { //only do this for intrinsics
 
                      if (Kernel.usesAtomic32(methodEntry)) {
                         setRequiresAtomics32Pragma(true);
@@ -977,7 +990,7 @@ public class Entrypoint{
     */
    public MethodModel getCallTarget(MethodEntry _methodEntry, boolean _isSpecial) {
       ClassModelMethod target = getClassModel().getMethod(_methodEntry, _isSpecial);
-      boolean isMapped = Kernel.isMappedMethod(_methodEntry);
+      boolean isMapped = this.isMappedMethod(_methodEntry);
 
       if (logger.isLoggable(Level.FINE) && (target == null)) {
          logger.fine("Did not find call target: " + _methodEntry + " in " + getClassModel().getClassWeAreModelling().getName()
