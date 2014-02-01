@@ -212,6 +212,7 @@ public class KernelRunner extends KernelRunnerJNI {
     * @see KernelRunnerJNI#disposeJNI()
     */
    public void dispose() {
+      System.err.println("Disposing...");
       if (kernel.getExecutionMode().isOpenCL()) {
          disposeJNI(jniContextHandle);
       }
@@ -1102,6 +1103,7 @@ public class KernelRunner extends KernelRunnerJNI {
                      // Get previously created Entrypoint object
                      collectedEntrypoints.add(entrypointsForType.remove(0));
                  }
+                 requiredNEntrypoints--;
              }
 /*
              if (dryRun || entrypointsForType.size() < requiredNEntrypoints) {
