@@ -2165,7 +2165,7 @@ public abstract class Kernel implements Cloneable {
    public static boolean isMappedMethod(MethodReferenceEntry methodReferenceEntry) {
       boolean isMapped = false;
       final String methodReferenceEntryName = methodReferenceEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8();
-      System.err.println("Checking isMapped on "+methodReferenceEntryName);
+      System.err.println("Checking isMapped on "+methodReferenceEntry.toString());
       for (final Method kernelMethod : Kernel.class.getDeclaredMethods()) {
          if (methodReferenceEntryName.equals(kernelMethod.getName())) {
             if (kernelMethod.isAnnotationPresent(OpenCLMapping.class)) {
