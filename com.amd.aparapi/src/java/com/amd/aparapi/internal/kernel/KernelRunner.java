@@ -90,9 +90,10 @@ import com.amd.aparapi.opencl.OpenCL;
  * <code>KernelRunner</code> to encapsulate state and to help coordinate interactions between the <code>Kernel</code> 
  * and it's execution logic.<br/>
  * 
- * The <code>KernelRunner</code> is created <i>lazily</i> as a result of calling <code>Kernel.execute()</code>. A this 
- * time the <code>ExecutionMode</code> is consulted to determine the default requested mode.  This will dictate how 
- * the <code>KernelRunner</code> will attempt to execute the <code>Kernel</code>
+ * The <code>KernelRunner</code> is created <i>lazily</i> as a result of calling
+ * <code>Kernel.execute()</code>. A this time the <code>ExecutionMode</code> is
+ * consulted to determine the default requested mode.  This will dictate how the
+ * <code>KernelRunner</code> will attempt to execute the <code>Kernel</code>
  *   
  * @see com.amd.aparapi.Kernel#execute(int _globalSize)
  * 
@@ -107,14 +108,36 @@ public class KernelRunner extends KernelRunnerJNI {
    private long jniContextHandle = 0;
    private long myOpenCLDataHandle = 0;
    private long myOpenCLContextHandle = 0;
+
+   /*
+    * Stores the cl_device_id, cl_context, cl_command_queue, and prevExecEvent
+    * (used to serialize all events for a device) objects for a certain device.
+    *
+    * TODO Possible data race on prevExecEvent?
+    */
    private static Map<OpenCLDevice, Long> openclContextHandles =
      new HashMap<OpenCLDevice, Long>();
+   /*
+    * Stores the source code, cl_kernel and cl_program objects for a particular
+    * MR task type. Intialized once in buildOpenCLContext and then read-only.
+    */
    private static Map<Kernel.TaskType, Long> openclProgramContextHandles =
      new HashMap<Kernel.TaskType, Long>();
+   /*
+    * Stores a list of data contexts for each kernel type, where each data context
+    * stores the OpenCL memory necessary to run a kernel. These are created on
+    * demand with initOpenCLData but are recycled after dispose() is called.
+    */
    private static Map<Kernel.TaskType, List<Long>> openclDataHandles =
      new HashMap<Kernel.TaskType, List<Long>>();
+   /*
+    * Stores Entrypoint object for each kernel type. These are recycled.
+    */
    private static Map<Kernel.TaskType, List<Entrypoint>> entrypoints =
      new HashMap<Kernel.TaskType, List<Entrypoint>>();
+   /*
+    * Caches the string for a kernel for re-use.
+    */
    private static Map<Kernel.TaskType, String> kernelCache =
      new HashMap<Kernel.TaskType, String>();
 
@@ -193,12 +216,24 @@ public class KernelRunner extends KernelRunnerJNI {
       }
 
       if (this.myOpenCLDataHandle != 0) {
-          List<Long> dataHandlesForType =
+          final List<Long> dataHandlesForType =
               openclDataHandles.get(kernel.checkTaskType());
-          synchronized(dataHandlesForType) {
+          final List<Entrypoint> entrypointsForType = entrypoints.get(
+                  this.kernel.checkTaskType());
+          synchronized (dataHandlesForType) {
               dataHandlesForType.add(this.myOpenCLDataHandle);
           }
+          synchronized (entrypointsForType) {
+              entrypointsForType.add(this.entryPoint);
+              if (enabledStrided) {
+                  entrypointsForType.add(this.entryPointCopy);
+              }
+          }
           this.myOpenCLDataHandle = 0;
+          this.entryPoint = null;
+          if (enableStrided) {
+              this.entryPointCopy = null;
+          }
       }
       threadPool.shutdownNow();
    }
@@ -919,8 +954,9 @@ public class KernelRunner extends KernelRunnerJNI {
       return needsSync;
    }
 
-   private Kernel executeOpenCL(final String _entrypointName, final Range _range, final int _passes,
-           final boolean enableStriding, boolean isRelaunch) throws AparapiException {
+   private Kernel executeOpenCL(final String _entrypointName,
+           final Range _range, final int _passes, final boolean enableStriding,
+           boolean isRelaunch) throws AparapiException {
       // Read the array refs after kernel may have changed them
       // We need to do this as input to computing the localSize
       assert args != null : "args should not be null";
@@ -1027,30 +1063,69 @@ public class KernelRunner extends KernelRunnerJNI {
         return openclBuilder.toString();
    }
 
-   public synchronized void doEntrypointInit(String _entrypointName, boolean enableStrided,
+   public synchronized void doEntrypointInit(String _entrypointName,
+           boolean enableStrided,
        Device device, boolean dryRun, int taskId, int attemptId) {
       if (entryPoint == null && this.kernel.getKernelFile() == null ) {
 
-         if (dryRun || entrypoints.get(this.kernel.checkTaskType()).isEmpty()) {
-             try {
-                final ClassModel classModel = new ClassModel(kernel.getClass());
-                this.entryPoint = classModel.getEntrypoint(_entrypointName,
-                        kernel);
-                if (!dryRun) this.entrypoints.get(this.kernel.checkTaskType()).add(this.entryPoint);
-                if (enableStrided) {
-                    this.entryPointCopy = classModel.getEntrypoint(_entrypointName,
+         final int requiredNEntrypoints = enableStrided ? 2 : 1;
+         final List<Entrypoint> entrypointsForType = entrypoints.get(
+                 this.kernel.checkTaskType());
+         final List<Entrypoint> collectedEntrypoints = new ArrayList<Entrypoint>(
+                 requiredNEntrypoints);
+         synchronized (entrypointsForType) {
+             /*
+              * Loop while trying to get requiredNEntrypoints entry point
+              * objects. These are either created fresh using getEntrypoint or
+              * retrieved from entrypointsForType if previously created and
+              * disposed().
+              */
+             ClassModel classModel = null;
+             while (requiredNEntrypoints > 0) {
+                 if (dryRun || entrypointsForType.isEmpty()) {
+                     // Create new Entrypoint object
+                     try {
+                        if (classModel == null) {
+                            classModel = new ClassModel(kernel.getClass());
+                        }
+                        Entrypoint created = classModel.getEntrypoint(
+                                _entrypointName, kernel);
+                        collectedEntrypoints.add(created);
+
+                     } catch (final Exception exception) {
+                        throw new RuntimeException(exception);
+                     }
+                 } else {
+                     // Get previously created Entrypoint object
+                     collectedEntrypoints.add(entrypointsForType.remove(0));
+                 }
+             }
+/*
+             if (dryRun || entrypointsForType.size() < requiredNEntrypoints) {
+                 try {
+                    final ClassModel classModel = new ClassModel(kernel.getClass());
+                    this.entryPoint = classModel.getEntrypoint(_entrypointName,
                             kernel);
-                    if (!dryRun) this.entrypoints.get(this.kernel.checkTaskType()).add(this.entryPointCopy);
-                }
-             } catch (final Exception exception) {
-                throw new RuntimeException(exception);
+                    if (!dryRun) entrypointsForType.add(this.entryPoint);
+                    if (enableStrided) {
+                        this.entryPointCopy = classModel.getEntrypoint(_entrypointName,
+                                kernel);
+                        if (!dryRun) entrypointsForType.add(this.entryPointCopy);
+                    }
+                 } catch (final Exception exception) {
+                    throw new RuntimeException(exception);
+                 }
+             } else {
+                 this.entryPoint = entrypointsForType.get(0);
+                 if (enableStrided) {
+                    this.entryPointCopy = entrypointsForType.get(1);
+                 }
              }
-         } else {
-             List<Entrypoint> forThisType = entrypoints.get(kernel.checkTaskType());
-             this.entryPoint = forThisType.get(0);
-             if (enableStrided) {
-                this.entryPointCopy = forThisType.get(1);
-             }
+             */
+         }
+         this.entryPoint = collectedEntrypoints.get(0);
+         if (enableStrided) {
+             this.entryPointCopy = collectedEntrypoints.get(1);
          }
       }
 
@@ -1194,12 +1269,21 @@ public class KernelRunner extends KernelRunnerJNI {
 
          synchronized(kernelCache) {
              try {
+                /*
+                 * If not a dry run and we've previously created the string for
+                 * this kernel, retrieve it from the cache.
+                 */
                 if (!dryRun && kernelCache.containsKey(kernel.checkTaskType())) {
                   openCL = kernelCache.get(kernel.checkTaskType());
                 } else {
                   if (readOpenCL != null) {
+                    /*
+                     * If we were given a pre-build kernel file (i.e.
+                     * kernel.getKernelFile() != null, use that kernel.
+                     */
                     openCL = readOpenCL;
                   } else {
+                    // Otherwise, build the kernel string from the bytecode
                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
                             hasFP64Support(), hasAMDFP64Support());
@@ -1207,7 +1291,9 @@ public class KernelRunner extends KernelRunnerJNI {
                     // System.err.println("----------------------------------------");
                     // System.err.println(openCL);
                   }
-                  if (!dryRun) kernelCache.put(kernel.checkTaskType(), openCL);
+                  if (!dryRun) {
+                      kernelCache.put(kernel.checkTaskType(), openCL);
+                  }
                   if (Config.enableShowGeneratedOpenCL) {
                      System.out.println(openCL);
                   }
@@ -1325,7 +1411,8 @@ public class KernelRunner extends KernelRunnerJNI {
 
          // Send the string to OpenCL to compile it
          buildOpenCLContext(openCL);
-         initJNIContextFromOpenCLContext(jniContextHandle, myOpenCLContextHandle);
+         initJNIContextFromOpenCLContext(jniContextHandle,
+                 myOpenCLContextHandle);
          initJNIContextFromOpenCLProgramContext(jniContextHandle,
              openclProgramContextHandles.get(kernel.checkTaskType()));
 
@@ -1338,6 +1425,9 @@ public class KernelRunner extends KernelRunnerJNI {
              } else {
                  dataHandle = dataHandlesForType.remove(0);
              }
+             if (dataHandle == 0L) {
+                 throw new RuntimeException("Error creating data handle");
+             }
              this.myOpenCLDataHandle = dataHandle;
          }
 
@@ -1348,9 +1438,10 @@ public class KernelRunner extends KernelRunnerJNI {
       }
    }
 
-   public synchronized Kernel execute(String _entrypointName, final Range _range,
-           final int _passes, final boolean enableStrided, final boolean isRelaunch,
-           final boolean dryRun, int taskId, int attemptId) {
+   public synchronized Kernel execute(String _entrypointName,
+           final Range _range, final int _passes, final boolean enableStrided,
+           final boolean isRelaunch, final boolean dryRun, int taskId,
+           int attemptId) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -1367,9 +1458,11 @@ public class KernelRunner extends KernelRunnerJNI {
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
                // Should be a no-op except when called by translate.sh script
-               doEntrypointInit(_entrypointName, enableStrided, device, dryRun, taskId, attemptId);
+               doEntrypointInit(_entrypointName, enableStrided, device, dryRun,
+                       taskId, attemptId);
                try {
-                  ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
+                  ret = executeOpenCL(_entrypointName, _range, _passes,
+                          enableStrided, isRelaunch);
                } catch (final AparapiException e) {
                   throw new RuntimeException(e);
                }

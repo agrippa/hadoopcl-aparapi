@@ -1172,7 +1172,8 @@ TRACE_LINE
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jobject _range, jint relaunch) {
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
+     jlong openclContextHandle, jobject _range, jint relaunch) {
 
       if (config == NULL){
          config = new Config(jenv);
