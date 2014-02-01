@@ -1072,7 +1072,7 @@ public class KernelRunner extends KernelRunnerJNI {
        Device device, boolean dryRun, int taskId, int attemptId) {
       if (entryPoint == null && this.kernel.getKernelFile() == null ) {
 
-         final int requiredNEntrypoints = enableStrided ? 2 : 1;
+         int requiredNEntrypoints = enableStrided ? 2 : 1;
          final List<Entrypoint> entrypointsForType = entrypoints.get(
                  this.kernel.checkTaskType());
          final List<Entrypoint> collectedEntrypoints = new ArrayList<Entrypoint>(
