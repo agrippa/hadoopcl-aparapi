@@ -972,14 +972,14 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    synchronized private Kernel fallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
-           final boolean enableStrided, final boolean isRelaunch) {
+           final boolean enableStrided, final boolean isRelaunch, int taskId, int attemptId) {
       if (kernel.hasNextExecutionMode()) {
          kernel.tryNextExecutionMode();
       } else {
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false);
+      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false, taskId, attemptId);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
@@ -988,13 +988,13 @@ public class KernelRunner extends KernelRunnerJNI {
          logger.warning("Reverting to Java Thread Pool (JTP) for " + kernel.getClass() + ": " + _exception.getMessage());
          _exception.printStackTrace();
       }
-      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
+      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch, 0, 0);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName,
            final Range _range, final int _passes, String _excuse, boolean enableStrided, boolean isRelaunch) {
       logger.warning("Reverting to Java Thread Pool (JTP) for " + kernel.getClass() + ": " + _excuse);
-      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch);
+      return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch, 0, 0);
    }
 
    private String readOpenCLAndArgs(String kernelFile, List<String> argsOut) {
@@ -1028,8 +1028,9 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    public synchronized void doEntrypointInit(String _entrypointName, boolean enableStrided,
-       Device device, boolean dryRun) {
+       Device device, boolean dryRun, int taskId, int attemptId) {
       if (entryPoint == null && this.kernel.getKernelFile() == null ) {
+
          if (dryRun || entrypoints.get(this.kernel.checkTaskType()).isEmpty()) {
              try {
                 final ClassModel classModel = new ClassModel(kernel.getClass());
@@ -1090,7 +1091,10 @@ public class KernelRunner extends KernelRunnerJNI {
             // code that requires the capabilities.
 
             initOpenCLContext(openCLDevice, jniFlags);
-            jniContextHandle = initJNI(kernel, openCLDevice, jniFlags, jniContextCounter.getAndIncrement()); // openCLDevice will not be null here
+            // openCLDevice will not be null here
+            jniContextHandle = initJNI(kernel, openCLDevice, jniFlags,
+                taskId, attemptId,
+                jniContextCounter.getAndIncrement());
          } // end of synchronized! issue 68
 
          if (jniContextHandle == 0) {
@@ -1199,9 +1203,9 @@ public class KernelRunner extends KernelRunnerJNI {
                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
                             hasFP64Support(), hasAMDFP64Support());
-                    System.err.println("OpenCL generated:");
-                    System.err.println("----------------------------------------");
-                    System.err.println(openCL);
+                    // System.err.println("OpenCL generated:");
+                    // System.err.println("----------------------------------------");
+                    // System.err.println(openCL);
                   }
                   if (!dryRun) kernelCache.put(kernel.checkTaskType(), openCL);
                   if (Config.enableShowGeneratedOpenCL) {
@@ -1346,7 +1350,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
    public synchronized Kernel execute(String _entrypointName, final Range _range,
            final int _passes, final boolean enableStrided, final boolean isRelaunch,
-           final boolean dryRun) {
+           final boolean dryRun, int taskId, int attemptId) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -1363,7 +1367,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
                // Should be a no-op except when called by translate.sh script
-               doEntrypointInit(_entrypointName, enableStrided, device, dryRun);
+               doEntrypointInit(_entrypointName, enableStrided, device, dryRun, taskId, attemptId);
                try {
                   ret = executeOpenCL(_entrypointName, _range, _passes, enableStrided, isRelaunch);
                } catch (final AparapiException e) {

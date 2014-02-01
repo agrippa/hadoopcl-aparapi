@@ -3,7 +3,8 @@
 #include "List.h"
 
 JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
-        jobject _openCLDeviceObject, jint _flags, jint setContextId): 
+        jobject _openCLDeviceObject, jint _flags, jint setTaskId,
+        jint setAttemptId, jint setContextId): 
       kernelObject(jenv->NewGlobalRef(_kernelObject)),
       kernelClass((jclass)jenv->NewGlobalRef(jenv->GetObjectClass(_kernelObject))), 
       openCLDeviceObject(jenv->NewGlobalRef(_openCLDeviceObject)),
@@ -15,16 +16,20 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
       valid(JNI_FALSE){
 
    srand (time(NULL));
-   randomId = rand();
+   taskId = setTaskId;
+   attemptId = setAttemptId;
+   contextId = setContextId;
    kernelLaunchCounter = 0;
    memset(&clctx, 0x00, sizeof(OpenCLContext));
    valid = JNI_TRUE;
+   dump_filename = (char *)malloc(512);
 }
 
 void JNIContext::dispose(JNIEnv *jenv, Config* config) {
    cl_int status = CL_SUCCESS;
    jenv->DeleteGlobalRef(kernelObject);
    jenv->DeleteGlobalRef(kernelClass);
+   free(dump_filename);
    // if (clctx.context != 0){
    //    status = clReleaseContext(clctx.context);
    //    //fprintf(stdout, "dispose context %0lx\n", context);

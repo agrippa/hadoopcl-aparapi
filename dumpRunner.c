@@ -64,8 +64,13 @@ static void printVar(Arg *a) {
 
 static void reliableRead(void *ptr, size_t size, size_t count, FILE *fp) {
     size_t soFar = 0;
+    size_t oldSoFar = 0;
     while (soFar < count) {
         soFar += fread(((char *)ptr) + (soFar * size), size, count - soFar, fp);
+        if (soFar == oldSoFar) {
+            fprintf(stderr, "Read seems stuck at %llu\n", soFar);
+        }
+        oldSoFar = soFar;
     }
 }
 
@@ -81,10 +86,10 @@ static int getDataTypeLength(char *type, char *name) {
 }
 
 static void printArg(Arg *a) {
-    printf("type=\"%s\" (%d bytes), name=\"%s\", isref=%d, length in bytes = %llu, data = %p\n", a->type, getDataTypeLength(a->type, a->name), a->name, a->isref, a->len, a->data);
+    fprintf(stderr, "type=\"%s\" (%d bytes), name=\"%s\", isref=%d, length in bytes = %llu, data = %p\n", a->type, getDataTypeLength(a->type, a->name), a->name, a->isref, a->len, a->data);
 }
 
-static void readArg(Arg *out, FILE *in) {
+static void readArg(Arg *out, FILE *in, int verbose) {
     int hasData;
 
     out->type = (char *)malloc(128);
@@ -106,9 +111,16 @@ static void readArg(Arg *out, FILE *in) {
 
     if (hasData) {
         out->data = malloc(out->len);
-        reliableRead(out->data, getDataTypeLength(out->type, out->name), out->len / getDataTypeLength(out->type, out->name), in);
     } else {
         out->data = NULL;
+    }
+
+    if (verbose) {
+        printArg(out);
+    }
+
+    if (hasData) {
+        reliableRead(out->data, getDataTypeLength(out->type, out->name), out->len / getDataTypeLength(out->type, out->name), in);
     }
 }
 
@@ -193,7 +205,7 @@ static cl_mem *constructMemObjects(Arg *arguments, int nArgs, cl_context ctx,
             CHECK(clSetKernelArg(kernel, i, arguments[i].len, arguments[i].data));
         }
     }
-    fprintf(stderr, "Dont constructing mem objects\n");
+    fprintf(stderr, "Done constructing mem objects\n");
 
     return bufs;
 }
@@ -398,10 +410,7 @@ int main(int argc, char **argv) {
 
     Arg *arguments = (Arg *)malloc(sizeof(Arg) * nArgs);
     for (i = 0; i < nArgs; i++) {
-        readArg(arguments + i, in);
-        if (verbose) {
-            printArg(arguments + i);
-        }
+        readArg(arguments + i, in, verbose);
     }
 
     int sourceLength;

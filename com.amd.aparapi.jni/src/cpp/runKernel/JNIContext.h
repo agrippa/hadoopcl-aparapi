@@ -16,8 +16,6 @@ private:
    jboolean valid;
 
 public:
-   int randomId;
-   unsigned int kernelLaunchCounter;
 
    jobject kernelObject;
    jobject openCLDeviceObject;
@@ -45,8 +43,13 @@ public:
    unsigned long startWrite;
    unsigned long stopWrite;
    unsigned long startKernel;
+   char *dump_filename;
+   unsigned int taskId;
+   unsigned int attemptId;
+   unsigned int contextId;
+   unsigned int kernelLaunchCounter;
 
-   JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setContextId);
+   JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setTaskId, jint setAttemptId, jint setContextId);
    
    static JNIContext* getJNIContext(jlong jniContextHandle){
       return((JNIContext*)jniContextHandle);
