@@ -212,7 +212,6 @@ public class KernelRunner extends KernelRunnerJNI {
     * @see KernelRunnerJNI#disposeJNI()
     */
    public void dispose() {
-      System.err.println("Disposing...");
       if (kernel.getExecutionMode().isOpenCL()) {
          disposeJNI(jniContextHandle);
       }
@@ -227,7 +226,6 @@ public class KernelRunner extends KernelRunnerJNI {
       }
 
       if (this.entryPoint != null) {
-          System.err.println("Disposing of "+this.entryPoint+" and "+this.entryPointCopy);
           final List<Entrypoint> entrypointsForType = entrypoints.get(
                   this.kernel.checkTaskType());
           synchronized (entrypointsForType) {
