@@ -19,6 +19,7 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
    taskId = setTaskId;
    attemptId = setAttemptId;
    contextId = setContextId;
+   datactx = NULL;
    kernelLaunchCounter = 0;
    memset(&clctx, 0x00, sizeof(OpenCLContext));
    valid = JNI_TRUE;

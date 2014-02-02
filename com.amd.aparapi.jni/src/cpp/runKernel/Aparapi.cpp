@@ -37,8 +37,8 @@
    */
 
 #define APARAPI_SOURCE
-// #define TRACE
-// #define DUMP_DEBUG
+#define TRACE
+#define DUMP_DEBUG
 // #define PROFILE_HADOOPCL
 
 #ifdef TRACE
@@ -1361,9 +1361,11 @@ TRACE_LINE
              }
          }
          free(fillEvents);
-TRACE_LINE
 
          jniContext->datactx->writtenAtleastOnce = 1;
+         fprintf(stderr, "running on datactx %p\n", jniContext->datactx);
+
+TRACE_LINE
 
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();

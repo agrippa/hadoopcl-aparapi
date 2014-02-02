@@ -1103,28 +1103,6 @@ public class KernelRunner extends KernelRunnerJNI {
                  }
                  requiredNEntrypoints--;
              }
-/*
-             if (dryRun || entrypointsForType.size() < requiredNEntrypoints) {
-                 try {
-                    final ClassModel classModel = new ClassModel(kernel.getClass());
-                    this.entryPoint = classModel.getEntrypoint(_entrypointName,
-                            kernel);
-                    if (!dryRun) entrypointsForType.add(this.entryPoint);
-                    if (enableStrided) {
-                        this.entryPointCopy = classModel.getEntrypoint(_entrypointName,
-                                kernel);
-                        if (!dryRun) entrypointsForType.add(this.entryPointCopy);
-                    }
-                 } catch (final Exception exception) {
-                    throw new RuntimeException(exception);
-                 }
-             } else {
-                 this.entryPoint = entrypointsForType.get(0);
-                 if (enableStrided) {
-                    this.entryPointCopy = entrypointsForType.get(1);
-                 }
-             }
-             */
          }
          this.entryPoint = collectedEntrypoints.get(0);
          if (enableStrided) {
