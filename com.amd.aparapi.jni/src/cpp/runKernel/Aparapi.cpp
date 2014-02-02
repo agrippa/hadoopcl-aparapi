@@ -60,6 +60,7 @@
 #include "OpenCLJNI.h"
 #include <algorithm>
 #include <sys/timeb.h>
+#include <pthread.h>
 
 unsigned long read_timer() {
   struct timeb tm;
@@ -1370,6 +1371,7 @@ TRACE_LINE
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
 #endif
+         pthread_mutex_lock(&openclContext->execLock);
          err = clEnqueueNDRangeKernel(
                jniContext->clctx.execCommandQueue,
                jniContext->clprgctx.kernel,
@@ -1385,6 +1387,7 @@ TRACE_LINE
              return err;
          }
          openclContext->prevExecEvent = jniContext->exec_event;
+         pthread_mutex_lock(&openclContext->execLock);
 
 TRACE_LINE
 #ifdef TRACE
@@ -1479,9 +1482,12 @@ TRACE_LINE
           (end - start) / 1000000, end,
           stopRead - startRead, startRead);
 #endif
+      pthread_mutex_lock(&openclContext->execLock);
       if (openclContext->prevExecEvent == jniContext->exec_event) {
         openclContext->prevExecEvent = 0;
       }
+      pthread_mutex_unlock(&openclContext->execLock);
+
       clReleaseEvent(jniContext->exec_event);
 TRACE_LINE
 
@@ -1609,7 +1615,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
             queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
       if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
 
-      clctx->prevExecEvent = 0;
+      pthread_mutex_init(&clctx->execLock, NULL);
 
       // commandQueueList.add(clctx->execCommandQueue, __LINE__, __FILE__);
       // commandQueueList.add(clctx->copyCommandQueue, __LINE__, __FILE__);
