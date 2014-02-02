@@ -12,6 +12,7 @@ typedef struct _OpenCLContext {
         cl_command_queue copyCommandQueue; // buildProgramJNI
         cl_command_queue execCommandQueue;
         cl_event prevExecEvent;
+        pthread_mutex_t execLock;
 } OpenCLContext;
 
 #endif

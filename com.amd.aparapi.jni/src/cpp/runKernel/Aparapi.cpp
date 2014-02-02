@@ -1609,6 +1609,8 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
             queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
       if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
 
+      clctx->prevExecEvent = 0;
+
       // commandQueueList.add(clctx->execCommandQueue, __LINE__, __FILE__);
       // commandQueueList.add(clctx->copyCommandQueue, __LINE__, __FILE__);
 
