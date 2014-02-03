@@ -296,7 +296,8 @@ public abstract class KernelRunnerJNI{
 
    protected native int getJNI(long _jniContextHandle, Object _array);
 
-   protected native int setArgsJNI(long _jniContextHandle, KernelArgJNI[] _args, int argc);
+   protected native int setArgsJNI(long _jniContextHandle,
+       long _programContextHandle, KernelArgJNI[] _args, int argc);
 
    protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes);
 
@@ -311,17 +312,13 @@ public abstract class KernelRunnerJNI{
    protected native long buildProgramJNI(long _openclContextHandle, String _source);
    protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
-       long _openclContextHandle, Range _range, int relaunch);
+       long _openclContextHandle, long _openclProgramContextHandle, Range _range, int relaunch);
    protected native int hadoopclReadbackJNI(long _jniContextHandle, long _openclContextHandle);
    protected native int hadoopclKernelIsDoneJNI(long _jniContextHandle);
    protected native int hadoopclWaitForKernel(long _jniContextHandle);
    protected native static long initOpenCL(OpenCLDevice _device, int _flags);
    protected native static long initOpenCLProgram();
    protected native static long initOpenCLData();
-   protected native int initJNIContextFromOpenCLContext(long _jniContextHandle,
-       long _openclContextHandle);
-   protected native int initJNIContextFromOpenCLProgramContext(long _jniContextHandle,
-       long _openclProgramContextHandle);
    protected native int initJNIContextFromOpenCLDataContext(long _jniContextHandle,
        long _openclDataContextHandle);
 }

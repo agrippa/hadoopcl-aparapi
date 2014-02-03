@@ -2,6 +2,8 @@
 #ifndef KERNEL_ARG_H
 #define KERNEL_ARG_H
 
+#include "OpenCLContext.h"
+#include "OpenCLProgramContext.h"
 #include "Common.h"
 #include "JNIHelper.h"
 #include "ArrayBuffer.h"
@@ -71,13 +73,14 @@ class KernelArg{
       void dumpTypeToFile(FILE *fp);
       size_t getLengthForType();
       void dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv);
-      void dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext);
+      void dumpData(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext, OpenCLContext *openclContext);
 
 
    public:
       static jfieldID javaArrayFieldID; 
    public:
       JNIContext *jniContext;  
+      OpenCLProgramContext *programContext;
       jobject argObj;    // the Java KernelRunner.KernelArg object that we are mirroring.
       jobject javaArg;   // global reference to the corresponding java KernelArg object we grabbed our own global reference so that the object won't be collected until we dispose!
       char *name;        // used for debugging printfs
@@ -89,7 +92,8 @@ class KernelArg{
       AparapiBuffer *aparapiBuffer;
 
       // Uses JNIContext so cant inline here see below
-      KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj);
+      KernelArg(JNIEnv *jenv, JNIContext *jniContext,
+          OpenCLProgramContext *programContext, jobject argObj);
 
       ~KernelArg(){
           if (cachedValue) {
@@ -215,7 +219,7 @@ class KernelArg{
       cl_int setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       // Uses JNIContext so can't inline here we below.  
       cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached);
-      void dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext);
+      void dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext, OpenCLContext *openclContext);
 };
 
 

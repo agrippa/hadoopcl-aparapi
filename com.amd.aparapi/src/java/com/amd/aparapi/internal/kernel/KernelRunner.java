@@ -113,8 +113,6 @@ public class KernelRunner extends KernelRunnerJNI {
    /*
     * Stores the cl_device_id, cl_context, cl_command_queue, and prevExecEvent
     * (used to serialize all events for a device) objects for a certain device.
-    *
-    * TODO Possible data race on prevExecEvent?
     */
    private static Map<OpenCLDevice, Long> openclContextHandles =
      new HashMap<OpenCLDevice, Long>();
@@ -157,7 +155,7 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    private void initOpenCLContext(OpenCLDevice dev, int flags) {
-       synchronized(openclContextHandles) {
+       synchronized (openclContextHandles) {
            if (myOpenCLContextHandle == 0) {
                long tmpContextHandle;
                if (openclContextHandles.containsKey(dev)) {
@@ -970,7 +968,9 @@ public class KernelRunner extends KernelRunnerJNI {
       // native side will reallocate array buffers if necessary
       int execID;
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
-              myOpenCLContextHandle, _range, isRelaunch ? 1 : 0)) != 0) {
+              myOpenCLContextHandle,
+              openclProgramContextHandles.get(kernel.checkTaskType()), _range,
+              isRelaunch ? 1 : 0)) != 0) {
          return null;
       }
 
@@ -1071,8 +1071,13 @@ public class KernelRunner extends KernelRunnerJNI {
       if (entryPoint == null && this.kernel.getKernelFile() == null ) {
 
          int requiredNEntrypoints = enableStrided ? 2 : 1;
-         final List<Entrypoint> entrypointsForType = entrypoints.get(
-                 this.kernel.checkTaskType());
+         final List<Entrypoint> entrypointsForType;
+         if (dryRun) {
+              entrypointsForType = new ArrayList<Entrypoint>(0);
+         } else {
+              entrypointsForType = entrypoints.get(
+                  this.kernel.checkTaskType());
+         }
          final List<Entrypoint> collectedEntrypoints = new ArrayList<Entrypoint>(
                  requiredNEntrypoints);
          synchronized (entrypointsForType) {
@@ -1084,7 +1089,7 @@ public class KernelRunner extends KernelRunnerJNI {
               */
              ClassModel classModel = null;
              while (requiredNEntrypoints > 0) {
-                 if (dryRun || entrypointsForType.isEmpty()) {
+                 if (entrypointsForType.isEmpty()) {
                      // Create new Entrypoint object
                      try {
                         if (classModel == null) {
@@ -1392,10 +1397,6 @@ public class KernelRunner extends KernelRunnerJNI {
 
          // Send the string to OpenCL to compile it
          buildOpenCLContext(openCL);
-         initJNIContextFromOpenCLContext(jniContextHandle,
-                 myOpenCLContextHandle);
-         initJNIContextFromOpenCLProgramContext(jniContextHandle,
-             openclProgramContextHandles.get(kernel.checkTaskType()));
 
          List<Long> dataHandlesForType =
              openclDataHandles.get(kernel.checkTaskType());
@@ -1415,7 +1416,8 @@ public class KernelRunner extends KernelRunnerJNI {
          initJNIContextFromOpenCLDataContext(jniContextHandle,
              this.myOpenCLDataHandle);
 
-         setArgsJNI(jniContextHandle, args, argc);
+         setArgsJNI(jniContextHandle,
+             openclProgramContextHandles.get(kernel.checkTaskType()), args, argc);
       }
    }
 

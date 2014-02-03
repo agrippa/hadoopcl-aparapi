@@ -28,7 +28,7 @@ void OpenCLDataContext::printOpenclMemChecks() {
     fprintf(stderr,"    Total = %u bytes\n",sum);
 }
 
-hadoopclParameter* OpenCLDataContext::addHadoopclParam(KernelArg *arg, JNIContext *jniContext) {
+hadoopclParameter* OpenCLDataContext::addHadoopclParam(KernelArg *arg, JNIContext *jniContext, OpenCLContext *openclContext) {
     hadoopclParams = (hadoopclParameter *)realloc(hadoopclParams,
             sizeof(hadoopclParameter) * (nHadoopclParams + 1));
     hadoopclParameter *current = hadoopclParams + nHadoopclParams;
@@ -50,7 +50,7 @@ hadoopclParameter* OpenCLDataContext::addHadoopclParam(KernelArg *arg, JNIContex
     // TODO depending on whether name contains input/output we should be
     // able to set more accurate flags here
     cl_int err;
-    current->allocatedMem = clCreateBuffer(jniContext->clctx.context,
+    current->allocatedMem = clCreateBuffer(openclContext->context,
         current->createFlags, current->allocatedSize, NULL, &err);
 
     if (err != CL_SUCCESS) {
@@ -77,7 +77,7 @@ hadoopclParameter* OpenCLDataContext::findHadoopclParam(KernelArg *arg) {
 }
 
 void OpenCLDataContext::refreshHadoopclParam(KernelArg *arg,
-        hadoopclParameter *hadoopclParam, JNIContext *jniContext) {
+        hadoopclParameter *hadoopclParam, JNIContext *jniContext, OpenCLContext *openclContext) {
     if (arg->arrayBuffer->lengthInBytes <= hadoopclParam->allocatedSize) {
         return;
     }
@@ -92,7 +92,7 @@ void OpenCLDataContext::refreshHadoopclParam(KernelArg *arg,
                 arg->name);
         exit(4);
     }
-    hadoopclParam->allocatedMem = clCreateBuffer(jniContext->clctx.context,
+    hadoopclParam->allocatedMem = clCreateBuffer(openclContext->context,
             hadoopclParam->createFlags, arg->arrayBuffer->lengthInBytes,
             NULL, &err);
     if (err != CL_SUCCESS) {
@@ -104,7 +104,7 @@ void OpenCLDataContext::refreshHadoopclParam(KernelArg *arg,
     hadoopclParam->allocatedSize = arg->arrayBuffer->lengthInBytes;
 }
 
-cl_mem OpenCLDataContext::hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext) {
+cl_mem OpenCLDataContext::hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext, OpenCLContext *openclContext) {
     if (!arg->isArray()) return 0x0;
 
     hadoopclParameter *param = findHadoopclParam(arg);
@@ -117,9 +117,9 @@ cl_mem OpenCLDataContext::hadoopclRefresh(KernelArg *arg, int relaunch, JNIConte
         return param->allocatedMem;
     } else {
         if (param == NULL) {
-            param = addHadoopclParam(arg, jniContext);
+            param = addHadoopclParam(arg, jniContext, openclContext);
         }
-        refreshHadoopclParam(arg, param, jniContext);
+        refreshHadoopclParam(arg, param, jniContext, openclContext);
         return param->allocatedMem;
     }
 }

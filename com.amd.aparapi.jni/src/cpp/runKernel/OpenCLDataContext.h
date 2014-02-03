@@ -21,10 +21,10 @@ class OpenCLDataContext {
     void cleanup();
 
     void printOpenclMemChecks();
-    cl_mem hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext);
-    hadoopclParameter* addHadoopclParam(KernelArg *arg, JNIContext *jniContext);
+    cl_mem hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext, OpenCLContext *openclContext);
+    hadoopclParameter* addHadoopclParam(KernelArg *arg, JNIContext *jniContext, OpenCLContext *openclContext);
     hadoopclParameter* findHadoopclParam(KernelArg *arg);
-    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam, JNIContext *jniContext);
+    void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam, JNIContext *jniContext, OpenCLContext *openclContext);
 
 };
 

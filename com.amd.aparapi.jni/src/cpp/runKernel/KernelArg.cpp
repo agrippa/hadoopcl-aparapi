@@ -16,8 +16,10 @@ jfieldID KernelArg::javaArrayFieldID=0;
 jfieldID KernelArg::sizeInBytesFieldID=0;
 jfieldID KernelArg::numElementsFieldID=0; 
 
-KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext, jobject argObj):
+KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
+    OpenCLProgramContext *programContext, jobject argObj):
    jniContext(jniContext),
+   programContext(programContext),
    argObj(argObj){
       javaArg = jenv->NewGlobalRef(argObj);   // save a global ref to the java Arg Object
       if (argClazz == 0){
@@ -65,14 +67,16 @@ cl_int KernelArg::setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool v
    if (verbose){
        fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) arrayBuffer->lengthInBytes);
    }
-   return(clSetKernelArg(jniContext->clprgctx.kernel, argPos, (int)arrayBuffer->lengthInBytes, NULL));
+   return(clSetKernelArg(programContext->kernel, argPos,
+         (int)arrayBuffer->lengthInBytes, NULL));
 }
 
 cl_int KernelArg::setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose) {
    if (verbose){
        fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) aparapiBuffer->lengthInBytes);
    }
-   return(clSetKernelArg(jniContext->clprgctx.kernel, argPos, (int)aparapiBuffer->lengthInBytes, NULL));
+   return(clSetKernelArg(programContext->kernel, argPos,
+         (int)aparapiBuffer->lengthInBytes, NULL));
 }
 
 const char* KernelArg::getTypeName() {
@@ -155,7 +159,8 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    cl_int status = CL_SUCCESS;
 
    if (useCached) {
-       status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, cachedValueLength, cachedValue);
+       status = clSetKernelArg(programContext->kernel, argPos,
+           cachedValueLength, cachedValue);
    } else {
        if (isFloat()) {
            jfloat f;
@@ -165,7 +170,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(f);
            memcpy(cachedValue, &f, sizeof(f));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(f), &f);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(f), &f);
        }
        else if (isInt()) {
            jint i;
@@ -175,7 +180,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(i);
            memcpy(cachedValue, &i, sizeof(i));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(i), &i);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(i), &i);
        }
        else if (isBoolean()) {
            jboolean z;
@@ -185,7 +190,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(z);
            memcpy(cachedValue, &z, sizeof(z));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(z), &z);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(z), &z);
        }
        else if (isByte()) {
            jbyte b;
@@ -195,7 +200,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(b);
            memcpy(cachedValue, &b, sizeof(b));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(b), &b);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(b), &b);
        }
        else if (isLong()) {
            jlong l;
@@ -205,7 +210,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(l);
            memcpy(cachedValue, &l, sizeof(l));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(l), &l);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(l), &l);
        }
        else if (isDouble()) {
            jdouble d;
@@ -215,7 +220,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
            cachedValueLength = sizeof(d);
            memcpy(cachedValue, &d, sizeof(d));
 
-           status = clSetKernelArg(jniContext->clprgctx.kernel, argPos, sizeof(d), &d);
+           status = clSetKernelArg(programContext->kernel, argPos, sizeof(d), &d);
        }
    }
    return status;
@@ -277,7 +282,7 @@ void KernelArg::dumpLengthInBytesToFile(FILE *fp, int relaunch, JNIEnv *jenv) {
 }
 
 void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv,
-        JNIContext *jniContext) {
+        JNIContext *jniContext, OpenCLContext *openclContext) {
     int willDumpData = 1;
     int wontDumpData = 0;
 
@@ -341,9 +346,9 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv,
 
             if (relaunch) {
                 cl_mem mem = jniContext->datactx->hadoopclRefresh(this, relaunch,
-                    jniContext);
+                    jniContext, openclContext);
                 void *buf = malloc(arrayBuffer->lengthInBytes);
-                clEnqueueReadBuffer(jniContext->clctx.copyCommandQueue, mem, CL_TRUE,
+                clEnqueueReadBuffer(openclContext->copyCommandQueue, mem, CL_TRUE,
                     0, arrayBuffer->lengthInBytes, buf, 0, NULL, NULL);
                 reliableWrite(buf, getLengthForType(),
                     arrayBuffer->lengthInBytes / getLengthForType(),
@@ -362,7 +367,7 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv,
 }
 
 void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv,
-        JNIContext *jniContext) {
+        JNIContext *jniContext, OpenCLContext *openclContext) {
     int isRef = 1;
     int isNotRef = 0;
 
@@ -374,7 +379,7 @@ void KernelArg::dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv,
     } else {
         reliableWrite(&isNotRef, sizeof(int), 1, fp);
     }
-    dumpData(fp, relaunch, jenv, jniContext);
+    dumpData(fp, relaunch, jenv, jniContext, openclContext);
 
     if (usesArrayLength()) {
         int hasData = 1;

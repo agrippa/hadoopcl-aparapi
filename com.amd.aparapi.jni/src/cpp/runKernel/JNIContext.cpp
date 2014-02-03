@@ -21,7 +21,6 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
    contextId = setContextId;
    datactx = NULL;
    kernelLaunchCounter = 0;
-   memset(&clctx, 0x00, sizeof(OpenCLContext));
    valid = JNI_TRUE;
    dump_filename = (char *)malloc(512);
 }
@@ -31,34 +30,6 @@ void JNIContext::dispose(JNIEnv *jenv, Config* config) {
    jenv->DeleteGlobalRef(kernelObject);
    jenv->DeleteGlobalRef(kernelClass);
    free(dump_filename);
-   // if (clctx.context != 0){
-   //    status = clReleaseContext(clctx.context);
-   //    //fprintf(stdout, "dispose context %0lx\n", context);
-   //    CLException::checkCLError(status, "clReleaseContext()");
-   //    clctx.context = (cl_context)0;
-   // }
-   // if (clctx.execCommandQueue != 0){
-   //    if (config->isTrackingOpenCLResources()){
-   //       commandQueueList.remove((cl_command_queue)clctx.execCommandQueue, __LINE__,
-   //               __FILE__);
-   //    }
-   //    status = clReleaseCommandQueue((cl_command_queue)clctx.execCommandQueue);
-   //    //fprintf(stdout, "dispose commandQueue %0lx\n", commandQueue);
-   //    CLException::checkCLError(status, "clReleaseCommandQueue()");
-   //    clctx.execCommandQueue = (cl_command_queue)0;
-   // }
-   // if (clprgctx.program != 0){
-   //    status = clReleaseProgram((cl_program)clprgctx.program);
-   //    //fprintf(stdout, "dispose program %0lx\n", program);
-   //    CLException::checkCLError(status, "clReleaseProgram()");
-   //    clprgctx.program = (cl_program)0;
-   // }
-   // if (clprgctx.kernel != 0){
-   //    status = clReleaseKernel((cl_kernel)clprgctx.kernel);
-   //    //fprintf(stdout, "dispose kernel %0lx\n", kernel);
-   //    CLException::checkCLError(status, "clReleaseKernel()");
-   //    clprgctx.kernel = (cl_kernel)0;
-   // }
    if (argc > 0){
       for (int i=0; i< argc; i++){
          KernelArg *arg = args[i];

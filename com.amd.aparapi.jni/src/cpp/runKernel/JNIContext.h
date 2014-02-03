@@ -36,8 +36,6 @@ public:
    /*
     * HadoopCL stuff
     */
-   OpenCLContext clctx;
-   OpenCLProgramContext clprgctx;
    OpenCLDataContext *datactx;
    cl_event exec_event;
    unsigned long startWrite;
