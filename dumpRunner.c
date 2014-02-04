@@ -227,8 +227,9 @@ static void printValue(Arg *a, void *buf) {
     for (i = 0; i < lengthToPrint; i++) {
         if (strncmp(a->type, "int", 3) == 0) {
             if (isNWrites && ((int *)buf)[i] >= 0) count++;
-            fprintf(stderr, "%d ",((int *)buf)[i]);
-            if (isLookAside && i < lengthToPrint-1) fprintf(stderr, " (%d) ", ((int *)buf)[i+1] - ((int *)buf)[i]); 
+            fprintf(stderr, "%d",((int *)buf)[i]);
+            if (isLookAside && i < lengthToPrint-1) fprintf(stderr, "(%d)", ((int *)buf)[i+1] - ((int *)buf)[i]); 
+            fprintf(stderr, " ");
         } else if (strncmp(a->type, "long", 4) == 0) {
             fprintf(stderr, "%ld ",((long *)buf)[i]);
         } else if (strncmp(a->type, "float", 5) == 0) {
@@ -315,6 +316,9 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
 
     size_t global_size = 128;
     size_t local_size = 128;
+
+    if (verbose) checkInputs(arguments, nArgs);
+
     fprintf(stderr, "Launching kernel\n");
     CHECK(clEnqueueNDRangeKernel(cmd, kernel, 1, NULL, &global_size,
           &local_size, 0, NULL, &exec_event));
@@ -324,7 +328,6 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
 
     if (verbose) {
         printKnownVariables(arguments, nArgs);
-        checkInputs(arguments, nArgs);
         checkOutputs(arguments, nArgs, bufs, cmd);
     }
     fprintf(stderr, "  Done waiting for events\n");
