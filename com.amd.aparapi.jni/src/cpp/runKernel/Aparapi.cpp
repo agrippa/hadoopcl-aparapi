@@ -1146,7 +1146,7 @@ void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
 }
 
 JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
-   (JNIEnv *jenv, jobject obj, jlong openclContextHandle, jstring source) {
+   (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jstring source) {
       OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
       if (openclContext == NULL){
          return 0;

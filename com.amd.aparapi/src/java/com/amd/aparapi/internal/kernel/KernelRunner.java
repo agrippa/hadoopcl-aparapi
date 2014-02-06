@@ -140,6 +140,9 @@ public class KernelRunner extends KernelRunnerJNI {
    private static Map<Kernel.TaskType, KernelAndArgLines> kernelCache =
      new HashMap<Kernel.TaskType, KernelAndArgLines>();
 
+   private static Map<Kernel.TaskType, List<KernelArg[]>> kernelArgs =
+     new HashMap<Kernel.TaskType, List<KernelArg[]>>();
+
    static {
        openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
        openclProgramContextHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
@@ -152,34 +155,44 @@ public class KernelRunner extends KernelRunnerJNI {
        entrypoints.put(Kernel.TaskType.MAPPER, new LinkedList<Entrypoint>());
        entrypoints.put(Kernel.TaskType.COMBINER, new LinkedList<Entrypoint>());
        entrypoints.put(Kernel.TaskType.REDUCER, new LinkedList<Entrypoint>());
+
+       kernelArgs.put(Kernel.TaskType.MAPPER, new LinkedList<KernelArg[]>());
+       kernelArgs.put(Kernel.TaskType.COMBINER, new LinkedList<KernelArg[]>());
+       kernelArgs.put(Kernel.TaskType.REDUCER, new LinkedList<KernelArg[]>());
    }
 
-   private void initOpenCLContext(OpenCLDevice dev, int flags) {
-       synchronized (openclContextHandles) {
-           if (myOpenCLContextHandle == 0) {
-               long tmpContextHandle;
-               if (openclContextHandles.containsKey(dev)) {
-                   tmpContextHandle = openclContextHandles.get(dev);
-               } else {
-                   tmpContextHandle = initOpenCL(dev, flags);
-                   openclContextHandles.put(dev, tmpContextHandle);
-               }
-               this.myOpenCLContextHandle = tmpContextHandle;
-           }
+   private static long getOpenCLContext(OpenCLDevice dev) {
+       int flags = 0;
+       if (dev.getType() == Device.TYPE.GPU) {
+          flags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
        }
+       long openclContextHandle;
+       synchronized (openclContextHandles) {
+           long tmpContextHandle;
+           if (openclContextHandles.containsKey(dev)) {
+               tmpContextHandle = openclContextHandles.get(dev);
+           } else {
+               tmpContextHandle = initOpenCL(dev, flags);
+               openclContextHandles.put(dev, tmpContextHandle);
+           }
+           openclContextHandle = tmpContextHandle;
+       }
+       return openclContextHandle;
    }
 
-   private void buildOpenCLContext(String src) {
+   private static void buildOpenCLContext(Kernel.TaskType type, String src,
+         long openclContextHandle) {
      synchronized (openclProgramContextHandles) {
-       if (myOpenCLContextHandle == 0) {
+       if (openclContextHandle == 0) {
          throw new RuntimeException("Got to building before initialization?");
        }
-       if (openclProgramContextHandles.get(kernel.checkTaskType()) == 0L) {
-           long openclProgramContextHandle = buildProgramJNI(myOpenCLContextHandle, src);
+       if (openclProgramContextHandles.get(type) == 0L) {
+           long openclProgramContextHandle = buildProgramJNI(openclContextHandle,
+               src);
            if (openclProgramContextHandle == 0L) {
              throw new RuntimeException("Failure building OpenCL context");
            }
-           openclProgramContextHandles.put(kernel.checkTaskType(),
+           openclProgramContextHandles.put(type,
                new Long(openclProgramContextHandle));
        }
      }
@@ -1035,7 +1048,7 @@ public class KernelRunner extends KernelRunnerJNI {
       return fallBackAndExecute(_entrypointName, _range, _passes, enableStrided, isRelaunch, 0, 0);
    }
 
-   private String readOpenCLAndArgs(String kernelFile, List<String> argsOut) {
+   private static String readOpenCLAndArgs(String kernelFile, List<String> argsOut) {
         String fileContents;
         try {
             File f = new File(kernelFile);
@@ -1065,7 +1078,7 @@ public class KernelRunner extends KernelRunnerJNI {
         return openclBuilder.toString();
    }
 
-   private KernelArg[] constructKernelArgObjects(List<String> argLines) {
+   private static KernelArg[] constructKernelArgObjects(List<String> argLines, Kernel kernel) {
         KernelArg[] readArgs = new KernelArg[argLines.size()];
         for (int i = 0; i < readArgs.length; i++) {
             String line = argLines.get(i);
@@ -1101,6 +1114,26 @@ public class KernelRunner extends KernelRunnerJNI {
             }
         }
         return readArgs;
+   }
+
+   public static void doKernelAndArgLinesPrealloc(Kernel kernel,
+         Kernel.TaskType type, int nArgsToPrealloc, OpenCLDevice dev) {
+      if (kernel.getKernelFile() != null) {
+         List<String> argLines = new LinkedList<String>();
+         String openCL = readOpenCLAndArgs(kernel.getKernelFile(), argLines);
+         synchronized(kernelCache) {
+             kernelCache.put(type,
+                 new KernelAndArgLines(openCL, argLines));
+         }
+
+         List<KernelArg[]> kernelArgsForType = kernelArgs.get(type);
+         synchronized (kernelArgsForType) {
+            for (int i = 0; i < nArgsToPrealloc; i++) {
+                kernelArgsForType.add(constructKernelArgObjects(argLines, kernel));
+            }
+         }
+         buildOpenCLContext(type, openCL, getOpenCLContext(dev));
+      }
    }
 
    public synchronized void doEntrypointInit(String _entrypointName,
@@ -1181,15 +1214,9 @@ public class KernelRunner extends KernelRunnerJNI {
                jniFlags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
             }
 
-            //  jniFlags |= (Config.enableProfiling ? JNI_FLAG_ENABLE_PROFILING : 0);
-            //  jniFlags |= (Config.enableProfilingCSV ? JNI_FLAG_ENABLE_PROFILING_CSV | JNI_FLAG_ENABLE_PROFILING : 0);
-            //  jniFlags |= (Config.enableVerboseJNI ? JNI_FLAG_ENABLE_VERBOSE_JNI : 0);
-            // jniFlags |= (Config.enableVerboseJNIOpenCLResourceTracking ? JNI_FLAG_ENABLE_VERBOSE_JNI_OPENCL_RESOURCE_TRACKING :0);
-            // jniFlags |= (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU) ? JNI_FLAG_USE_GPU : 0);
-            // Init the device to check capabilities before emitting the
-            // code that requires the capabilities.
-
-            initOpenCLContext(openCLDevice, jniFlags);
+            if (this.myOpenCLContextHandle == 0) {
+                this.myOpenCLContextHandle = getOpenCLContext(openCLDevice);
+            }
             // openCLDevice will not be null here
             jniContextHandle = initJNI(kernel, openCLDevice, jniFlags,
                 taskId, attemptId,
@@ -1233,27 +1260,35 @@ public class KernelRunner extends KernelRunnerJNI {
          String openCL = null;
          KernelArg[] readArgs = null;
 
-         synchronized(kernelCache) {
-             try {
-                 if (this.kernel.getKernelFile() != null && !dryRun) {
-                     List<String> argLines = null;
-                     if (kernelCache.containsKey(kernel.checkTaskType())) {
-                         KernelAndArgLines forThisKernel =
-                           kernelCache.get(kernel.checkTaskType());
-                         openCL = forThisKernel.kernel;
-                         argLines = forThisKernel.argLines;
-                     } else {
-                         argLines = new LinkedList<String>();
-                         openCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
-                         kernelCache.put(kernel.checkTaskType(),
-                             new KernelAndArgLines(openCL, argLines));
-                     }
-                     readArgs = constructKernelArgObjects(argLines);
+         if (this.kernel.getKernelFile() != null && !dryRun) {
+             List<String> argLines;
+             synchronized(kernelCache) {
+                 if (kernelCache.containsKey(kernel.checkTaskType())) {
+                     KernelAndArgLines forThisKernel =
+                       kernelCache.get(kernel.checkTaskType());
+                     openCL = forThisKernel.kernel;
+                     argLines = forThisKernel.argLines;
                  } else {
-                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
-                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
-                             hasFP64Support(), hasAMDFP64Support());
+                     argLines = new LinkedList<String>();
+                     openCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
+                     kernelCache.put(kernel.checkTaskType(),
+                         new KernelAndArgLines(openCL, argLines));
                  }
+             }
+
+             List<KernelArg[]> kernelArgsForType = kernelArgs.get(kernel.checkTaskType());
+             synchronized (kernelArgsForType) {
+                 if (!kernelArgsForType.isEmpty()) {
+                    readArgs = kernelArgsForType.remove(0);
+                 } else {
+                     readArgs = constructKernelArgObjects(argLines, this.kernel);
+                 }
+             }
+         } else {
+             try {
+                 openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
+                         openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
+                         hasFP64Support(), hasAMDFP64Support());
              } catch (final CodeGenException codeGenException) {
                 throw new RuntimeException(codeGenException);
              }
@@ -1369,7 +1404,7 @@ public class KernelRunner extends KernelRunnerJNI {
          // (private buffers do not get treated as arguments)
 
          // Send the string to OpenCL to compile it
-         buildOpenCLContext(openCL);
+         buildOpenCLContext(this.kernel.checkTaskType(), openCL, this.myOpenCLContextHandle);
 
          List<Long> dataHandlesForType =
              openclDataHandles.get(kernel.checkTaskType());

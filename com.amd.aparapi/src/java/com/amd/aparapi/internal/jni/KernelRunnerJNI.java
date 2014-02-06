@@ -309,7 +309,7 @@ public abstract class KernelRunnerJNI{
 
    protected native synchronized List<ProfileInfo> getProfileInfoJNI(long _jniContextHandle);
 
-   protected native long buildProgramJNI(long _openclContextHandle, String _source);
+   protected native static long buildProgramJNI(long _openclContextHandle, String _source);
    protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
        long _openclContextHandle, long _openclProgramContextHandle, Range _range, int relaunch);
