@@ -39,6 +39,7 @@
 // #define TRACE
 // #define DUMP_DEBUG
 // #define PROFILE_HADOOPCL
+// #define FULLY_PROFILE_HADOOPCL
 
 #ifdef TRACE
 #define TRACE_LINE fprintf(stderr, "%s:%d | task %d attempt %d context %d launch %d\n", __FILE__, __LINE__, jniContext->taskId, jniContext->attemptId, jniContext->contextId, jniContext->kernelLaunchCounter - 1);
@@ -955,6 +956,7 @@ TRACE_LINE
       }
 
 #ifdef PROFILE_HADOOPCL
+#ifdef FULLY_PROFILE_HADOOPCL
       cl_ulong end, queued, start, submit;
       clGetEventProfilingInfo(jniContext->exec_event,
               CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
@@ -970,6 +972,12 @@ TRACE_LINE
           (start - submit) / 1000000,
           (end - start) / 1000000, end,
           stopRead - startRead, startRead);
+#else
+      fprintf(stderr, "TIMING | OpenCL Profile: write %lu ms, kernel %lu ms, read %lu ms\n",
+          jniContext->stopWrite - jniContext->startWrite,
+          startRead - jniContext->startKernel,
+          stopRead - startRead);
+#endif
 #endif
       pthread_mutex_lock(&openclContext->execLock);
       if (openclContext->prevExecEvent == jniContext->exec_event) {

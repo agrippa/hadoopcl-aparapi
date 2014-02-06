@@ -1935,7 +1935,8 @@ public abstract class Kernel implements Cloneable {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
       }
-      kernelRunner.doEntrypointInit("run", this.enableStrided, dev, false, taskId, attemptId);
+      kernelRunner.doEntrypointInit("run", this.enableStrided, dev, false,
+          taskId, attemptId);
    }
 
    /**

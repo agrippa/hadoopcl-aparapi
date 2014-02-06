@@ -137,8 +137,8 @@ public class KernelRunner extends KernelRunnerJNI {
    /*
     * Caches the string for a kernel for re-use.
     */
-   private static Map<Kernel.TaskType, String> kernelCache =
-     new HashMap<Kernel.TaskType, String>();
+   private static Map<Kernel.TaskType, KernelAndArgLines> kernelCache =
+     new HashMap<Kernel.TaskType, KernelAndArgLines>();
 
    static {
        openclProgramContextHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
@@ -1065,9 +1065,47 @@ public class KernelRunner extends KernelRunnerJNI {
         return openclBuilder.toString();
    }
 
+   private KernelArg[] constructKernelArgObjects(List<String> argLines) {
+        KernelArg[] readArgs = new KernelArg[argLines.size()];
+        for (int i = 0; i < readArgs.length; i++) {
+            String line = argLines.get(i);
+            String[] tokens = line.split(" ");
+            readArgs[i] = new KernelArg();
+            readArgs[i].setName(tokens[0]);
+            readArgs[i].setType(Integer.parseInt(tokens[1]));
+            readArgs[i].setPrimitiveSize(Integer.parseInt(tokens[2]));
+            readArgs[i].setSizeInBytes(Integer.parseInt(tokens[3]));
+            readArgs[i].setNumElements(Integer.parseInt(tokens[4]));
+            int nDims = Integer.parseInt(tokens[5]);
+            int[] dims = new int[nDims];
+            for (int j = 7; j < 7 + nDims; j++) {
+                dims[j-7] = Integer.parseInt(tokens[j]);
+            }
+            readArgs[i].setNumDims(nDims);
+            readArgs[i].setDims(dims);
+
+            Field f;
+            try {
+                f = Entrypoint.getFieldFromClassHierarchy(kernel.getClass(), readArgs[i].getName());
+            } catch (AparapiException a) {
+                throw new RuntimeException(a);
+            }
+
+            if (f == null) {
+                throw new RuntimeException("Failed to retrieve field for "+readArgs[i].getName());
+            }
+            readArgs[i].setField(f);
+            final Class<?> type = f.getType();
+            if (type.isArray()) {
+                readArgs[i].setArray(null); // will get updated in updateKernelArrayRefs
+            }
+        }
+        return readArgs;
+   }
+
    public synchronized void doEntrypointInit(String _entrypointName,
-           boolean enableStrided,
-       Device device, boolean dryRun, int taskId, int attemptId) {
+           boolean enableStrided, Device device, boolean dryRun, int taskId,
+           int attemptId) {
       if (entryPoint == null && this.kernel.getKernelFile() == null ) {
 
          int requiredNEntrypoints = enableStrided ? 2 : 1;
@@ -1193,100 +1231,36 @@ public class KernelRunner extends KernelRunnerJNI {
          }
 
          String openCL = null;
-         String readOpenCL = null;
          KernelArg[] readArgs = null;
-
-         if (this.kernel.getKernelFile() != null) {
-            List<String> argLines = new LinkedList<String>();
-            readOpenCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
-            // System.err.println("OpenCL read from file:");
-            // System.err.println("----------------------------------------");
-            // System.err.println(readOpenCL);
-            // readOpenCL = null;
-
-            // Field[] fields = kernel.getClass().getDeclaredFields();
-            // HashMap<String, Field> nameToField = new HashMap<String, Field>();
-
-            // for (Field f : fields) {
-            //     nameToField.put(f.getName(), f);
-            // }
-            // fields = kernel.getClass().getFields();
-            // for (Field f : fields) {
-            //     nameToField.put(f.getName(), f);
-            // }
-
-            readArgs = new KernelArg[argLines.size()];
-            for (int i = 0; i < readArgs.length; i++) {
-                String line = argLines.get(i);
-                String[] tokens = line.split(" ");
-                readArgs[i] = new KernelArg();
-                readArgs[i].setName(tokens[0]);
-                readArgs[i].setType(Integer.parseInt(tokens[1]));
-                readArgs[i].setPrimitiveSize(Integer.parseInt(tokens[2]));
-                readArgs[i].setSizeInBytes(Integer.parseInt(tokens[3]));
-                readArgs[i].setNumElements(Integer.parseInt(tokens[4]));
-                int nDims = Integer.parseInt(tokens[5]);
-                int[] dims = new int[nDims];
-                for (int j = 7; j < 7 + nDims; j++) {
-                    dims[j-7] = Integer.parseInt(tokens[j]);
-                }
-                readArgs[i].setNumDims(nDims);
-                readArgs[i].setDims(dims);
-
-                Field f;
-                try {
-                    f = Entrypoint.getFieldFromClassHierarchy(kernel.getClass(), readArgs[i].getName());
-                } catch (AparapiException a) {
-                    throw new RuntimeException(a);
-                }
-
-                // Field f = nameToField.get(readArgs[i].getName());
-                if (f == null) {
-                    throw new RuntimeException("Failed to retrieve field for "+readArgs[i].getName());
-                }
-                readArgs[i].setField(f);
-                final Class<?> type = f.getType();
-                if (type.isArray()) {
-                    readArgs[i].setArray(null); // will get updated in updateKernelArrayRefs
-                }
-            }
-            // readArgs = null;
-         }
 
          synchronized(kernelCache) {
              try {
-                /*
-                 * If not a dry run and we've previously created the string for
-                 * this kernel, retrieve it from the cache.
-                 */
-                if (!dryRun && kernelCache.containsKey(kernel.checkTaskType())) {
-                  openCL = kernelCache.get(kernel.checkTaskType());
-                } else {
-                  if (readOpenCL != null) {
-                    /*
-                     * If we were given a pre-build kernel file (i.e.
-                     * kernel.getKernelFile() != null, use that kernel.
-                     */
-                    openCL = readOpenCL;
-                  } else {
-                    // Otherwise, build the kernel string from the bytecode
-                    openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
-                            openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
-                            hasFP64Support(), hasAMDFP64Support());
-                    // System.err.println("OpenCL generated:");
-                    // System.err.println("----------------------------------------");
-                    // System.err.println(openCL);
-                  }
-                  if (!dryRun) {
-                      kernelCache.put(kernel.checkTaskType(), openCL);
-                  }
-                  if (Config.enableShowGeneratedOpenCL) {
-                     System.out.println(openCL);
-                  }
-                }
+                 if (this.kernel.getKernelFile() != null && !dryRun) {
+                     List<String> argLines = null;
+                     if (kernelCache.containsKey(kernel.checkTaskType())) {
+                         KernelAndArgLines forThisKernel =
+                           kernelCache.get(kernel.checkTaskType());
+                         openCL = forThisKernel.kernel;
+                         argLines = forThisKernel.argLines;
+                     } else {
+                         argLines = new LinkedList<String>();
+                         openCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
+                         kernelCache.put(kernel.checkTaskType(),
+                             new KernelAndArgLines(openCL, argLines));
+                     }
+                     readArgs = constructKernelArgObjects(argLines);
+                 } else {
+                     openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
+                             openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
+                             hasFP64Support(), hasAMDFP64Support());
+                 }
              } catch (final CodeGenException codeGenException) {
                 throw new RuntimeException(codeGenException);
              }
+         }
+
+         if (Config.enableShowGeneratedOpenCL) {
+            System.out.println(openCL);
          }
 
          if (readArgs != null) {
@@ -1386,7 +1360,6 @@ public class KernelRunner extends KernelRunnerJNI {
                 out.write("\n");
                 out.close();
             } catch (Exception e) {
-                System.err.println("Error dumping file");
                 e.printStackTrace();
                 System.exit(1);
             }
@@ -1647,5 +1620,15 @@ public class KernelRunner extends KernelRunnerJNI {
     */
    public long getAccumulatedExecutionTime() {
       return accumulatedExecutionTime;
+   }
+
+   private static class KernelAndArgLines {
+      public final String kernel;
+      public final List<String> argLines;
+
+      public KernelAndArgLines(String kernel, List<String> argLines) {
+          this.kernel = kernel;
+          this.argLines = argLines;
+      }
    }
 }
