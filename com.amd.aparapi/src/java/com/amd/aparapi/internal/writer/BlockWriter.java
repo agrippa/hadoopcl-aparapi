@@ -327,6 +327,7 @@ public abstract class BlockWriter{
 
       } else if (instruction instanceof CompositeForEclipseInstruction) {
          newLine();
+         System.err.println("Found CompositeForEclipseInstruction");
          write("for (");
          Instruction topGoto = instruction.getFirstChild();
          if (topGoto instanceof AssignToLocalVariable) {
