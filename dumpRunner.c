@@ -65,12 +65,20 @@ static void printVar(Arg *a) {
 static void reliableRead(void *ptr, size_t size, size_t count, FILE *fp) {
     size_t soFar = 0;
     size_t oldSoFar = 0;
+    int stuckCount = 0;
     while (soFar < count) {
         soFar += fread(((char *)ptr) + (soFar * size), size, count - soFar, fp);
         if (soFar == oldSoFar) {
             fprintf(stderr, "Read seems stuck at %llu\n", soFar);
+            stuckCount++;
+        } else {
+            stuckCount = 0;
         }
         oldSoFar = soFar;
+
+        if (stuckCount > 10) {
+            exit(1);
+        }
     }
 }
 
