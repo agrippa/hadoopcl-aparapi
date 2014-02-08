@@ -1286,9 +1286,21 @@ public class KernelRunner extends KernelRunnerJNI {
              }
          } else {
              try {
-                 openCL = KernelWriter.writeToString(entryPoint, entryPointCopy,
-                         openCLDevice.getType() == Device.TYPE.GPU, enableStrided,
-                         hasFP64Support(), hasAMDFP64Support());
+                 synchronized (kernelCache) {
+                    if (kernelCache.containsKey(kernel.checkTaskType())) {
+                        KernelAndArgLines forThisKernel = kernelCache.get(
+                                kernel.checkTaskType());
+                        openCL = forThisKernel.kernel;
+                    } else {
+                        openCL = KernelWriter.writeToString(entryPoint,
+                                entryPointCopy,
+                                openCLDevice.getType() == Device.TYPE.GPU,
+                                enableStrided, hasFP64Support(),
+                                hasAMDFP64Support());
+                        kernelCache.put(kernel.checkTaskType(),
+                                new KernelAndArgLines(openCL, null));
+                    }
+                 }
              } catch (final CodeGenException codeGenException) {
                 throw new RuntimeException(codeGenException);
              }
