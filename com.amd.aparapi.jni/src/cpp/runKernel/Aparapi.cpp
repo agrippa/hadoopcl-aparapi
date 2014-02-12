@@ -650,6 +650,17 @@ TRACE_LINE
     return 0;
 }
 
+static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
+        int *zeroBuffersLength, int nZeroBuffers, size_t length) {
+    int i;
+    for (i = 0; i < nZeroBuffers; i++) {
+        if (zeroBuffersLength[i] >= length) {
+            return zeroBuffers[i];
+        }
+    }
+    return NULL;
+}
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
      jlong openclContextHandle, jlong openclProgramContextHandle,
@@ -670,6 +681,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       cl_int err = CL_SUCCESS;
       cl_event *fillEvents = (cl_event *)malloc(sizeof(cl_event) * jniContext->argc);
       int fillEventsSoFar = 0;
+
+#ifndef CL_API_SUFFIX__VERSION_1_2
+      unsigned char **zeroBuffers = NULL;
+      int *zeroBuffersLength = NULL;
+      int nZeroBuffers = 0;
+#endif
 
 #ifdef DUMP_DEBUG
 
@@ -734,10 +751,30 @@ TRACE_LINE
                  if (arg->zeroBeforeKernel) {
 TRACE_LINE
                      // fprintf(stderr, "Filling argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
+#ifdef CL_API_SUFFIX__VERSION_1_2
                      int zero = 0;
                      err = clEnqueueFillBuffer(openclContext->copyCommandQueue, mem,
                              &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
                              0, NULL, fillEvents + fillEventsSoFar);
+#else
+                     unsigned char *zeroBuf = findWithLengthGreaterThan(zeroBuffers,
+                             zeroBuffersLength, nZeroBuffers,
+                             arg->arrayBuffer->lengthInBytes);
+                     if (zeroBuf == NULL) {
+                         zeroBuf = (unsigned char *)malloc(arg->arrayBuffer->lengthInBytes);
+                         memset(zeroBuf, 0x00, arg->arrayBuffer->lengthInBytes);
+                         zeroBuffers = (unsigned char **)realloc(zeroBuffers,
+                                 sizeof(unsigned char *) * (nZeroBuffers + 1));
+                         zeroBuffersLength = (int *)realloc(zeroBuffersLength,
+                                 sizeof(int) * (nZeroBuffers + 1));
+                         zeroBuffers[nZeroBuffers] = zeroBuf;
+                         zeroBuffersLength[nZeroBuffers] = arg->arrayBuffer->lengthInBytes;
+                         nZeroBuffers++;
+                     }
+                     err = clEnqueueWriteBuffer(openclContext->copyCommandQueue,
+                             mem, CL_FALSE, 0, arg->arrayBuffer->lengthInBytes,
+                             zeroBuf, 0, NULL, fillEvents + fillEventsSoFar);
+#endif
                      if (err != CL_SUCCESS) {
                         fprintf(stderr, "Error filling with zeros: %d\n", err);
                         exit(1);
