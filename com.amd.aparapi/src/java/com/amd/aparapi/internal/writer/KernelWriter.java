@@ -981,7 +981,6 @@ public abstract class KernelWriter extends BlockWriter{
 
              String className = _entryPoint.getClassModel().getClassWeAreModelling().toString();
              className = className.split(" ")[1];
-             String getPairsLine = className+"__getOutputPairsPerInput(this)";
 
              String funcDeclString = removePreviousLine();
              while(funcDeclString.indexOf("Kernel__write") == -1) {
@@ -1066,13 +1065,13 @@ public abstract class KernelWriter extends BlockWriter{
                  if(isMapWrite) {
                      write("      index = (this->nPairs * pastWrites) + (this->iter);\n");
                      write("      if(this->isGPU == 0) {\n");
-                     write("         index = ((this->iter) * "+getPairsLine+") + pastWrites;\n");
+                     write("         index = this->iter + pastWrites;\n");
                     write("      }\n");
                  } else {
                      write("      if(this->isGPU > 0) {\n");
                      write("         index = (this->nKeys * pastWrites) + (this->iter);\n");
                      write("      } else {\n");
-                     write("         index = (this->iter) * "+getPairsLine+" + pastWrites;\n");
+                     write("         index = this->iter + pastWrites;\n");
                      write("      }\n");
                  }
                  write("   }\n");
@@ -1094,7 +1093,6 @@ public abstract class KernelWriter extends BlockWriter{
 
              String className = _entryPoint.getClassModel().getClassWeAreModelling().toString();
              className = className.split(" ")[1];
-             String getPairsLine = className+"__getOutputPairsPerInput(this)";
 
              String funcDeclString = removePreviousLine();
              while(funcDeclString.indexOf("Kernel__write") == -1) {

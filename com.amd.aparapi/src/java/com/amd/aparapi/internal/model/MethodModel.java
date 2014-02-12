@@ -1647,6 +1647,13 @@ public class MethodModel{
          method = _method;
          expressionList = new ExpressionList(this);
 
+         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
+         StringBuilder sb = new StringBuilder();
+         for (StackTraceElement t : trace) {
+           sb.append(t.toString()+"\n");
+         }
+         System.err.println("method="+method+"\n"+sb.toString());
+
          if(method.getName().equals("write")) return;
 
          // check if we have any exception handlers

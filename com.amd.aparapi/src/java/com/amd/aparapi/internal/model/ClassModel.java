@@ -2605,6 +2605,7 @@ public class ClassModel{
 
    public MethodModel getMethodModel(String _name, String _signature) throws AparapiException {
       final ClassModelMethod method = getMethod(_name, _signature);
+      System.err.println("Looking for method "+_name);
       return new MethodModel(method);
    }
 

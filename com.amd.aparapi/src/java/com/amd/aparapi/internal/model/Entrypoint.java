@@ -662,7 +662,6 @@ public class Entrypoint{
 
       if (!fallback) {
          calledMethods.addAll(methodMap.values());
-         calledMethods.add(classModel.getMethodModel("getOutputPairsPerInput", "()I"));
          Collections.reverse(calledMethods);
          final List<MethodModel> methods = new ArrayList<MethodModel>(calledMethods);
 
