@@ -1139,7 +1139,7 @@ public class KernelRunner extends KernelRunnerJNI {
    public synchronized void doEntrypointInit(String _entrypointName,
            boolean enableStrided, Device device, boolean dryRun, int taskId,
            int attemptId) {
-      if (entryPoint == null && this.kernel.getKernelFile() == null ) {
+      if (entryPoint == null && (this.kernel.getKernelFile() == null || dryRun)) {
 
          int requiredNEntrypoints = enableStrided ? 2 : 1;
          final List<Entrypoint> entrypointsForType;
@@ -1227,7 +1227,7 @@ public class KernelRunner extends KernelRunnerJNI {
             throw new RuntimeException("initJNI failed to return a valid handle");
          }
 
-         if (this.kernel.getKernelFile() == null) {
+         if (this.kernel.getKernelFile() == null || dryRun) {
              final String extensions = getExtensionsJNI(myOpenCLContextHandle);
              capabilitiesSet = new HashSet<String>();
 
