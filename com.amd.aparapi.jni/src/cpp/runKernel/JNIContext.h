@@ -46,6 +46,7 @@ public:
    unsigned int attemptId;
    unsigned int contextId;
    unsigned int kernelLaunchCounter;
+   char *currentLabel;
 
    JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setTaskId, jint setAttemptId, jint setContextId);
    

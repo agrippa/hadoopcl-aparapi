@@ -969,7 +969,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
    private Kernel executeOpenCL(final String _entrypointName,
            final Range _range, final int _passes, final boolean enableStriding,
-           boolean isRelaunch) throws AparapiException {
+           boolean isRelaunch, String label) throws AparapiException {
       // Read the array refs after kernel may have changed them
       // We need to do this as input to computing the localSize
       assert args != null : "args should not be null";
@@ -983,7 +983,7 @@ public class KernelRunner extends KernelRunnerJNI {
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
               myOpenCLContextHandle,
               openclProgramContextHandles.get(kernel.checkTaskType()), _range,
-              isRelaunch ? 1 : 0)) != 0) {
+              isRelaunch ? 1 : 0, label)) != 0) {
          return null;
       }
 
@@ -1001,8 +1001,8 @@ public class KernelRunner extends KernelRunnerJNI {
        return hadoopclKernelIsDoneJNI(jniContextHandle) != 0;
    }
 
-   public synchronized void waitForKernelCompletion() {
-     hadoopclWaitForKernel(jniContextHandle);
+   public synchronized int waitForKernelCompletion() {
+     return hadoopclWaitForKernel(jniContextHandle, myOpenCLContextHandle);
    }
 
    public synchronized int waitForOpenCL() {
@@ -1030,7 +1030,7 @@ public class KernelRunner extends KernelRunnerJNI {
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false, taskId, attemptId);
+      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false, taskId, attemptId, null);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
@@ -1444,7 +1444,7 @@ public class KernelRunner extends KernelRunnerJNI {
    public synchronized Kernel execute(String _entrypointName,
            final Range _range, final int _passes, final boolean enableStrided,
            final boolean isRelaunch, final boolean dryRun, int taskId,
-           int attemptId) {
+           int attemptId, String label) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -1465,7 +1465,7 @@ public class KernelRunner extends KernelRunnerJNI {
                        taskId, attemptId);
                try {
                   ret = executeOpenCL(_entrypointName, _range, _passes,
-                          enableStrided, isRelaunch);
+                          enableStrided, isRelaunch, label);
                } catch (final AparapiException e) {
                   throw new RuntimeException(e);
                }

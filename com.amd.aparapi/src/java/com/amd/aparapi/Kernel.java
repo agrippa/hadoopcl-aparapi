@@ -260,8 +260,8 @@ public abstract class Kernel implements Cloneable {
    public abstract class Entry {
       public abstract void run();
 
-      public Kernel execute(Range _range, final boolean isRelaunch, int taskId, int attemptId) {
-         return (Kernel.this.execute("foo", _range, 1, isRelaunch, false, taskId, attemptId));
+      public Kernel execute(Range _range, final boolean isRelaunch, int taskId, int attemptId, String label) {
+         return (Kernel.this.execute("foo", _range, 1, isRelaunch, false, taskId, attemptId, label));
       }
    }
 
@@ -1911,20 +1911,20 @@ public abstract class Kernel implements Cloneable {
     * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Range _range) {
-      return (execute(_range, 1, false, false, 0, 0));
+   public synchronized Kernel execute(Range _range, String label) {
+      return (execute(_range, 1, false, false, 0, 0, label));
    }
 
-   public synchronized Kernel reExecute(Range _range) {
-      return (execute(_range, 1, true, false, 0, 0));
+   public synchronized Kernel reExecute(Range _range, String label) {
+      return (execute(_range, 1, true, false, 0, 0, label));
    }
 
    public synchronized int waitFor() {
        return kernelRunner.waitForOpenCL();
    }
 
-   public synchronized void waitForCompletion() {
-      kernelRunner.waitForKernelCompletion();
+   public synchronized int waitForCompletion() {
+      return kernelRunner.waitForKernelCompletion();
    }
 
    public synchronized boolean isComplete() {
@@ -1951,11 +1951,11 @@ public abstract class Kernel implements Cloneable {
     * 
     */
    public synchronized Kernel execute(int _range) {
-      return (execute(Range.create(_range), 1, false, false, 0, 0));
+      return (execute(Range.create(_range), 1, false, false, 0, 0, null));
    }
 
-   public synchronized Kernel execute(int _range, boolean dryRun, int taskId, int attemptId) {
-      return (execute(Range.create(_range), 1, false, dryRun, taskId, attemptId));
+   public synchronized Kernel execute(int _range, boolean dryRun, int taskId, int attemptId, String label) {
+      return (execute(Range.create(_range), 1, false, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -1971,8 +1971,8 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(Range _range, int _passes,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
-       final int attemptId) {
-      return (execute("run", _range, _passes, isRelaunch, dryRun, taskId, attemptId));
+       final int attemptId, String label) {
+      return (execute("run", _range, _passes, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -1988,8 +1988,8 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(int _range, int _passes,
        final boolean isRelaunch, final boolean dryRun, int taskId,
-       int attemptId) {
-      return (execute(Range.create(_range), _passes, isRelaunch, dryRun, taskId, attemptId));
+       int attemptId, String label) {
+      return (execute(Range.create(_range), _passes, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -2024,8 +2024,8 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(String _entrypoint, Range _range,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
-       final int attemptId) {
-      return (execute(_entrypoint, _range, 1, isRelaunch, dryRun, taskId, attemptId));
+       final int attemptId, String label) {
+      return (execute(_entrypoint, _range, 1, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -2041,12 +2041,12 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(String _entrypoint, Range _range,
        int _passes, final boolean isRelaunch, final boolean dryRun,
-       final int taskId, final int attemptId) {
+       final int taskId, final int attemptId, String label) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
 
       }
-      return (kernelRunner.execute(_entrypoint, _range, _passes, enableStrided, isRelaunch, dryRun, taskId, attemptId));
+      return (kernelRunner.execute(_entrypoint, _range, _passes, enableStrided, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
    /**

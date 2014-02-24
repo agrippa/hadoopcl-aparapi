@@ -63,17 +63,21 @@ hadoopclParameter* OpenCLDataContext::addHadoopclParam(KernelArg *arg, JNIContex
     return current;
 }
 
-hadoopclParameter* OpenCLDataContext::findHadoopclParam(KernelArg *arg) {
+hadoopclParameter* OpenCLDataContext::findHadoopclParam(char *name) {
     int i;
     if (hadoopclParams == NULL) return NULL;
 
     for (i = 0; i < nHadoopclParams; i++) {
         hadoopclParameter *current = hadoopclParams + i;
-        if (strcmp(arg->name, current->name) == 0) {
+        if (strcmp(name, current->name) == 0) {
             return current;
         }
     }
     return NULL;
+}
+
+hadoopclParameter* OpenCLDataContext::findHadoopclParam(KernelArg *arg) {
+    return findHadoopclParam(arg->name);
 }
 
 void OpenCLDataContext::refreshHadoopclParam(KernelArg *arg,

@@ -631,14 +631,20 @@ TRACE_LINE
 }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclWaitForKernel)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle) {
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
     if (config == NULL){
        config = new Config(jenv);
     }
     JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
+    OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
+    OpenCLDataContext *openclDataContext = jniContext->datactx;
 
     cl_int status;
     cl_int err;
+
+    int willRequireRestart;
+    hadoopclParameter *d_willRequireRestart = openclDataContext->findHadoopclParam(
+        "memWillRequireRestart");
 
 TRACE_LINE
     err = clWaitForEvents(1, &(jniContext->exec_event));
@@ -647,7 +653,15 @@ TRACE_LINE
         exit(69);
     }
 TRACE_LINE
-    return 0;
+    err = clEnqueueReadBuffer(openclContext->copyCommandQueue,
+        d_willRequireRestart->allocatedMem, CL_TRUE, 0, sizeof(int),
+        &willRequireRestart, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "Error copying back willRequireRestart: %d\n", err);
+        exit(70);
+    }
+TRACE_LINE
+    return willRequireRestart;
 }
 
 static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
@@ -664,7 +678,7 @@ static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
      jlong openclContextHandle, jlong openclProgramContextHandle,
-     jobject _range, jint relaunch) {
+     jobject _range, jint relaunch, jstring label) {
 
       if (config == NULL){
          config = new Config(jenv);
@@ -672,9 +686,6 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
       OpenCLContext *openclContext = ((OpenCLContext *)openclContextHandle);
       OpenCLProgramContext *programContext = ((OpenCLProgramContext *)openclProgramContextHandle);
-      // fprintf(stderr, "hadoopclLaunchKernelJNI(jniContext=%p, openclContext=%p)\n", jniContext, openclContext);
-
-      // fprintf(stderr, "Running on jniContext %p openclContext %p dataContext %p\n", jniContext, openclContext, jniContext->datactx);
 
       Range range(jenv, _range);
 
@@ -888,6 +899,15 @@ TRACE_LINE
 
 TRACE_LINE
 
+#if defined PROFILE_HADOOPCL || defined FULLY_PROFILE_HADOOPCL
+         const char *labelChars = jenv->GetStringUTFChars(label, NULL);
+         int string_length = strlen(labelChars) + 1;
+         jniContext->currentLabel = (char *)realloc(jniContext->currentLabel,
+             string_length);
+         memcpy(jniContext->currentLabel, labelChars, string_length);
+         jenv->ReleaseStringUTFChars(label, labelChars);
+#endif
+
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
 #endif
@@ -993,6 +1013,12 @@ TRACE_LINE
       }
 
 #ifdef PROFILE_HADOOPCL
+      fprintf(stderr, "TIMING | OpenCL Profile: write %lu ms (%lu), kernel %lu ms (%lu), read %lu ms (%lu), label %s\n",
+          jniContext->startKernel - jniContext->startWrite, jniContext->startWrite,
+          startRead - jniContext->startKernel, jniContext->startKernel,
+          stopRead - startRead, startRead,
+          jniContext->currentLabel);
+#endif
 #ifdef FULLY_PROFILE_HADOOPCL
       cl_ulong end, queued, start, submit;
       clGetEventProfilingInfo(jniContext->exec_event,
@@ -1003,19 +1029,13 @@ TRACE_LINE
               CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
       clGetEventProfilingInfo(jniContext->exec_event,
               CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
-      fprintf(stderr, "TIMING | OpenCL Profile: write %lu ms (%lu), kernel queued %lu ms (%lu), kernel submitted %lu ms, kernel running %lu ms (%lu), read %lu ms (%lu)\n",
-          jniContext->stopWrite - jniContext->startWrite, jniContext->startWrite,
-          (submit - queued) / 1000000, jniContext->startKernel,
+      fprintf(stderr, "  TIMING | OpenCL Profile: kernel queued %lu ms, kernel submitted %lu ms, kernel running %lu ms, label %s\n",
+          (submit - queued) / 1000000,
           (start - submit) / 1000000,
-          (end - start) / 1000000, end,
-          stopRead - startRead, startRead);
-#else
-      fprintf(stderr, "TIMING | OpenCL Profile: write %lu ms, kernel %lu ms, read %lu ms\n",
-          jniContext->stopWrite - jniContext->startWrite,
-          startRead - jniContext->startKernel,
-          stopRead - startRead);
+          (end - start) / 1000000,
+          jniContext->currentLabel);
 #endif
-#endif
+
       pthread_mutex_lock(&openclContext->execLock);
       if (openclContext->prevExecEvent == jniContext->exec_event) {
         openclContext->prevExecEvent = 0;
@@ -1080,7 +1100,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
 
       cl_command_queue_properties queue_props = 0;
       // queue_props |= CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-#ifdef PROFILE_HADOOPCL
+#ifdef FULLY_PROFILE_HADOOPCL
       queue_props |= CL_QUEUE_PROFILING_ENABLE;
 #endif
 

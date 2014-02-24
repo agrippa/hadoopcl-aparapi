@@ -23,6 +23,7 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
    kernelLaunchCounter = 0;
    valid = JNI_TRUE;
    dump_filename = (char *)malloc(512);
+   currentLabel = NULL;
 }
 
 void JNIContext::dispose(JNIEnv *jenv, Config* config) {

@@ -24,6 +24,7 @@ class OpenCLDataContext {
     cl_mem hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext, OpenCLContext *openclContext);
     hadoopclParameter* addHadoopclParam(KernelArg *arg, JNIContext *jniContext, OpenCLContext *openclContext);
     hadoopclParameter* findHadoopclParam(KernelArg *arg);
+    hadoopclParameter *findHadoopclParam(char *name);
     void refreshHadoopclParam(KernelArg *arg, hadoopclParameter *hadoopclParam, JNIContext *jniContext, OpenCLContext *openclContext);
 
 };
