@@ -38,6 +38,7 @@
 
 // #define TRACE
 // #define DUMP_DEBUG
+// #define KEEP_DUMP_FILES
 // #define PROFILE_HADOOPCL
 // #define FULLY_PROFILE_HADOOPCL
 
@@ -961,10 +962,12 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclReadbackJNI)
       cl_int err = CL_SUCCESS;
 
 #ifdef DUMP_DEBUG
+#ifndef KEEP_DUMP_FILES
       if (remove(jniContext->dump_filename) != 0) {
           fprintf(stderr, "Error deleting dump file %s\n", jniContext->dump_filename);
           exit(1);
       }
+#endif
 #endif
 
       try {
