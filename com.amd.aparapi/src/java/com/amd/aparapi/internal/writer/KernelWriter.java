@@ -1003,6 +1003,8 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValDoubleLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      *(valIndices - 1) = 1;\n");
+                 write("      ((__global int *)(valVals - 2))[2] = 1;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1022,6 +1024,7 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      (this->nWrites)[this->iter] = ((this->nWrites)[this->iter] + 1);\n");
                  write("      this->outputValLookAsideBuffer[index] = vals - this->outputVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      *(vals - 1) = 1;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1043,6 +1046,8 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValIntLookAsideBuffer[index] = valIndices - this->outputValIndices;\n");
                  write("      this->outputValFloatLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
+                 write("      *(valIndices - 1) = 1;\n");
+                 write("      *(valVals - 1) = 1;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1376,8 +1381,8 @@ public abstract class KernelWriter extends BlockWriter{
              write("}\n\n");
          } else if(isAllocInt) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxIntIncr, len + 2);\n");
-             write("   if (offset + len + 2 > this->outputAuxIntLength) {\n");
+             write("   int offset = atomic_add(this->memAuxIntIncr, len + 3);\n");
+             write("   if (offset + len + 3 > this->outputAuxIntLength) {\n");
              write("       int prev = -1;\n");
              write("       int curr = this->tailOfFreeInt;\n");
              write("       __global int *buf = this->outputValIndices + curr;\n");
@@ -1393,9 +1398,10 @@ public abstract class KernelWriter extends BlockWriter{
              write("               *(this->outputValIndices + prev + 1) = buf[1];\n");
              write("           }\n");
              write("           buf[1] = this->lastIntAlloc;\n");
+             write("           buf[2] = 0;\n");
              write("           this->lastIntAlloc = curr;\n");
              write("           if (this->firstIntAlloc == -1) this->firstIntAlloc = curr;\n");
-             write("           return buf + 2;\n");
+             write("           return buf + 3;\n");
              write("       } else {\n");
              write("           this->nWrites[this->iter] = -1;\n");
              write("           return NULL;\n");
@@ -1404,11 +1410,18 @@ public abstract class KernelWriter extends BlockWriter{
              write("   __global int *buf = this->outputValIndices + offset;\n");
              write("   buf[0] = len;\n");
              write("   buf[1] = (this->lastIntAlloc);\n");
+             write("   buf[2] = 0;\n");
              write("   this->lastIntAlloc = offset;\n");
              write("   if (this->firstIntAlloc == -1) this->firstIntAlloc = offset;\n");
-             write("   return buf + 2;\n");
+             write("   return buf + 3;\n");
              write("}\n\n");
          } else if(isAllocDouble) {
+             /*
+              * The allocation size here is only incremented by 2 because a
+              * double is twice the size of an integer, so to store 3 integers
+              * we only need to allocate an extra 2 doubles (in fact, that
+              * leaves space for an extra int)
+              */
              write("\n{\n");
              write("   int offset = atomic_add(this->memAuxDoubleIncr, (len + 2));\n");
              write("   if (offset + (len + 2) > this->outputAuxDoubleLength) {\n");
@@ -1427,6 +1440,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("              ((__global int *)(this->outputValVals + prev))[1] = buf[1];\n");
              write("          }\n");
              write("          buf[1] = this->lastDoubleAlloc;\n");
+             write("          buf[2] = 0;\n");
              write("          this->lastDoubleAlloc = curr;\n");
              write("          if (this->firstDoubleAlloc == -1) this->firstDoubleAlloc = curr;\n");
              write("          return this->outputValVals + curr + 2;\n");
@@ -1438,14 +1452,15 @@ public abstract class KernelWriter extends BlockWriter{
              write("   __global int *buf = (__global int *)(this->outputValVals + offset);\n");
              write("   buf[0] = len;\n");
              write("   buf[1] = (this->lastDoubleAlloc);\n");
+             write("   buf[2] = 0;\n");
              write("   this->lastDoubleAlloc = offset;\n");
              write("   if (this->firstDoubleAlloc == -1) this->firstDoubleAlloc = offset;\n");
              write("   return this->outputValVals + offset + 2;\n");
              write("}\n\n");
          } else if (isAllocFloat) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxFloatIncr, (len + 2));\n");
-             write("   if (offset + (len + 2) > this->outputAuxFloatLength) {\n");
+             write("   int offset = atomic_add(this->memAuxFloatIncr, (len + 3));\n");
+             write("   if (offset + (len + 3) > this->outputAuxFloatLength) {\n");
              write("      int prev = -1;\n");
              write("      int curr = this->tailOfFreeFloat;\n");
              write("      __global int *buf = (__global int *)(this->outputValVals + curr);\n");
@@ -1461,9 +1476,10 @@ public abstract class KernelWriter extends BlockWriter{
              write("              ((__global int *)(this->outputValVals + prev))[1] = buf[1];\n");
              write("          }\n");
              write("          buf[1] = this->lastFloatAlloc;\n");
+             write("          buf[2] = 0;\n");
              write("          this->lastFloatAlloc = curr;\n");
              write("          if (this->firstFloatAlloc == -1) this->firstFloatAlloc = curr;\n");
-             write("          return this->outputValVals + curr + 2;\n");
+             write("          return this->outputValVals + curr + 3;\n");
              write("      } else {\n");
              write("          this->nWrites[this->iter] = -1;\n");
              write("          return NULL;\n");
@@ -1472,9 +1488,10 @@ public abstract class KernelWriter extends BlockWriter{
              write("   __global int *buf = (__global int *)(this->outputValVals + offset);\n");
              write("   buf[0] = len;\n");
              write("   buf[1] = (this->lastFloatAlloc);\n");
+             write("   buf[2] = 0;\n");
              write("   this->lastFloatAlloc = offset;\n");
              write("   if (this->firstFloatAlloc == -1) this->firstFloatAlloc = offset;\n");
-             write("   return this->outputValVals + offset + 2;\n");
+             write("   return this->outputValVals + offset + 3;\n");
              write("}\n\n");
          } else if (isFindNextSmallest) {
              write("\n{\n");
@@ -1692,8 +1709,6 @@ public abstract class KernelWriter extends BlockWriter{
               write(lastLine.replace("iter", "(this->iter)"));
           }
 
-          // write(lastLine.replace("iter", "(this->iter)"));
-
           if (outputValType.equals("svec") || outputValType.equals("bsvec") ||
               outputValType.equals("ivec") || outputValType.equals("fsvec")) {
             write("                if (this->firstIntAlloc >= 0) {\n");
@@ -1716,6 +1731,86 @@ public abstract class KernelWriter extends BlockWriter{
             write("                   firstAllocBuf[1] = this->tailOfFreeFloat;\n");
             write("                   this->tailOfFreeFloat = this->lastFloatAlloc;\n");
             write("                }\n");
+          }
+
+          write("            } else {\n");
+          if (outputValType.equals("svec") || outputValType.equals("bsvec") ||
+              outputValType.equals("ivec") || outputValType.equals("fsvec")) {
+            write("                if (this->firstIntAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastIntAlloc;\n");
+            write("                   __global int *buf = this->outputValIndices + curr;\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastIntAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValIndices + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstIntAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = this->outputValIndices + curr;\n");
+            write("                   }\n");
+            write("                   if (this->lastIntAlloc != -1) {\n");
+            write("                       (this->outputValIndices[this->firstIntAlloc + 1]) = this->tailOfFreeInt;\n");
+            write("                       this->tailOfFreeInt = this->lastIntAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+          }
+
+          if (outputValType.equals("svec") || outputValType.equals("bsvec")) {
+            write("                if (this->firstDoubleAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastDoubleAlloc;\n");
+            write("                   __global int *buf = (__global int *)(this->outputValVals + curr);\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastDoubleAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValVals + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstDoubleAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = (__global int *)(this->outputValVals + curr);\n");
+            write("                   }\n");
+            write("                   if (this->lastDoubleAlloc != -1) {\n");
+            write("                       (this->outputValVals[this->firstDoubleAlloc + 1]) = this->tailOfFreeDouble;\n");
+            write("                       this->tailOfFreeDouble = this->lastDoubleAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+          }
+          if (outputValType.equals("fsvec")) {
+            write("                if (this->firstFLoatAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastFloatAlloc;\n");
+            write("                   __global int *buf = (__global int *)(this->outputValIndices + curr);\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastFloatAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValIndices + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstFloatAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = (__global int *)(this->outputValIndices + curr);\n");
+            write("                   }\n");
+            write("                   if (this->lastFloatAlloc != -1) {\n");
+            write("                       (this->outputValIndices[this->firstFloatAlloc + 1]) = this->tailOfFreeFloat;\n");
+            write("                       this->tailOfFreeFloat = this->lastFloatAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+
           }
 
           while(!removedStrings.empty()) {
@@ -1796,6 +1891,88 @@ public abstract class KernelWriter extends BlockWriter{
             write("                   firstAllocBuf[1] = this->tailOfFreeFloat;\n");
             write("                   this->tailOfFreeFloat = this->lastFloatAlloc;\n");
             write("                }\n");
+          }
+
+          write("            } else {\n");
+          if (outputValType.equals("svec") || outputValType.equals("bsvec") ||
+              outputValType.equals("ivec") || outputValType.equals("fsvec")) {
+            write("                if (this->firstIntAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastIntAlloc;\n");
+            write("                   __global int *buf = this->outputValIndices + curr;\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastIntAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValIndices + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstIntAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = this->outputValIndices + curr;\n");
+            write("                   }\n");
+            write("                   if (this->lastIntAlloc != -1) {\n");
+            write("                       (this->outputValIndices[this->firstIntAlloc + 1]) = this->tailOfFreeInt;\n");
+            write("                       this->tailOfFreeInt = this->lastIntAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+          }
+
+          if (outputValType.equals("svec") || outputValType.equals("bsvec")) {
+            write("                if (this->firstDoubleAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastDoubleAlloc;\n");
+            write("                   __global int *buf = (__global int *)(this->outputValVals + curr);\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastDoubleAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValVals + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstDoubleAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = (__global int *)(this->outputValVals + curr);\n");
+            write("                   }\n");
+            write("                   if (this->lastDoubleAlloc != -1) {\n");
+            write("                       __global int *firstAllocBuf = (__global int *)(this->outputValVals + this->firstDoubleAlloc);\n");
+            write("                       firstAllocBuf[1] = this->tailOfFreeDouble;\n");
+            write("                       this->tailOfFreeDouble = this->lastDoubleAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+          }
+          if (outputValType.equals("fsvec")) {
+            write("                if (this->firstFLoatAlloc >= 0) {\n");
+            write("                   int prev = -1;\n");
+            write("                   int curr = this->lastFloatAlloc;\n");
+            write("                   __global int *buf = (__global int *)(this->outputValIndices + curr);\n");
+            write("                   while (curr != -1) {\n");
+            write("                     if (buf[2] != 0) { // was written\n");
+            write("                       if (prev == -1) {\n");
+            write("                           this->lastFloatAlloc = buf[1];\n");
+            write("                       } else {\n");
+            write("                           *(this->outputValIndices + prev + 1) = buf[1];\n");
+            write("                       }\n");
+            write("                     } else {\n");
+            write("                       this->firstFloatAlloc = curr;\n");
+            write("                     }\n");
+            write("                     prev = curr;\n");
+            write("                     curr = buf[1];\n");
+            write("                     buf = (__global int *)(this->outputValIndices + curr);\n");
+            write("                   }\n");
+            write("                   if (this->lastFloatAlloc != -1) {\n");
+            write("                       __global int *firstAllocBuf = (__global int *)(this->outputValVals + this->firstFloatAlloc);\n");
+            write("                       firstAllocBuf[1] = this->tailOfFreeFloat;\n");
+            write("                       this->tailOfFreeFloat = this->lastFloatAlloc;\n");
+            write("                   }\n");
+            write("                }\n");
+
           }
 
           while(!removedStrings.empty()) {
