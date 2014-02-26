@@ -1410,8 +1410,8 @@ public abstract class KernelWriter extends BlockWriter{
              write("}\n\n");
          } else if(isAllocDouble) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxDoubleIncr, (len + 1));\n");
-             write("   if (offset + (len + 1) > this->outputAuxDoubleLength) {\n");
+             write("   int offset = atomic_add(this->memAuxDoubleIncr, (len + 2));\n");
+             write("   if (offset + (len + 2) > this->outputAuxDoubleLength) {\n");
              write("      int prev = -1;\n");
              write("      int curr = this->tailOfFreeDouble;\n");
              write("      __global int *buf = (__global int *)(this->outputValVals + curr);\n");
@@ -1429,7 +1429,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("          buf[1] = this->lastDoubleAlloc;\n");
              write("          this->lastDoubleAlloc = curr;\n");
              write("          if (this->firstDoubleAlloc == -1) this->firstDoubleAlloc = curr;\n");
-             write("          return this->outputValVals + curr + 1;\n");
+             write("          return this->outputValVals + curr + 2;\n");
              write("      } else {\n");
              write("          this->nWrites[this->iter] = -1;\n");
              write("          return NULL;\n");
@@ -1440,7 +1440,7 @@ public abstract class KernelWriter extends BlockWriter{
              write("   buf[1] = (this->lastDoubleAlloc);\n");
              write("   this->lastDoubleAlloc = offset;\n");
              write("   if (this->firstDoubleAlloc == -1) this->firstDoubleAlloc = offset;\n");
-             write("   return this->outputValVals + offset + 1;\n");
+             write("   return this->outputValVals + offset + 2;\n");
              write("}\n\n");
          } else if (isAllocFloat) {
              write("\n{\n");
