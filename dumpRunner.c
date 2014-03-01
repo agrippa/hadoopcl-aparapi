@@ -3,6 +3,8 @@
 #include <CL/cl.h>
 #include <string.h>
 
+#define PROFILE
+
 #define CHECK(func_call) { cl_int err; if ( (err = (func_call)) != CL_SUCCESS) { fprintf(stderr, "Error %d at %s:%d\n", err, __FILE__, __LINE__); exit(1); } }
 #define CHECK_ERR(my_err) { if (my_err != CL_SUCCESS) { fprintf(stderr, "Error %d at %s:%d\n", my_err, __FILE__, __LINE__); exit(1); } }
 
@@ -160,7 +162,11 @@ static cl_context getContext(cl_platform_id platform, cl_device_id device) {
 
 static cl_command_queue getCommandQueue(cl_context ctx, cl_device_id dev) {
     cl_int err;
-    cl_command_queue q = clCreateCommandQueue(ctx, dev, 0, &err);
+    cl_command_queue_properties queue_props = 0;
+#ifdef PROFILE
+    queue_props |= CL_QUEUE_PROFILING_ENABLE;
+#endif
+    cl_command_queue q = clCreateCommandQueue(ctx, dev, queue_props, &err);
     CHECK_ERR(err);
     return q;
 }
@@ -201,7 +207,7 @@ static cl_mem *constructMemObjects(Arg *arguments, int nArgs, cl_context ctx,
 
     fprintf(stderr, "Constructing mem objects\n");
     for (i = 0; i < nArgs; i++) {
-        fprintf(stderr, " For %s\n", arguments[i].name);
+        fprintf(stderr, " for %s\n", arguments[i].name);
         if (arguments[i].isref) {
             bufs[i] = clCreateBuffer(ctx, CL_MEM_READ_WRITE, arguments[i].len, NULL, &err);
             CHECK_ERR(err);
@@ -322,8 +328,8 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
     if (verbose) fprintf(stderr, "Done creating kernel\n");
     cl_mem *bufs = constructMemObjects(arguments, nArgs, ctx, cmd, kernel, verbose);
 
-    size_t global_size = 128;
-    size_t local_size = 128;
+    size_t global_size = 64;
+    size_t local_size = 64;
 
     if (verbose) checkInputs(arguments, nArgs);
 
@@ -339,6 +345,22 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
         checkOutputs(arguments, nArgs, bufs, cmd);
     }
     fprintf(stderr, "  Done waiting for events\n");
+
+#ifdef PROFILE
+    cl_ulong end, queued, start, submit;
+    clGetEventProfilingInfo(exec_event,
+            CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+    clGetEventProfilingInfo(exec_event,
+            CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
+    clGetEventProfilingInfo(exec_event,
+            CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+    clGetEventProfilingInfo(exec_event,
+            CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+    fprintf(stderr, "OpenCL Profile: kernel queued %llu ns, kernel submitted %llu ns, kernel running %llu ns\n",
+        (submit - queued),
+        (start - submit),
+        (end - start));
+#endif
 }
 
 static cl_device_type parseDeviceType(const char *dev_str) {

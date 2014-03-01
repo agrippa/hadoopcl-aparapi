@@ -1032,6 +1032,22 @@ TRACE_LINE
               CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
       clGetEventProfilingInfo(jniContext->exec_event,
               CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+
+#ifdef DUMP_DEBUG
+#ifdef KEEP_DUMP_FILES
+      char profile_filename[512];
+      snprintf(profile_filename, 512, "%s.prof", jniContext->dump_filename);
+      FILE *fp = fopen(profile_filename, "w");
+      fprintf(fp, "OpenCL Profile: kernel queued %llu ms, kernel submitted %llu ms, kernel running %llu ms, label %s\n",
+          (submit - queued),
+          (start - submit),
+          (end - start),
+          jniContext->currentLabel);
+      fclose(fp);
+#endif
+#endif
+
+
       fprintf(stderr, "  TIMING | OpenCL Profile: kernel queued %lu ms, kernel submitted %lu ms, kernel running %lu ms, label %s\n",
           (submit - queued) / 1000000,
           (start - submit) / 1000000,
@@ -1108,7 +1124,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
 #endif
 
       clctx->execCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
-            queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
+            queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE , &status);
       if(status != CL_SUCCESS) throw CLException(status,"clCreateCommandQueue()");
       clctx->copyCommandQueue = clCreateCommandQueue(clctx->context, (cl_device_id)clctx->deviceId,
             queue_props | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, &status);
