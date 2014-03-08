@@ -114,8 +114,9 @@ public class KernelRunner extends KernelRunnerJNI {
     * Stores the cl_device_id, cl_context, cl_command_queue, and prevExecEvent
     * (used to serialize all events for a device) objects for a certain device.
     */
-   private static Map<OpenCLDevice, Long> openclContextHandles =
-     new HashMap<OpenCLDevice, Long>();
+   private static Map<Kernel.TaskType, Long> openclContextHandles =
+     new HashMap<Kernel.TaskType, Long>();
+   /*
    /*
     * Stores the source code, cl_kernel and cl_program objects for a particular
     * MR task type. Intialized once in buildOpenCLContext and then read-only.
@@ -161,7 +162,8 @@ public class KernelRunner extends KernelRunnerJNI {
        kernelArgs.put(Kernel.TaskType.REDUCER, new LinkedList<KernelArg[]>());
    }
 
-   private static long getOpenCLContext(OpenCLDevice dev, int deviceSlot) {
+   private static long getOpenCLContext(OpenCLDevice dev, int deviceSlot,
+          Kernel.TaskType taskType) {
        int flags = 0;
        if (dev.getType() == Device.TYPE.GPU) {
           flags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
@@ -169,11 +171,11 @@ public class KernelRunner extends KernelRunnerJNI {
        long openclContextHandle;
        synchronized (openclContextHandles) {
            long tmpContextHandle;
-           if (openclContextHandles.containsKey(dev)) {
-               tmpContextHandle = openclContextHandles.get(dev);
+           if (openclContextHandles.containsKey(taskType)) {
+              tmpContextHandle = openclContextHandles.get(taskType);
            } else {
-               tmpContextHandle = initOpenCL(dev, flags, deviceSlot);
-               openclContextHandles.put(dev, tmpContextHandle);
+             tmpContextHandle = initOpenCL(dev, flags, deviceSlot);
+             openclContextHandles.put(taskType, tmpContextHandle);
            }
            openclContextHandle = tmpContextHandle;
        }
@@ -1133,7 +1135,8 @@ public class KernelRunner extends KernelRunnerJNI {
                 kernelArgsForType.add(constructKernelArgObjects(argLines, kernel));
             }
          }
-         buildOpenCLContext(type, openCL, getOpenCLContext(dev, deviceSlot));
+         buildOpenCLContext(type, openCL, getOpenCLContext(dev, deviceSlot,
+               kernel.checkTaskType()));
       }
    }
 
@@ -1216,7 +1219,8 @@ public class KernelRunner extends KernelRunnerJNI {
             }
 
             if (this.myOpenCLContextHandle == 0) {
-                this.myOpenCLContextHandle = getOpenCLContext(openCLDevice, deviceSlot);
+                this.myOpenCLContextHandle = getOpenCLContext(openCLDevice,
+                    deviceSlot, kernel.checkTaskType());
             }
             // openCLDevice will not be null here
             jniContextHandle = initJNI(kernel, openCLDevice, jniFlags,
