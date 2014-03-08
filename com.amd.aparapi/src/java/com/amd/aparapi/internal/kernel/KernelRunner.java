@@ -161,7 +161,7 @@ public class KernelRunner extends KernelRunnerJNI {
        kernelArgs.put(Kernel.TaskType.REDUCER, new LinkedList<KernelArg[]>());
    }
 
-   private static long getOpenCLContext(OpenCLDevice dev) {
+   private static long getOpenCLContext(OpenCLDevice dev, int deviceSlot) {
        int flags = 0;
        if (dev.getType() == Device.TYPE.GPU) {
           flags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
@@ -172,7 +172,7 @@ public class KernelRunner extends KernelRunnerJNI {
            if (openclContextHandles.containsKey(dev)) {
                tmpContextHandle = openclContextHandles.get(dev);
            } else {
-               tmpContextHandle = initOpenCL(dev, flags);
+               tmpContextHandle = initOpenCL(dev, flags, deviceSlot);
                openclContextHandles.put(dev, tmpContextHandle);
            }
            openclContextHandle = tmpContextHandle;
@@ -917,7 +917,6 @@ public class KernelRunner extends KernelRunnerJNI {
          final KernelArg arg = args[i];
          try {
             if ((arg.getType() & ARG_ARRAY) != 0) {
-               // System.err.println("Looking at array "+arg.getName());
                Object newArrayRef;
                newArrayRef = arg.getField().get(kernel);
 
@@ -1011,6 +1010,7 @@ public class KernelRunner extends KernelRunnerJNI {
        } catch (Exception e) {
            throw new RuntimeException(e);
        }
+
        return hadoopclReadbackJNI(jniContextHandle, myOpenCLContextHandle);
    }
 
@@ -1030,7 +1030,7 @@ public class KernelRunner extends KernelRunnerJNI {
          kernel.setFallbackExecutionMode();
       }
 
-      return execute(_entrypointName, _range, _passes, enableStrided, isRelaunch, false, taskId, attemptId, null);
+      return execute(_entrypointName, _range, -1, _passes, enableStrided, isRelaunch, false, taskId, attemptId, null);
    }
 
    synchronized private Kernel warnFallBackAndExecute(String _entrypointName, final Range _range, final int _passes,
@@ -1117,7 +1117,8 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    public static void doKernelAndArgLinesPrealloc(Kernel kernel,
-         Kernel.TaskType type, int nArgsToPrealloc, OpenCLDevice dev) {
+         Kernel.TaskType type, int nArgsToPrealloc, OpenCLDevice dev,
+         int deviceSlot) {
       if (kernel.getKernelFile() != null) {
          List<String> argLines = new LinkedList<String>();
          String openCL = readOpenCLAndArgs(kernel.getKernelFile(), argLines);
@@ -1132,13 +1133,13 @@ public class KernelRunner extends KernelRunnerJNI {
                 kernelArgsForType.add(constructKernelArgObjects(argLines, kernel));
             }
          }
-         buildOpenCLContext(type, openCL, getOpenCLContext(dev));
+         buildOpenCLContext(type, openCL, getOpenCLContext(dev, deviceSlot));
       }
    }
 
    public synchronized void doEntrypointInit(String _entrypointName,
-           boolean enableStrided, Device device, boolean dryRun, int taskId,
-           int attemptId) {
+           boolean enableStrided, Device device, int deviceSlot, boolean dryRun,
+           int taskId, int attemptId) {
       if (entryPoint == null && (this.kernel.getKernelFile() == null || dryRun)) {
 
          int requiredNEntrypoints = enableStrided ? 2 : 1;
@@ -1215,7 +1216,7 @@ public class KernelRunner extends KernelRunnerJNI {
             }
 
             if (this.myOpenCLContextHandle == 0) {
-                this.myOpenCLContextHandle = getOpenCLContext(openCLDevice);
+                this.myOpenCLContextHandle = getOpenCLContext(openCLDevice, deviceSlot);
             }
             // openCLDevice will not be null here
             jniContextHandle = initJNI(kernel, openCLDevice, jniFlags,
@@ -1442,7 +1443,7 @@ public class KernelRunner extends KernelRunnerJNI {
    }
 
    public synchronized Kernel execute(String _entrypointName,
-           final Range _range, final int _passes, final boolean enableStrided,
+           final Range _range, int deviceSlot, final int _passes, final boolean enableStrided,
            final boolean isRelaunch, final boolean dryRun, int taskId,
            int attemptId, String label) {
 
@@ -1461,8 +1462,8 @@ public class KernelRunner extends KernelRunnerJNI {
 
          if ((device == null) || (device instanceof OpenCLDevice)) {
                // Should be a no-op except when called by translate.sh script
-               doEntrypointInit(_entrypointName, enableStrided, device, dryRun,
-                       taskId, attemptId);
+               doEntrypointInit(_entrypointName, enableStrided, device, deviceSlot,
+                   dryRun, taskId, attemptId);
                try {
                   ret = executeOpenCL(_entrypointName, _range, _passes,
                           enableStrided, isRelaunch, label);

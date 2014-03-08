@@ -53,8 +53,30 @@
 jobject OpenCLDevice::getPlatformInstance(JNIEnv *jenv, jobject deviceInstance){ 
    return(JNIHelper::getInstanceField<jobject>(jenv, deviceInstance, "platform", OpenCLPlatformClassArg ));
 } 
-cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance){
-   return((cl_device_id)JNIHelper::getInstanceField<jlong>(jenv, deviceInstance, "deviceId"));
+cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance,
+     int deviceSlot){
+   cl_device_id devId = ((cl_device_id)JNIHelper::getInstanceField<jlong>(jenv,
+         deviceInstance, "deviceId"));
+   if (deviceSlot != -1) {
+      cl_uint nComputeUnits;
+      cl_int err = clGetDeviceInfo(devId, CL_DEVICE_MAX_COMPUTE_UNITS,
+          sizeof(nComputeUnits), &nComputeUnits, NULL);
+      if (err != CL_SUCCESS) {
+          fprintf(stderr, "Error getting number of compute units for subdevice creation: %d\n", err);
+          exit(1);
+      }
+      cl_device_id *subdevices = (cl_device_id *)malloc(
+          sizeof(cl_device_id) * nComputeUnits);
+      cl_device_partition_property part_prop[3] = { CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)1, 0 };
+      err = clCreateSubDevices(devId, part_prop, nComputeUnits, subdevices,
+          NULL);
+      if (err != CL_SUCCESS) {
+          fprintf(stderr, "Error creating subdevices: %d\n", err);
+          exit(1);
+      }
+      devId = subdevices[deviceSlot];
+   }
+   return devId;
 }
 
 cl_platform_id OpenCLPlatform::getPlatformId(JNIEnv *jenv, jobject platformInstance){
@@ -92,7 +114,7 @@ JNI_JAVA(jobject, OpenCLJNI, createProgram)
 
       jobject platformInstance = OpenCLDevice::getPlatformInstance(jenv, deviceInstance);
       cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv, platformInstance);
-      cl_device_id deviceId = OpenCLDevice::getDeviceId(jenv, deviceInstance);
+      cl_device_id deviceId = OpenCLDevice::getDeviceId(jenv, deviceInstance, -1);
       cl_int status = CL_SUCCESS;
       cl_device_type deviceType;
       clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,  sizeof(deviceType), &deviceType, NULL);

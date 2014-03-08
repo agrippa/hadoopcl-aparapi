@@ -40,7 +40,7 @@
 // #define DUMP_DEBUG
 // #define KEEP_DUMP_FILES
 // #define PROFILE_HADOOPCL
-// #define FULLY_PROFILE_HADOOPCL
+#define FULLY_PROFILE_HADOOPCL
 
 #ifdef TRACE
 #define TRACE_LINE fprintf(stderr, "%s:%d | task %d attempt %d context %d launch %d\n", __FILE__, __LINE__, jniContext->taskId, jniContext->attemptId, jniContext->contextId, jniContext->kernelLaunchCounter - 1);
@@ -982,6 +982,7 @@ TRACE_LINE
                  arg->syncSizeInBytes(jenv);
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                          arg->javaArg, KernelArg::javaArrayFieldID);
+                 // fprintf(stderr, "name = %s javaArray = %p, javaArrayFieldID = %p, javaArg = %p\n", arg->name, arg->arrayBuffer->javaArray, KernelArg::javaArrayFieldID, arg->javaArg);
 
                  arg->pin(jenv);
 
@@ -1046,8 +1047,6 @@ TRACE_LINE
       fclose(fp);
 #endif
 #endif
-
-
       fprintf(stderr, "  TIMING | OpenCL Profile: kernel queued %lu ms, kernel submitted %lu ms, kernel running %lu ms, label %s\n",
           (submit - queued) / 1000000,
           (start - submit) / 1000000,
@@ -1089,7 +1088,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
    }
 
 JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
-  (JNIEnv *jenv, jclass clazz, jobject _openCLDeviceObject, jint flags) {
+  (JNIEnv *jenv, jclass clazz, jobject _openCLDeviceObject, jint flags, int deviceSlot) {
       cl_int status = CL_SUCCESS;
       if (config == NULL) {
         config = new Config(jenv);
@@ -1104,7 +1103,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, initOpenCL)
       cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv,
               platformInstance);
 
-      clctx->deviceId = OpenCLDevice::getDeviceId(jenv, openCLDeviceObject);
+      clctx->deviceId = OpenCLDevice::getDeviceId(jenv, openCLDeviceObject, deviceSlot);
       clctx->deviceType = (((
              flags & com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)
                  == com_amd_aparapi_internal_jni_KernelRunnerJNI_JNI_FLAG_USE_GPU)

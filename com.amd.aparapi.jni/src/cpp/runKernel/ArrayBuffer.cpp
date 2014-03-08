@@ -59,6 +59,7 @@ void ArrayBuffer::unpinCommit(JNIEnv *jenv){
 }
 void ArrayBuffer::pin(JNIEnv *jenv){
    void *ptr = addr;
+   // fprintf(stderr, "javaArray = %p\n", javaArray);
    addr = jenv->GetPrimitiveArrayCritical((jarray)javaArray,&isCopy);
    isPinned = JNI_TRUE;
 }
