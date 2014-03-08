@@ -40,7 +40,7 @@
 // #define DUMP_DEBUG
 // #define KEEP_DUMP_FILES
 // #define PROFILE_HADOOPCL
-#define FULLY_PROFILE_HADOOPCL
+// #define FULLY_PROFILE_HADOOPCL
 
 #ifdef TRACE
 #define TRACE_LINE fprintf(stderr, "%s:%d | task %d attempt %d context %d launch %d\n", __FILE__, __LINE__, jniContext->taskId, jniContext->attemptId, jniContext->contextId, jniContext->kernelLaunchCounter - 1);
