@@ -168,16 +168,14 @@ public class KernelRunner extends KernelRunnerJNI {
        if (dev.getType() == Device.TYPE.GPU) {
           flags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
        }
-       long openclContextHandle;
+       final long openclContextHandle;
        synchronized (openclContextHandles) {
-           long tmpContextHandle;
            if (openclContextHandles.containsKey(taskType)) {
-              tmpContextHandle = openclContextHandles.get(taskType);
+              openclContextHandle = openclContextHandles.get(taskType);
            } else {
-             tmpContextHandle = initOpenCL(dev, flags, deviceSlot);
-             openclContextHandles.put(taskType, tmpContextHandle);
+             openclContextHandle = initOpenCL(dev, flags, deviceSlot);
+             openclContextHandles.put(taskType, openclContextHandle);
            }
-           openclContextHandle = tmpContextHandle;
        }
        return openclContextHandle;
    }
@@ -192,7 +190,7 @@ public class KernelRunner extends KernelRunnerJNI {
            long openclProgramContextHandle = buildProgramJNI(openclContextHandle,
                src);
            if (openclProgramContextHandle == 0L) {
-             throw new RuntimeException("Failure building OpenCL context");
+             throw new RuntimeException("Failure building OpenCL program context");
            }
            openclProgramContextHandles.put(type,
                new Long(openclProgramContextHandle));
@@ -1421,7 +1419,8 @@ public class KernelRunner extends KernelRunnerJNI {
          // (private buffers do not get treated as arguments)
 
          // Send the string to OpenCL to compile it
-         buildOpenCLContext(this.kernel.checkTaskType(), openCL, this.myOpenCLContextHandle);
+         buildOpenCLContext(this.kernel.checkTaskType(), openCL,
+                 this.myOpenCLContextHandle);
 
          List<Long> dataHandlesForType =
              openclDataHandles.get(kernel.checkTaskType());
