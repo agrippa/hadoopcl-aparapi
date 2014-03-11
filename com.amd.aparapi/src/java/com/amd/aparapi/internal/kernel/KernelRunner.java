@@ -171,7 +171,7 @@ public class KernelRunner extends KernelRunnerJNI {
        final long openclContextHandle;
        synchronized (openclContextHandles) {
            if (openclContextHandles.containsKey(taskType)) {
-              openclContextHandle = openclContextHandles.get(taskType);
+             openclContextHandle = openclContextHandles.get(taskType);
            } else {
              openclContextHandle = initOpenCL(dev, flags, deviceSlot);
              openclContextHandles.put(taskType, openclContextHandle);
@@ -1134,7 +1134,7 @@ public class KernelRunner extends KernelRunnerJNI {
             }
          }
          buildOpenCLContext(type, openCL, getOpenCLContext(dev, deviceSlot,
-               kernel.checkTaskType()));
+               type));
       }
    }
 

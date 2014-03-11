@@ -51,7 +51,7 @@ public class OpenCLGenerator {
             // Kernel a = (Kernel)c.newInstance();
             a.setStrided(strided);
             a.setExecutionMode(exec);
-            a.execute(128, true, 0, 0, null); // dryRun = true
+            a.execute(128, 0, true, 0, 0, null); // dryRun = true
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();
