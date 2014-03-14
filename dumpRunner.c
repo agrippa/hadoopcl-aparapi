@@ -178,7 +178,7 @@ static cl_program createAndBuildProgram(cl_context ctx, const char *source, cl_d
     cl_program program = clCreateProgramWithSource(ctx, 1, &source, &len, &err);
     CHECK_ERR(err);
 
-    err = clBuildProgram(program, 1, &dev, "-O0 -g", NULL, NULL);
+    err = clBuildProgram(program, 1, &dev, "-O0", NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t log_size;
         CHECK(clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size));
@@ -356,10 +356,10 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
             CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
     clGetEventProfilingInfo(exec_event,
             CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
-    fprintf(stderr, "OpenCL Profile: kernel queued %llu ns, kernel submitted %llu ns, kernel running %llu ns\n",
-        (submit - queued),
-        (start - submit),
-        (end - start));
+    fprintf(stderr, "OpenCL Profile: kernel queued %.5f ms, kernel submitted %.5f ms, kernel running %.5f ms\n",
+        (submit - queued) / 1000000.0,
+        (start - submit) / 1000000.0,
+        (end - start) / 1000000.0);
 #endif
 }
 
