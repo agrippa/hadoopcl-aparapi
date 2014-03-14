@@ -1119,9 +1119,9 @@ public class KernelRunner extends KernelRunnerJNI {
    public static void doKernelAndArgLinesPrealloc(Kernel kernel,
          Kernel.TaskType type, int nArgsToPrealloc, OpenCLDevice dev,
          int deviceSlot) {
-      if (kernel.getKernelFile() != null) {
+      if (kernel.getKernelFileForDeviceType(dev.getType()) != null) {
          List<String> argLines = new LinkedList<String>();
-         String openCL = readOpenCLAndArgs(kernel.getKernelFile(), argLines);
+         String openCL = readOpenCLAndArgs(kernel.getKernelFileForDeviceType(dev.getType()), argLines);
          synchronized(kernelCache) {
              kernelCache.put(type,
                  new KernelAndArgLines(openCL, argLines));
@@ -1141,7 +1141,8 @@ public class KernelRunner extends KernelRunnerJNI {
    public synchronized void doEntrypointInit(String _entrypointName,
            boolean enableStrided, Device device, int deviceSlot, boolean dryRun,
            int taskId, int attemptId) {
-      if (entryPoint == null && (this.kernel.getKernelFile() == null || dryRun)) {
+      if (entryPoint == null &&
+            (this.kernel.getKernelFileForDeviceType(device.getType()) == null || dryRun)) {
 
          int requiredNEntrypoints = enableStrided ? 2 : 1;
          final List<Entrypoint> entrypointsForType;
@@ -1230,7 +1231,7 @@ public class KernelRunner extends KernelRunnerJNI {
             throw new RuntimeException("initJNI failed to return a valid handle");
          }
 
-         if (this.kernel.getKernelFile() == null || dryRun) {
+         if (this.kernel.getKernelFileForDeviceType(device.getType()) == null || dryRun) {
              final String extensions = getExtensionsJNI(myOpenCLContextHandle);
              capabilitiesSet = new HashSet<String>();
 
@@ -1263,7 +1264,7 @@ public class KernelRunner extends KernelRunnerJNI {
          String openCL = null;
          KernelArg[] readArgs = null;
 
-         if (this.kernel.getKernelFile() != null && !dryRun) {
+         if (this.kernel.getKernelFileForDeviceType(device.getType()) != null && !dryRun) {
              List<String> argLines;
              synchronized(kernelCache) {
                  if (kernelCache.containsKey(kernel.checkTaskType())) {
@@ -1273,7 +1274,7 @@ public class KernelRunner extends KernelRunnerJNI {
                      argLines = forThisKernel.argLines;
                  } else {
                      argLines = new LinkedList<String>();
-                     openCL = readOpenCLAndArgs(this.kernel.getKernelFile(), argLines);
+                     openCL = readOpenCLAndArgs(this.kernel.getKernelFileForDeviceType(device.getType()), argLines);
                      kernelCache.put(kernel.checkTaskType(),
                          new KernelAndArgLines(openCL, argLines));
                  }
@@ -1413,6 +1414,10 @@ public class KernelRunner extends KernelRunnerJNI {
                 e.printStackTrace();
                 System.exit(1);
             }
+            buildOpenCLContext(this.kernel.checkTaskType(), openCL,
+                this.myOpenCLContextHandle);
+            hadoopclDumpBinary("kernel.bin",
+                openclProgramContextHandles.get(kernel.checkTaskType()));
             System.exit(0);
          }
          // at this point, i = the actual used number of arguments

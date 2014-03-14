@@ -322,4 +322,5 @@ public abstract class KernelRunnerJNI{
    protected native static long initOpenCLData();
    protected native int initJNIContextFromOpenCLDataContext(long _jniContextHandle,
        long _openclDataContextHandle);
+   protected native int hadoopclDumpBinary(String filename, long programContext);
 }

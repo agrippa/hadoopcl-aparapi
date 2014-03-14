@@ -676,6 +676,43 @@ static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
     return NULL;
 }
 
+JNI_JAVA(jint, KernelRunnerJNI, hadoopclDumpBinary)
+    (JNIEnv *jenv, jobject jobj, jstring filename,
+     jlong openclProgramContextHandle) {
+      cl_int err;
+      unsigned char *programBinary = NULL;
+      size_t programBinarySize = 0;
+      OpenCLProgramContext *programContext =
+        ((OpenCLProgramContext *)openclProgramContextHandle);
+
+      const char *filenameChars = jenv->GetStringUTFChars(filename, NULL);
+      int string_length = strlen(filenameChars) + 1;
+      char *fname = (char *)malloc(string_length);
+      memcpy(fname, filenameChars, string_length);
+      jenv->ReleaseStringUTFChars(filename, filenameChars);
+
+      cl_program program = programContext->program;
+
+      err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+          sizeof(size_t), &programBinarySize, NULL);
+      if (err != CL_SUCCESS) {
+          fprintf(stderr, "Error fetching binary size: %d\n", err);
+          exit(-1);
+      }
+
+      programBinary = (unsigned char *)malloc(programBinarySize);
+      err = clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(unsigned char *),
+          &programBinary, NULL);
+      if (err != CL_SUCCESS) {
+          fprintf(stderr, "Error fetching binary: %d\n", err);
+          exit(-1);
+      }
+
+      FILE *fp = fopen(fname, "w");
+      fwrite(programBinary, 1, programBinarySize, fp);
+      fclose(fp);
+}
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
      jlong openclContextHandle, jlong openclProgramContextHandle,
@@ -1220,6 +1257,16 @@ void writeProfile(JNIEnv* jenv, JNIContext* jniContext) {
    delete []fnameStr;
 }
 
+JNI_JAVA(jlong, KernelRunnerJNI, buildBinaryProgramJNI)
+  (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jstring filename) {
+    OpenCLContext *openclContext = ((OpenCLContext *)openclContextHandle);
+    if (openclContext == NULL) return 0;
+    OpenCLProgramContext *openclProgramContext =
+          (OpenCLProgramContext*)malloc(sizeof(OpenCLProgramContext));
+    if (openclProgramContext == NULL) return 0;
+    memset(openclProgramContext, 0x00, sizeof(OpenCLProgramContext));
+}
+
 JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
    (JNIEnv *jenv, jclass clazz, jlong openclContextHandle, jstring source) {
       OpenCLContext *openclContext = ((OpenCLContext*)openclContextHandle);
@@ -1228,10 +1275,10 @@ JNI_JAVA(jlong, KernelRunnerJNI, buildProgramJNI)
       }
       OpenCLProgramContext *openclProgramContext =
           (OpenCLProgramContext*)malloc(sizeof(OpenCLProgramContext));
-      memset(openclProgramContext, 0x00, sizeof(OpenCLProgramContext));
       if (openclProgramContext == NULL) {
           return 0;
       }
+      memset(openclProgramContext, 0x00, sizeof(OpenCLProgramContext));
 
       try {
          cl_int status = CL_SUCCESS;

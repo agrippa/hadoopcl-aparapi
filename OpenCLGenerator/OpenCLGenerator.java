@@ -4,10 +4,14 @@ import org.apache.hadoop.mapreduce.HadoopOpenCLContext;
 import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
 import com.amd.aparapi.*;
+import com.amd.aparapi.device.*;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.List;
+import com.amd.aparapi.internal.util.*;
+import com.amd.aparapi.internal.opencl.*;
 
 public class OpenCLGenerator {
 
@@ -29,10 +33,13 @@ public class OpenCLGenerator {
             return;
         }
 
+        final OpenCLDevice device;
         if (args[2].equals("gpu") || args[2].equals("g")) {
             exec = Kernel.EXECUTION_MODE.GPU;
+            device = findDevice(findDeviceWithType(Device.TYPE.GPU));
         } else if (args[2].equals("cpu") || args[2].equals("c")) {
             exec = Kernel.EXECUTION_MODE.CPU;
+            device = findDevice(findDeviceWithType(Device.TYPE.CPU));
         } else {
             System.out.println("Invalid value \""+args[2]+"\" specified for exec mode, must be cpu/c or gpu/g");
             return;
@@ -51,11 +58,43 @@ public class OpenCLGenerator {
             // Kernel a = (Kernel)c.newInstance();
             a.setStrided(strided);
             a.setExecutionMode(exec);
-            a.execute(128, 0, true, 0, 0, null); // dryRun = true
+            a.execute(device.createRange(128), 0, true, 0, 0, null);
+            // a.execute(device.createRange(128), 0, "foo"); // dryRun = true
         } catch (Exception e) {
             System.out.println(e);
             e.printStackTrace();
         }
 
+    }
+
+    private static int findDeviceWithType(Device.TYPE type) {
+        int devicesSoFar = 0;
+        List<OpenCLPlatform> platforms = OpenCLUtil.getOpenCLPlatforms();
+        for(OpenCLPlatform platform : platforms) {
+            for(OpenCLDevice tmpDev : platform.getOpenCLDevices()) {
+              if(tmpDev.getType() == type) {
+                return devicesSoFar;
+              }
+              devicesSoFar++;
+            }
+        }
+        return -1;
+    }
+
+    public static OpenCLDevice findDevice(int id) {
+        int devicesSoFar = 0;
+        OpenCLDevice dev = null;
+        List<OpenCLPlatform> platforms = OpenCLUtil.getOpenCLPlatforms();
+        for(OpenCLPlatform platform : platforms) {
+            for(OpenCLDevice tmpDev : platform.getOpenCLDevices()) {
+              if(devicesSoFar == id) {
+                dev = tmpDev;
+                break;
+              }
+              devicesSoFar++;
+            }
+            if(dev != null) break;
+        }
+        return dev;
     }
 }

@@ -1954,8 +1954,8 @@ public abstract class Kernel implements Cloneable {
       return (execute(Range.create(_range), deviceSlot, 1, false, false, 0, 0, null));
    }
 
-   public synchronized Kernel execute(int _range, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label) {
-      return (execute(Range.create(_range), deviceSlot, 1, false, dryRun, taskId, attemptId, label));
+   public synchronized Kernel execute(Range _range, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label) {
+      return (execute(_range, deviceSlot, 1, false, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -2896,5 +2896,11 @@ public abstract class Kernel implements Cloneable {
        kernelRunner.waitForEvent(launched.poll());
    }
 
-   public abstract String getKernelFile();
+   public abstract Map<Device.TYPE, String> getKernelFile();
+
+   public String getKernelFileForDeviceType(Device.TYPE t) {
+       Map<Device.TYPE, String> mapping = getKernelFile();
+       if (mapping == null || !mapping.containsKey(t)) return null;
+       return mapping.get(t);
+   }
 }
