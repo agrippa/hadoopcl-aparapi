@@ -178,7 +178,7 @@ static cl_program createAndBuildProgram(cl_context ctx, const char *source, cl_d
     cl_program program = clCreateProgramWithSource(ctx, 1, &source, &len, &err);
     CHECK_ERR(err);
 
-    err = clBuildProgram(program, 1, &dev, "-O0", NULL, NULL);
+    err = clBuildProgram(program, 1, &dev, "-O0 -g", NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t log_size;
         CHECK(clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size));
@@ -324,6 +324,7 @@ static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type de
     if (verbose) fprintf(stderr, "Done creating command queue\n");
     cl_program program = createAndBuildProgram(ctx, source, devs[0]);
     if (verbose) fprintf(stderr, "Done creating program\n");
+    exit(-1);
     cl_kernel kernel = getKernel(program, "run");
     if (verbose) fprintf(stderr, "Done creating kernel\n");
     cl_mem *bufs = constructMemObjects(arguments, nArgs, ctx, cmd, kernel, verbose);

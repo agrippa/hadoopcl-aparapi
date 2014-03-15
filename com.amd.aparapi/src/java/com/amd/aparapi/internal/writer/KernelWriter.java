@@ -818,6 +818,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String findEndPost = "__findEnd";
       final String quickSortPost = "__quickSort";
       final String outOfMemoryPost = "__outOfMemory";
+      final String mergePost = "__merge";
 
       HADOOPTYPE hadoopType = HADOOPTYPE.UNKNOWN;
 
@@ -846,6 +847,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isMap = false;
          boolean isQuickSort = false;
          boolean isOutOfMemory = false;
+         boolean isMerge = false;
 
          boolean hasOffsetArg = false;
          final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
@@ -908,6 +910,8 @@ public abstract class KernelWriter extends BlockWriter{
                  isQuickSort = true;
              } else if (mm.getName().indexOf(outOfMemoryPost) != -1) {
                  isOutOfMemory = true;
+             } else if (mm.getName().indexOf(mergePost) != -1) {
+                 isMerge = true;
              }
          }
 
@@ -1604,6 +1608,55 @@ public abstract class KernelWriter extends BlockWriter{
                 write("    return *(this->memIncr) >= this->outputLength;\n");
             }
             write("}\n\n");
+         } else if (isMerge) {
+           write("\n{\n");
+           write("  int j;\n");
+           write("  int nvals = nValues(this);\n");
+           write("  __global int *__global *ptrs = (__global int *__global *)preallocDouble;\n");
+           write("  __global double *__global *valPtrs = (__global double *__global *)(preallocDouble + nvals);\n");
+           write("  __global int *sofar = preallocInt;\n");
+           write("\n");
+           write("  for (j = 0; j < nvals; j++) {\n");
+           write("    seekTo(this, j);\n");
+           write("    ptrs[j] = getValIndices(this);\n");
+           write("    valPtrs[j] = getValVals(this);\n");
+           write("    sofar[j] = currentVectorLength(this);\n");
+           write("  }\n");
+           write("\n");
+           write("  int outputIndex = 0;\n");
+           write("  int count = 0;\n");
+           write("  while (count < totalNElements) {\n");
+           write("    int i;\n");
+           write("    int minVal = ptrs[0][0];\n");
+           write("    for (i = 1; i < nvals; i++) {\n");
+           write("      minVal = min(ptrs[i][0], minVal);\n");
+           write("    }\n");
+           write("\n");
+           write("    outputIndices[outputIndex] = minVal;\n");
+           write("    outputVals[outputIndex] = 0;\n");
+           write("\n");
+           write("    for (i = 0; i < nvals; i++) {\n");
+           write("      if (ptrs[i][0] == minVal) {\n");
+           write("        outputVals[outputIndex] += valPtrs[i][0];\n");
+           write("        int sf = --sofar[i];\n");
+           write("\n");
+           write("        if (sf) {\n");
+           write("          ptrs[i]++;\n");
+           write("          valPtrs[i]++;\n");
+           write("        } else {\n");
+           write("          nvals--;\n");
+           write("          ptrs[i] = ptrs[nvals];\n");
+           write("          valPtrs[i] = valPtrs[nvals];\n");
+           write("          sofar[i] = sofar[nvals];\n");
+           write("          i--;\n");
+           write("        }\n");
+           write("        count++;\n");
+           write("      }\n");
+           write("    }\n");
+           write("    outputIndex++;\n");
+           write("  }\n");
+           write("  return outputIndex;\n");
+           write("}\n\n");
          } else {
              writeMethodBody(mm);
          }

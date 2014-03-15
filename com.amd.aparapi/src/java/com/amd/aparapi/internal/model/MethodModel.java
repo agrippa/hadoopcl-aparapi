@@ -279,7 +279,7 @@ public class MethodModel{
          if ((!Config.enableNEW) && (instruction instanceof New)) {
             if(method.getName().equals("write") || method.getName().equals("reserveOutput") ||
                     method.getName().indexOf("alloc") == 0 || method.getName().equals("callReduce") ||
-                    method.getName().equals("callMap")) {
+                    method.getName().equals("callMap") || method.getName().equals("merge")) {
                 //continue;
                 break;
             }
