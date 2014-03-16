@@ -1609,6 +1609,10 @@ public abstract class KernelWriter extends BlockWriter{
             }
             write("}\n\n");
          } else if (isMerge) {
+           String declaration = removePreviousLine();
+           final int index = declaration.indexOf("int totalNElements");
+           declaration = declaration.substring(0, index) + "const " + declaration.substring(index);
+           write(declaration);
            write("\n{\n");
            write("  int j;\n");
            write("  int nvals = nValues(this);\n");
