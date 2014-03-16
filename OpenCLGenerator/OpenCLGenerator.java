@@ -17,11 +17,11 @@ public class OpenCLGenerator {
 
     public static void main(String[] args) throws MalformedURLException {
         if (args.length != 3) {
-            System.out.println("usage: java OpenCLGenerator <class-file> <strided> <exec-mode>");
+            System.out.println("usage: java OpenCLGenerator <class-name> <strided> <exec-mode>");
             return;
         }
         Kernel.EXECUTION_MODE exec;
-        String fileName = args[0];
+        String className = args[0];
         boolean strided;
 
         if (args[1].equals("true") || args[1].equals("t")) {
@@ -45,17 +45,11 @@ public class OpenCLGenerator {
             return;
         }
 
-        // System.out.println("class-file="+fileName+", strided="+strided+", exec="+(exec==Kernel.EXECUTION_MODE.CPU ? "cpu" : "gpu"));
-
-        java.net.URLClassLoader loader = new java.net.URLClassLoader(new java.net.URL[] { new java.net.URL("file:///home/yiskylee/OpenCLGenerator/"+fileName) } );
         try {
 
-          Class c = loader.loadClass(fileName.substring(0, fileName.indexOf('.')));
+          Class c = Class.forName(className);
           Constructor<? extends Kernel> construct = c.getConstructor(new Class[] { HadoopOpenCLContext.class, Integer.class });
           Kernel a = construct.newInstance(new HadoopOpenCLContext(), -1);
-            // File f = new File(fileName);
-            // Class c = loader.loadClassFile(f);
-            // Kernel a = (Kernel)c.newInstance();
             a.setStrided(strided);
             a.setExecutionMode(exec);
             a.execute(device.createRange(128), 0, true, 0, 0, null);
