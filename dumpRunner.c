@@ -134,11 +134,21 @@ static void readArg(Arg *out, FILE *in, int verbose) {
     }
 }
 
-static cl_uint getDevices(cl_platform_id platform, cl_device_type device_type, cl_device_id **devs) {
+static cl_uint getDevices(cl_platform_id* platforms, int nplatforms,
+        cl_platform_id *platform, cl_device_type device_type,
+        cl_device_id **devs) {
+    int i;
     cl_uint numDevices;
-    CHECK(clGetDeviceIDs(platform, device_type, 0, NULL, &numDevices));
+    for (i = 0; i < nplatforms; i++) {
+        if (clGetDeviceIDs(platforms[i], device_type, 0, NULL, &numDevices) ==
+                CL_DEVICE_NOT_FOUND) {
+            continue;
+        }
+        *platform = platforms[i];
+        break;
+    }
     *devs = (cl_device_id *)malloc(sizeof(cl_device_id) * numDevices);
-    CHECK(clGetDeviceIDs(platform, device_type, numDevices, *devs, NULL));
+    CHECK(clGetDeviceIDs(*platform, device_type, numDevices, *devs, NULL));
     return numDevices;
 }
 
@@ -178,7 +188,7 @@ static cl_program createAndBuildProgram(cl_context ctx, const char *source, cl_d
     cl_program program = clCreateProgramWithSource(ctx, 1, &source, &len, &err);
     CHECK_ERR(err);
 
-    err = clBuildProgram(program, 1, &dev, "-O0 -g", NULL, NULL);
+    err = clBuildProgram(program, 1, &dev, "", NULL, NULL);
     if (err == CL_BUILD_PROGRAM_FAILURE) {
         size_t log_size;
         CHECK(clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size));
@@ -310,21 +320,21 @@ static void printKnownVariables(Arg *arguments, int nArgs) {
 
 static void runOpenCL(Arg *arguments, int nArgs, char *source, cl_device_type device_type, int verbose) {
     cl_platform_id *platforms;
+    cl_platform_id platform;
     cl_device_id *devs;
     cl_event exec_event;
 
     cl_uint numPlatforms = getPlatforms(&platforms);
     if (verbose) fprintf(stderr, "Got %d platforms\n", numPlatforms);
-    cl_uint numDevices = getDevices(platforms[0], device_type, &devs);
+    cl_uint numDevices = getDevices(platforms, numPlatforms, &platform, device_type, &devs);
     if (verbose) fprintf(stderr, "Got %d devices\n", numDevices);
 
-    cl_context ctx = getContext(platforms[0], devs[0]);
+    cl_context ctx = getContext(platform, devs[0]);
     if (verbose) fprintf(stderr, "Done creating context\n");
     cl_command_queue cmd = getCommandQueue(ctx, devs[0]);
     if (verbose) fprintf(stderr, "Done creating command queue\n");
     cl_program program = createAndBuildProgram(ctx, source, devs[0]);
     if (verbose) fprintf(stderr, "Done creating program\n");
-    exit(-1);
     cl_kernel kernel = getKernel(program, "run");
     if (verbose) fprintf(stderr, "Done creating kernel\n");
     cl_mem *bufs = constructMemObjects(arguments, nArgs, ctx, cmd, kernel, verbose);

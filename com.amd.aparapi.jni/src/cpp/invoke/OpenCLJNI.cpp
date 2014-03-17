@@ -57,6 +57,7 @@ cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance,
      int deviceSlot){
    cl_device_id devId = ((cl_device_id)JNIHelper::getInstanceField<jlong>(jenv,
          deviceInstance, "deviceId"));
+#ifdef CL_API_SUFFIX__VERSION_1_2
    if (deviceSlot != -1) {
       cl_uint nComputeUnits;
       cl_int err = clGetDeviceInfo(devId, CL_DEVICE_MAX_COMPUTE_UNITS,
@@ -76,6 +77,7 @@ cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance,
       }
       devId = subdevices[deviceSlot];
    }
+#endif
    return devId;
 }
 

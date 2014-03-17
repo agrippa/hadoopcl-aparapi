@@ -146,7 +146,7 @@ cl_program CLHelper::compile(JNIEnv *jenv, cl_context context, size_t deviceCoun
        fprintf(stderr,"clCreateProgramWithSource failed, status=%d\n",*status);
        return NULL;
    }
-   *status = clBuildProgram(program, deviceCount, deviceIds, "-O3", NULL, NULL);
+   *status = clBuildProgram(program, deviceCount, deviceIds, "", NULL, NULL);
    if(*status == CL_BUILD_PROGRAM_FAILURE) {
       getBuildErr(jenv, *deviceIds, program, log);
    } else if(*status != CL_SUCCESS) {

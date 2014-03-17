@@ -643,6 +643,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclWaitForKernel)
     cl_int status;
     cl_int err;
 
+TRACE_LINE
+
     int willRequireRestart;
     hadoopclParameter *d_willRequireRestart = openclDataContext->findHadoopclParam(
         "memWillRequireRestart");
