@@ -148,6 +148,7 @@ import com.amd.aparapi.device.Device;
  */
 public abstract class Kernel implements Cloneable {
 
+   private String kernelFolder = null;
    private boolean enableStrided = false;
    private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
@@ -2899,8 +2900,14 @@ public abstract class Kernel implements Cloneable {
    public abstract Map<Device.TYPE, String> getKernelFile();
 
    public String getKernelFileForDeviceType(Device.TYPE t) {
+       if (kernelFolder == null) {
+           kernelFolder = System.getenv("HADOOPCL_KERNEL_FOLDER");
+           if (kernelFolder == null) {
+               throw new RuntimeException("Environment variable HADOOPCL_KERNEL_FOLDER missing.");
+           }
+       }
        Map<Device.TYPE, String> mapping = getKernelFile();
        if (mapping == null || !mapping.containsKey(t)) return null;
-       return mapping.get(t);
+       return kernelFolder + "/" + mapping.get(t);
    }
 }
