@@ -52,7 +52,7 @@ public class OpenCLGenerator {
           Kernel a = construct.newInstance(new HadoopOpenCLContext(), -1);
             a.setStrided(strided);
             a.setExecutionMode(exec);
-            a.execute(device.createRange(128), 0, true, 0, 0, null);
+            a.execute(device.createRange(128), -1, true, 0, 0, null);
             // a.execute(device.createRange(128), 0, "foo"); // dryRun = true
         } catch (Exception e) {
             System.out.println(e);
