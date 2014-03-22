@@ -59,23 +59,46 @@ cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance,
          deviceInstance, "deviceId"));
 #ifdef CL_API_SUFFIX__VERSION_1_2
    if (deviceSlot != -1) {
-      cl_uint nComputeUnits;
-      cl_int err = clGetDeviceInfo(devId, CL_DEVICE_MAX_COMPUTE_UNITS,
-          sizeof(nComputeUnits), &nComputeUnits, NULL);
+      int i;
+      size_t partitionPropSize;
+      cl_int err = clGetDeviceInfo(devId, CL_DEVICE_PARTITION_PROPERTIES, 0, NULL, &partitionPropSize);
       if (err != CL_SUCCESS) {
-          fprintf(stderr, "Error getting number of compute units for subdevice creation: %d\n", err);
+          fprintf(stderr, "Error checking partition properties: %d\n", err);
           exit(1);
       }
-      cl_device_id *subdevices = (cl_device_id *)malloc(
-          sizeof(cl_device_id) * nComputeUnits);
-      cl_device_partition_property part_prop[3] = { CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)1, 0 };
-      err = clCreateSubDevices(devId, part_prop, nComputeUnits, subdevices,
-          NULL);
+      cl_device_partition_property *supportedProperties = (cl_device_partition_property *)malloc(partitionPropSize);
+      err = clGetDeviceInfo(devId, CL_DEVICE_PARTITION_PROPERTIES, partitionPropSize, supportedProperties, NULL);
       if (err != CL_SUCCESS) {
-          fprintf(stderr, "Error creating subdevices: %d\n", err);
+          fprintf(stderr, "Error fetching supported properties: %d\n", err);
           exit(1);
       }
-      devId = subdevices[deviceSlot];
+
+      int supported = 0;
+      for (i = 0; i < partitionPropSize / sizeof(cl_device_partition_property); i++) {
+          if (supportedProperties[i] == CL_DEVICE_PARTITION_EQUALLY) {
+              supported = 1;
+              break;
+          }
+      }
+      if (supported) {
+          cl_uint nComputeUnits;
+          err = clGetDeviceInfo(devId, CL_DEVICE_MAX_COMPUTE_UNITS,
+              sizeof(nComputeUnits), &nComputeUnits, NULL);
+          if (err != CL_SUCCESS) {
+              fprintf(stderr, "Error getting number of compute units for subdevice creation: %d\n", err);
+              exit(1);
+          }
+          cl_device_id *subdevices = (cl_device_id *)malloc(
+              sizeof(cl_device_id) * nComputeUnits);
+          cl_device_partition_property part_prop[3] = { CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)1, 0 };
+          err = clCreateSubDevices(devId, part_prop, nComputeUnits, subdevices,
+              NULL);
+          if (err != CL_SUCCESS) {
+              fprintf(stderr, "Error creating subdevices: %d\n", err);
+              exit(1);
+          }
+          devId = subdevices[deviceSlot];
+      }
    }
 #endif
    return devId;

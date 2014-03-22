@@ -971,7 +971,6 @@ TRACE_LINE
          pthread_mutex_unlock(&openclContext->execLock);
          pthread_mutex_unlock(&programContext->lock);
 
-         // fprintf(stderr, "kernel in-progress on datactx %p\n", jniContext->datactx);
 TRACE_LINE
 #ifdef TRACE
          clWaitForEvents(1, &jniContext->exec_event);
