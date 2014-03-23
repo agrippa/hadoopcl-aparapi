@@ -1300,7 +1300,7 @@ public class KernelRunner extends KernelRunnerJNI {
                                 entryPointCopy,
                                 openCLDevice.getType() == Device.TYPE.GPU,
                                 enableStrided, hasFP64Support(),
-                                hasAMDFP64Support());
+                                hasAMDFP64Support(), openCLDevice.getType() == Device.TYPE.GPU && openCLDevice.isAmd());
                         kernelCache.put(kernel.checkTaskType(),
                                 new KernelAndArgLines(openCL, null));
                     }

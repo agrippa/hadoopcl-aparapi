@@ -84,11 +84,14 @@ public abstract class KernelWriter extends BlockWriter{
 
    private final boolean amdFp64Support;
    private final boolean khrFp64Support;
+   private final boolean useCustomAtomicAdd;
 
-   public KernelWriter(boolean khrFp64Support, boolean amdFp64Support) {
+   public KernelWriter(boolean khrFp64Support, boolean amdFp64Support,
+           boolean useCustomAtomicAdd) {
        super();
        this.amdFp64Support = amdFp64Support;
        this.khrFp64Support = khrFp64Support;
+       this.useCustomAtomicAdd = useCustomAtomicAdd;
    }
 
    public static HadoopTypes types = null;
@@ -686,6 +689,16 @@ public abstract class KernelWriter extends BlockWriter{
       }
       write("}");
       newLine();
+
+      write("int my_atomic_add(volatile __global int *p, int incr) {\n");
+      write("    int oldVal = *p;\n");
+      write("    int newVal;\n");
+      write("    while ((newVal = atomic_cmpxchg(p, oldVal, oldVal + incr)) != oldVal) {\n");
+      write("        oldVal = newVal;\n");
+      write("    }\n");
+      write("    return oldVal;\n");
+      write("}\n");
+
       if(!isMapper) {
           write("int next(This *this) {\n");
           write("   if (this->currentValueIndex == this->currentStartingValueIndex+this->currentNumValues-1) return 0;\n");
@@ -997,7 +1010,11 @@ public abstract class KernelWriter extends BlockWriter{
              String[] argTokens = arguments.split(",");
 
              if(outputValType.equals("svec") || outputValType.equals("bsvec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1019,7 +1036,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   }\n");
                  write("}\n\n");
              } else if (outputValType.equals("ivec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1039,7 +1060,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   }\n");
                  write("}\n\n");
              } else if(outputValType.equals("fsvec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1065,7 +1090,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   int index;\n");
                  write("   int pastWrites = this->nWrites[this->iter]++;\n");
                  write("   if (this->outputsPerInput == -2) {\n");
-                 write("      index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("      if (index >= this->outputLength) {\n");
                  write("         this->nWrites[this->iter] = -1;\n");
                  write("         return 0;\n");
@@ -1114,7 +1143,11 @@ public abstract class KernelWriter extends BlockWriter{
              String[] argTokens = arguments.split(",");
 
              if(outputValType.equals("svec") || outputValType.equals("bsvec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1135,7 +1168,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   }\n");
                  write("}\n\n");
              } else if (outputValType.equals("ivec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1155,7 +1192,11 @@ public abstract class KernelWriter extends BlockWriter{
                  write("   }\n");
                  write("}\n\n");
              } else if(outputValType.equals("fsvec")) {
-                 write("   int index = atomic_add(this->memIncr, 1);\n");
+                 if (useCustomAtomicAdd) {
+                     write("   int index = my_atomic_add(this->memIncr, 1);\n");
+                 } else {
+                     write("   int index = atomic_add(this->memIncr, 1);\n");
+                 }
                  write("   if (index >= this->outputLength) {\n");
                  write("      this->nWrites[this->iter] = -1;\n");
                  write("      return 0;\n");
@@ -1385,7 +1426,11 @@ public abstract class KernelWriter extends BlockWriter{
              write("}\n\n");
          } else if(isAllocInt) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxIntIncr, len + 3);\n");
+             if (this.useCustomAtomicAdd) {
+                 write("   int offset = my_atomic_add(this->memAuxIntIncr, len + 3);\n");
+             } else {
+                 write("   int offset = atomic_add(this->memAuxIntIncr, len + 3);\n");
+             }
              write("   if (offset + len + 3 > this->outputAuxIntLength) {\n");
              write("       int prev = -1;\n");
              write("       int curr = this->tailOfFreeInt;\n");
@@ -1427,7 +1472,11 @@ public abstract class KernelWriter extends BlockWriter{
               * leaves space for an extra int)
               */
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxDoubleIncr, (len + 2));\n");
+             if (this.useCustomAtomicAdd) {
+                 write("   int offset = my_atomic_add(this->memAuxDoubleIncr, len + 2);\n");
+             } else {
+                 write("   int offset = atomic_add(this->memAuxDoubleIncr, (len + 2));\n");
+             }
              write("   if (offset + (len + 2) > this->outputAuxDoubleLength) {\n");
              write("      int prev = -1;\n");
              write("      int curr = this->tailOfFreeDouble;\n");
@@ -1463,7 +1512,11 @@ public abstract class KernelWriter extends BlockWriter{
              write("}\n\n");
          } else if (isAllocFloat) {
              write("\n{\n");
-             write("   int offset = atomic_add(this->memAuxFloatIncr, (len + 3));\n");
+             if (this.useCustomAtomicAdd) {
+                 write("   int offset = my_atomic_add(this->memAuxFloatIncr, len + 3);\n");
+             } else {
+                 write("   int offset = atomic_add(this->memAuxFloatIncr, (len + 3));\n");
+             }
              write("   if (offset + (len + 3) > this->outputAuxFloatLength) {\n");
              write("      int prev = -1;\n");
              write("      int curr = this->tailOfFreeFloat;\n");
@@ -2181,8 +2234,8 @@ public abstract class KernelWriter extends BlockWriter{
    public static class OpenCLKernelWriter extends KernelWriter {
        private final StringList openCLStringBuilder;
 
-       public OpenCLKernelWriter(boolean khrFp64Support, boolean amdFp64Support) {
-           super(khrFp64Support, amdFp64Support);
+       public OpenCLKernelWriter(boolean khrFp64Support, boolean amdFp64Support, boolean useCustomAtomicAdd) {
+           super(khrFp64Support, amdFp64Support, useCustomAtomicAdd);
            this.openCLStringBuilder = new StringList();
        }
 
@@ -2202,11 +2255,11 @@ public abstract class KernelWriter extends BlockWriter{
 
    public static String writeToString(Entrypoint _entrypoint,
            Entrypoint _entrypointcopy, boolean isGPU, boolean enableStrided,
-           boolean khrFp64Support, boolean amdFp64Support)
+           boolean khrFp64Support, boolean amdFp64Support, boolean useCustomAtomicAdd)
                throws CodeGenException {
 
       final OpenCLKernelWriter tmpOpenCLWriter = new OpenCLKernelWriter(
-              khrFp64Support, amdFp64Support);
+              khrFp64Support, amdFp64Support, useCustomAtomicAdd);
 
       final boolean VERBOSE = false;
       try {
@@ -2324,7 +2377,7 @@ public abstract class KernelWriter extends BlockWriter{
       }
 
       final OpenCLKernelWriter openCLWriter = new OpenCLKernelWriter(
-              khrFp64Support, amdFp64Support);
+              khrFp64Support, amdFp64Support, useCustomAtomicAdd);
       openCLWriter.setAllVars(allVars);
       openCLWriter.setAliases(aliases);
       openCLWriter.setMethodArgs(methodArgs);
