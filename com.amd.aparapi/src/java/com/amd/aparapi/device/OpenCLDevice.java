@@ -44,6 +44,8 @@ public class OpenCLDevice extends Device{
 
    private long maxMemAllocSize;
 
+   private int isAmd;
+
    /**
     * Minimal constructor
     * 
@@ -72,6 +74,14 @@ public class OpenCLDevice extends Device{
 
    public OpenCLPlatform getOpenCLPlatform() {
       return platform;
+   }
+
+   public boolean isAmd() {
+       return isAmd > 0;
+   }
+
+   public void setIsAmd(int s) {
+       isAmd = s;
    }
 
    public int getMaxComputeUnits() {

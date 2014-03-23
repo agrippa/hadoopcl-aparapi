@@ -554,7 +554,20 @@ JNI_JAVA(jobject, OpenCLJNI, getPlatforms)
                         //fprintf(stderr, "device[%d] CL_DEVICE_MAX_COMPUTE_UNITS = %u\n", deviceIdx, maxComputeUnits);
                         JNIHelper::callVoid(jenv, deviceInstance, "setMaxComputeUnits", ArgsVoidReturn(IntArg),  maxComputeUnits);
 
-
+                        char *vendor;
+                        size_t vendorLength;
+                        status = clGetDeviceInfo(deviceIds[deviceIdx],
+                            CL_DEVICE_VENDOR, 0, NULL, &vendorLength);
+                        vendor = (char *)malloc(vendorLength + 1);
+                        clGetDeviceInfo(deviceIds[deviceIdx],
+                            CL_DEVICE_VENDOR, vendorLength, vendor, NULL);
+                        vendor[vendorLength] = '\0';
+                        if (strstr(vendor, "AMD") != NULL || strstr(vendor, "Micro")) {
+                            JNIHelper::callVoid(jenv, deviceInstance, "setIsAmd", ArgsVoidReturn(IntArg), 1);
+                        } else {
+                            JNIHelper::callVoid(jenv, deviceInstance, "setIsAmd", ArgsVoidReturn(IntArg), 0);
+                        }
+                        free(vendor);
 
                         cl_uint maxWorkItemDimensions;
                         status = clGetDeviceInfo(deviceIds[deviceIdx], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,  sizeof(maxWorkItemDimensions), &maxWorkItemDimensions, NULL);
