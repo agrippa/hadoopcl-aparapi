@@ -824,6 +824,9 @@ TRACE_LINE
              } else {
                  if (relaunch == 0) {
                      arg->syncSizeInBytes(jenv);
+                     if (arg->arrayBuffer->javaArray != NULL) {
+                        jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
+                     }
                      arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                              arg->javaArg, KernelArg::javaArrayFieldID);
                  }
@@ -1052,6 +1055,9 @@ TRACE_LINE
              KernelArg *arg = jniContext->args[argidx];
              if (arg->isArray() && arg->dir != IN && arg->dir != GLOBAL) {
                  arg->syncSizeInBytes(jenv);
+                 if (arg->arrayBuffer->javaArray != NULL) {
+                    jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
+                 }
                  arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                          arg->javaArg, KernelArg::javaArrayFieldID);
                  // fprintf(stderr, "name = %s javaArray = %p, javaArrayFieldID = %p, javaArg = %p\n", arg->name, arg->arrayBuffer->javaArray, KernelArg::javaArrayFieldID, arg->javaArg);

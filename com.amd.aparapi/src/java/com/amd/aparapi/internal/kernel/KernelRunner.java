@@ -920,10 +920,6 @@ public class KernelRunner extends KernelRunnerJNI {
                Object newArrayRef;
                newArrayRef = arg.getField().get(kernel);
 
-               // if (newArrayRef == null) {
-               //    throw new IllegalStateException("Cannot send null refs to kernel, reverting to java");
-               // }
-
                if ((arg.getType() & ARG_OBJ_ARRAY_STRUCT) != 0) {
                   prepareOopConversionBuffer(arg);
                } else {
