@@ -878,8 +878,6 @@ AparapiBuffer* AparapiBuffer::flattenDouble3D(JNIEnv* env, jobject arg) {
    return new AparapiBuffer((void*)array, (cl_uint*)dims, 3, bitSize, javaBuffer);
 }
 
-
-
 void AparapiBuffer::inflate(JNIEnv* env, KernelArg* arg) {
    javaObject = JNIHelper::getInstanceField<jobject>(env, arg->javaArg, "javaBuffer", ObjectClassArg);
    if(numDims == 2 && arg->isBoolean()) {

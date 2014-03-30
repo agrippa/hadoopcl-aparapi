@@ -54,7 +54,6 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
       }
 
       name = strdup(nameChars);
-      // fprintf(stderr,"Initializing %s\n",name);
       jenv->ReleaseStringUTFChars(nameString, nameChars);
       if (isArray()){
          arrayBuffer = new ArrayBuffer();
@@ -64,9 +63,6 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
    }
 
 cl_int KernelArg::setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose) {
-   if (verbose){
-       fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) arrayBuffer->lengthInBytes);
-   }
    return(clSetKernelArg(programContext->kernel, argPos,
          (int)arrayBuffer->lengthInBytes, NULL));
 }
