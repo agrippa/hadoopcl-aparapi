@@ -34,16 +34,18 @@ public class OpenCLGenerator {
         }
 
         final OpenCLDevice device;
+        final int deviceId;
         if (args[2].equals("gpu") || args[2].equals("g")) {
             exec = Kernel.EXECUTION_MODE.GPU;
-            device = findDevice(findDeviceWithType(Device.TYPE.GPU));
+            deviceId = findDeviceWithType(Device.TYPE.GPU);
         } else if (args[2].equals("cpu") || args[2].equals("c")) {
             exec = Kernel.EXECUTION_MODE.CPU;
-            device = findDevice(findDeviceWithType(Device.TYPE.CPU));
+            deviceId = findDeviceWithType(Device.TYPE.CPU);
         } else {
             System.out.println("Invalid value \""+args[2]+"\" specified for exec mode, must be cpu/c or gpu/g");
             return;
         }
+        device = findDevice(deviceId);
 
         try {
 
@@ -52,7 +54,7 @@ public class OpenCLGenerator {
           Kernel a = construct.newInstance(new HadoopOpenCLContext(), -1);
             a.setStrided(strided);
             a.setExecutionMode(exec);
-            a.execute(device.createRange(128), -1, true, 0, 0, null);
+            a.execute(device.createRange(128), deviceId, -1, true, 0, 0, null);
             // a.execute(device.createRange(128), 0, "foo"); // dryRun = true
         } catch (Exception e) {
             System.out.println(e);
