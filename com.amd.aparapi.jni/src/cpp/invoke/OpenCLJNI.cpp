@@ -49,10 +49,11 @@
 
 #include "com_amd_aparapi_internal_jni_OpenCLJNI.h"
 
-
 jobject OpenCLDevice::getPlatformInstance(JNIEnv *jenv, jobject deviceInstance){ 
-   return(JNIHelper::getInstanceField<jobject>(jenv, deviceInstance, "platform", OpenCLPlatformClassArg ));
-} 
+   return(JNIHelper::getInstanceField<jobject>(jenv, deviceInstance, "platform",
+               OpenCLPlatformClassArg ));
+}
+
 cl_device_id OpenCLDevice::getDeviceId(JNIEnv *jenv, jobject deviceInstance,
      int deviceSlot){
    cl_device_id devId = ((cl_device_id)JNIHelper::getInstanceField<jlong>(jenv,
@@ -297,19 +298,6 @@ void getArg(JNIEnv *jenv, cl_context context, cl_command_queue commandQueue, cl_
    }
 }
 
-JNI_JAVA(jobject, OpenCLJNI, getProfileInfo)
-   (JNIEnv *jenv, jobject jobj, jobject programInstance) {
-   jobject returnList = JNIHelper::createInstance(jenv, ArrayListClass, VoidReturn );
-   ProfileInfo **profileInfoArr = OpenCLProgram::getProfileInfo(jenv, programInstance);
-   if (profileInfoArr != NULL){
-      for (int i=0; profileInfoArr[i] != NULL; i++){
-         jobject writeProfileInfo = profileInfoArr[i]->createProfileInfoInstance(jenv);
-        JNIHelper::callVoid(jenv, returnList, "add", ArgsBooleanReturn(ObjectClassArg), writeProfileInfo);  
-      }
-   }
-   return(returnList);
-}
-
 JNI_JAVA(void, OpenCLJNI, disposeProgram)
    (JNIEnv *jenv, jobject jobj, jobject programInstance) {
       //fprintf(stderr, "dispose program \n");
@@ -319,14 +307,6 @@ JNI_JAVA(void, OpenCLJNI, disposeProgram)
       clReleaseCommandQueue(commandQueue);
       cl_context context = OpenCLProgram::getContext(jenv, programInstance);
       clReleaseContext(context);
-   ProfileInfo **profileInfoArr = OpenCLProgram::getProfileInfo(jenv, programInstance);
-   if (profileInfoArr != NULL){
-      for (int i=0; profileInfoArr[i] != NULL; i++){
-          //fprintf(stdout, "removed prev profile %d\n", i);
-          delete profileInfoArr[i];
-      }
-      delete[] profileInfoArr;
-   }
 }
 
 JNI_JAVA(void, OpenCLJNI, disposeKernel)
@@ -356,117 +336,6 @@ JNI_JAVA(void, OpenCLJNI, disposeKernel)
          }
       }
       clReleaseKernel(kernel);
-   }
-
-extern cl_int profile(ProfileInfo *profileInfo, cl_event *event, jint type, char* name, cl_ulong profileBaseTime );
-
-/**
- */
-JNI_JAVA(void, OpenCLJNI, invoke)
-   (JNIEnv *jenv, jobject jobj, jobject kernelInstance, jobjectArray argArray) {
-      cl_kernel kernel = OpenCLKernel::getKernel(jenv, kernelInstance);
-      jobject programInstance = OpenCLKernel::getProgramInstance(jenv, kernelInstance);
-      jobjectArray argDefsArray = OpenCLKernel::getArgsArray(jenv, kernelInstance);
-
-      cl_context context = OpenCLProgram::getContext(jenv, programInstance);
-      cl_command_queue commandQueue = OpenCLProgram::getCommandQueue(jenv, programInstance);
-
-
-      // walk through the args creating buffers when needed 
-      // we use the bitfields to determine which is which
-      // note that argArray[0] is the range then 1,2,3 etc matches argDefsArray[0,1,2]
-      jsize argc = jenv->GetArrayLength(argDefsArray);
-      if (0) fprintf(stderr, "argc = %d\n", argc);
-      jint reads = 0;
-      jint writes = 0;
-      for (jsize argIndex = 0; argIndex < argc; argIndex++){
-         jobject argDef = jenv->GetObjectArrayElement(argDefsArray, argIndex);
-         jlong argBits = OpenCLArgDescriptor::getBits(jenv, argDef);
-         if (argisset(argBits, READONLY)){
-            reads++;
-         }
-         if (argisset(argBits, READWRITE)){
-            reads++;
-            writes++;
-         }
-         if (argisset(argBits, WRITEONLY)){
-            writes++;
-         }
-      }
-
-      if (0) fprintf(stderr, "reads=%d writes=%d\n", reads, writes);
-      cl_event * events = new cl_event[reads+writes+1];
-
-      jint eventc = 0;
-
-      for (jsize argIndex = 0; argIndex < argc; argIndex++){
-         jobject argDef = jenv->GetObjectArrayElement(argDefsArray, argIndex);
-         jobject arg = jenv->GetObjectArrayElement(argArray, argIndex+1);
-         putArg(jenv, context, kernel, commandQueue, events, &eventc, argIndex, argDef, arg);
-      }
-
-      jobject rangeInstance = jenv->GetObjectArrayElement(argArray, 0);
-      jint dims = OpenCLRange::getDims(jenv, rangeInstance);
-
-      size_t *offsets = new size_t[dims];
-      size_t *globalDims = new size_t[dims];
-      size_t *localDims = new size_t[dims];
-      OpenCLRange::fill(jenv, rangeInstance, dims, offsets, globalDims, localDims);
-
-      cl_int status = CL_SUCCESS;
-
-      if(0) fprintf(stderr, "Exec %d\n", eventc);
-      status = clEnqueueNDRangeKernel(
-            commandQueue,
-            kernel,
-            dims,
-            offsets,
-            globalDims,
-            localDims,
-            eventc, // count Of events to wait for
-            eventc==0?NULL:events, // address of events to wait for
-            &events[eventc]);
-      if (status != CL_SUCCESS) {
-         fprintf(stderr, "error enqueuing execute %s !\n", CLHelper::errString(status));
-      }else{
-         if (0) fprintf(stderr, "success enqueuing execute eventc= %d !\n", eventc);
-      }
-      eventc++;
-
-      for (jsize argIndex = 0; argIndex < argc; argIndex++){
-         jobject argDef = jenv->GetObjectArrayElement(argDefsArray, argIndex);
-         jobject arg = jenv->GetObjectArrayElement(argArray, argIndex+1);
-         getArg(jenv, context, commandQueue, events, &eventc, argIndex, argDef, arg);
-      }
-      status = clWaitForEvents(eventc, events);
-      ProfileInfo **profileInfoArr = OpenCLProgram::getProfileInfo(jenv, programInstance);
-      if (profileInfoArr != NULL){
-         for (int i=0; profileInfoArr[i] != NULL; i++){
-              //fprintf(stdout, "removed prev profile %d\n", i);
-              delete profileInfoArr[i];
-         }
-         //fprintf(stdout, "removed prev profile list\n");
-         delete[] profileInfoArr;
-      }else{
-         //fprintf(stdout, "prev profile list was NULL\n");
-      }
-      profileInfoArr = NULL;
-  
-      profileInfoArr = new ProfileInfo*[eventc+1]; // add NULL to end!
-      //fprintf(stdout, "allocated a new list %d\n", eventc+1);
-      for (int i=0;i<eventc; i++){
-        profileInfoArr[i] = new ProfileInfo();
-        //fprintf(stdout, "allocated a new ProfileInfo for %d\n", i);
-        int type = (i>(writes+1))?2:((i>writes)?1:0);
-        profile(profileInfoArr[i], &events[i], type, "unknown", 0L);
-        //fprintf(stdout, "type = %d\n", type);
-        clReleaseEvent(events[i]);
-      }
-      profileInfoArr[eventc]=NULL;
-      OpenCLProgram::setProfileInfo(jenv, programInstance, profileInfoArr);
-      if (status != CL_SUCCESS) {
-         fprintf(stderr, "error waiting for events !\n");
-      }
    }
 
 JNI_JAVA(jobject, OpenCLJNI, getPlatforms)

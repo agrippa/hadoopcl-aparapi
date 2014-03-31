@@ -50,7 +50,7 @@ ArrayBuffer::ArrayBuffer():
    }
 
 void ArrayBuffer::unpinAbort(JNIEnv *jenv){
-   jenv->ReleasePrimitiveArrayCritical((jarray)javaArray, addr,JNI_ABORT);
+   jenv->ReleasePrimitiveArrayCritical((jarray)javaArray, addr, JNI_ABORT);
    isPinned = JNI_FALSE;
 }
 void ArrayBuffer::unpinCommit(JNIEnv *jenv){
@@ -58,8 +58,10 @@ void ArrayBuffer::unpinCommit(JNIEnv *jenv){
    isPinned = JNI_FALSE;
 }
 void ArrayBuffer::pin(JNIEnv *jenv){
-   void *ptr = addr;
-   // fprintf(stderr, "javaArray = %p\n", javaArray);
-   addr = jenv->GetPrimitiveArrayCritical((jarray)javaArray,&isCopy);
+   addr = jenv->GetPrimitiveArrayCritical((jarray)javaArray, &isCopy);
+   if (addr == NULL) {
+       fprintf(stderr, "Failed pinning");
+       exit(1);
+   }
    isPinned = JNI_TRUE;
 }

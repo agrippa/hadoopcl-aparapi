@@ -44,7 +44,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
-import com.amd.aparapi.Config;
 import com.amd.aparapi.internal.exception.CodeGenException;
 import com.amd.aparapi.internal.instruction.BranchSet;
 import com.amd.aparapi.internal.instruction.Instruction;
@@ -224,17 +223,11 @@ public abstract class BlockWriter{
             case DCMPG:
             case FCMPL:
             case DCMPL:
-               if (Config.verboseComparitor) {
-                  write("/* bytecode=" + comparisonByteCode.getName() + " invert=" + _invert + "*/");
-               }
                writeInstruction(comparison.getFirstChild());
                write(comparisonOperator);
                writeInstruction(comparison.getLastChild());
                break;
             default:
-               if (Config.verboseComparitor) {
-                  write("/* default bytecode=" + comparisonByteCode.getName() + " invert=" + _invert + "*/");
-               }
                writeInstruction(comparison);
                write(comparisonOperator);
                write("0");

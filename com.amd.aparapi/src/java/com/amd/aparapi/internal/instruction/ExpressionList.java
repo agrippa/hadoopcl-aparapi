@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.amd.aparapi.Config;
 import com.amd.aparapi.internal.exception.ClassParseException;
 import com.amd.aparapi.internal.instruction.InstructionSet.AssignToLocalVariable;
 import com.amd.aparapi.internal.instruction.InstructionSet.Branch;
@@ -67,8 +66,6 @@ import com.amd.aparapi.internal.model.ClassModel.LocalVariableInfo;
  *
  */
 public class ExpressionList{
-
-   private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private final MethodModel methodModel;
 
@@ -202,7 +199,6 @@ public class ExpressionList{
       }
 
       tail = _instruction;
-      logger.log(Level.FINE, "After PUSH of " + _instruction + " tail=" + tail);
       return (tail);
    }
 
@@ -418,18 +414,9 @@ public class ExpressionList{
       boolean handled = false;
       try {
 
-         if (logger.isLoggable(Level.FINE)) {
-            System.out.println("foldComposite: curr = " + _instruction);
-            System.out.println(dumpDiagram(_instruction));
-            // System.out.println(dumpDiagram(null, _instruction));
-         }
          if (_instruction.isForwardBranchTarget() || ((tail != null) && tail.isBranch() && tail.asBranch().isReverseConditional())) {
             while (_instruction.isForwardBranchTarget()
                   || ((tail != null) && tail.isBranch() && tail.asBranch().isReverseConditional())) {
-               if (logger.isLoggable(Level.FINE)) {
-                  System.out.println(dumpDiagram(_instruction));
-
-               }
                handled = false;
 
                if ((tail != null) && tail.isBranch() && tail.asBranch().isReverseConditional()) {
@@ -627,15 +614,6 @@ public class ExpressionList{
                      if (doesNotContainCompositeOrBranch(branchSet.getLast().getNextExpr(), reverseGoto)) {
                         Instruction loopTop = reverseGoto.getTarget().getRootExpr().getPrevExpr();
 
-                        if (logger.isLoggable(Level.FINEST)) {
-                           Instruction next = branchSet.getFirst().getNextExpr();
-                           System.out.println("### for/while candidate exprs: " + branchSet.getFirst());
-                           while (next != null) {
-                              System.out.println("### expr = " + next);
-                              next = next.getNextExpr();
-                           }
-                        }
-
                         if (loopTop instanceof AssignToLocalVariable) {
                            final LocalVariableInfo localVariableInfo = ((AssignToLocalVariable) loopTop).getLocalVariableInfo();
                            if ((localVariableInfo.getStart() == loopTop.getNextExpr().getStartPC())
@@ -723,15 +701,9 @@ public class ExpressionList{
                                        .getForwardConditionalBranches().getLast().getOrCreateBranchSet();
                                  if (doesNotContainCompositeOrBranch(elseBranchSet.getLast().getNextExpr(), elseGoto)) {
                                     if (doesNotContainCompositeOrBranch(afterElseGoto.getNextExpr(), thisGoto)) {
-                                       if (logger.isLoggable(Level.FINE)) {
-                                          System.out.println(dumpDiagram(_instruction));
-                                       }
+                                       
                                        elseBranchSet.unhook();
                                        elseGoto.unhook();
-                                       if (logger.isLoggable(Level.FINE)) {
-                                          System.out.println(dumpDiagram(_instruction));
-
-                                       }
 
                                        final CompositeInstruction composite = CompositeInstruction.create(
                                              ByteCode.COMPOSITE_IF_ELSE, methodModel, elseBranchSet.getFirst(), thisGoto,
@@ -787,19 +759,15 @@ public class ExpressionList{
 
             for (final LocalVariableInfo localVariableInfo : localVariableTable) {
                if (localVariableInfo.getEnd() == _instruction.getThisPC()) {
-                  logger.fine(localVariableInfo.getVariableName() + "  scope  " + localVariableInfo.getStart() + " ,"
-                        + localVariableInfo.getEnd());
                   if (localVariableInfo.getStart() < startPc) {
                      startPc = localVariableInfo.getStart();
                   }
                }
             }
             if (startPc < Short.MAX_VALUE) {
-               logger.fine("Scope block from " + startPc + " to  " + (tail.getThisPC() + tail.getLength()));
                for (Instruction i = head; i != null; i = i.getNextPC()) {
                   if (i.getThisPC() == startPc) {
                      final Instruction startInstruction = i.getRootExpr().getPrevExpr();
-                     logger.fine("Start = " + startInstruction);
 
                      if(startInstruction == null) continue;
                      addAsComposites(ByteCode.COMPOSITE_ARBITRARY_SCOPE, startInstruction.getPrevExpr(), null);
@@ -810,10 +778,6 @@ public class ExpressionList{
 
             }
 
-         }
-
-         if (Config.instructionListener != null) {
-            Config.instructionListener.showAndTell("after folding", head, _instruction);
          }
 
       } catch (final ClassParseException _classParseException) {

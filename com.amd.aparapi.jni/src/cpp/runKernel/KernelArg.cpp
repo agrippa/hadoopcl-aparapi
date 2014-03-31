@@ -34,7 +34,7 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
       type = jenv->GetIntField(argObj, typeFieldID);
       jstring nameString  = (jstring)jenv->GetObjectField(argObj, nameFieldID);
       const char *nameChars = jenv->GetStringUTFChars(nameString, NULL);
-      if (strncmp(nameChars, "globals", 7) == 0) {
+      if (strncmp(nameChars, "global", 6) == 0) {
           dir = GLOBAL;
       } else if (strncmp(nameChars, "input", 5) == 0) {
           dir = IN;
@@ -57,22 +57,12 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
       jenv->ReleaseStringUTFChars(nameString, nameChars);
       if (isArray()){
          arrayBuffer = new ArrayBuffer();
-      } else if(isAparapiBuffer()) {
-         aparapiBuffer = AparapiBuffer::flatten(jenv, argObj, type);
       }
    }
 
 cl_int KernelArg::setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose) {
    return(clSetKernelArg(programContext->kernel, argPos,
          (int)arrayBuffer->lengthInBytes, NULL));
-}
-
-cl_int KernelArg::setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose) {
-   if (verbose){
-       fprintf(stderr, "ISLOCAL, clSetKernelArg(jniContext->kernel, %d, %d, NULL);\n", argIdx, (int) aparapiBuffer->lengthInBytes);
-   }
-   return(clSetKernelArg(programContext->kernel, argPos,
-         (int)aparapiBuffer->lengthInBytes, NULL));
 }
 
 const char* KernelArg::getTypeName() {
@@ -151,7 +141,7 @@ void KernelArg::getStaticPrimitiveValue(JNIEnv *jenv, jdouble* value) {
    *value = jenv->GetStaticDoubleField(jniContext->kernelClass, fieldID);
 }
 
-cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached){
+cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached){
    cl_int status = CL_SUCCESS;
 
    if (useCached) {
@@ -160,7 +150,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
    } else {
        if (isFloat()) {
            jfloat f;
-           getPrimitive(jenv, argIdx, argPos, verbose, &f);
+           getPrimitive(jenv, argIdx, argPos, &f);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(f));
            cachedValueLength = sizeof(f);
@@ -170,7 +160,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
        }
        else if (isInt()) {
            jint i;
-           getPrimitive(jenv, argIdx, argPos, verbose, &i);
+           getPrimitive(jenv, argIdx, argPos, &i);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(i));
            cachedValueLength = sizeof(i);
@@ -180,7 +170,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
        }
        else if (isBoolean()) {
            jboolean z;
-           getPrimitive(jenv, argIdx, argPos, verbose, &z);
+           getPrimitive(jenv, argIdx, argPos, &z);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(z));
            cachedValueLength = sizeof(z);
@@ -190,7 +180,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
        }
        else if (isByte()) {
            jbyte b;
-           getPrimitive(jenv, argIdx, argPos, verbose, &b);
+           getPrimitive(jenv, argIdx, argPos, &b);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(b));
            cachedValueLength = sizeof(b);
@@ -200,7 +190,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
        }
        else if (isLong()) {
            jlong l;
-           getPrimitive(jenv, argIdx, argPos, verbose, &l);
+           getPrimitive(jenv, argIdx, argPos, &l);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(l));
            cachedValueLength = sizeof(l);
@@ -210,7 +200,7 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool ver
        }
        else if (isDouble()) {
            jdouble d;
-           getPrimitive(jenv, argIdx, argPos, verbose, &d);
+           getPrimitive(jenv, argIdx, argPos, &d);
 
            cachedValue = (void *)realloc(cachedValue, sizeof(d));
            cachedValueLength = sizeof(d);
@@ -289,32 +279,32 @@ void KernelArg::dumpData(FILE *fp, int relaunch, JNIEnv *jenv,
         } else {
             if (isFloat()) {
                 jfloat f;
-                getPrimitive(jenv, 0, 0, 0, &f);
+                getPrimitive(jenv, 0, 0, &f);
                 reliableWrite(&f, sizeof(float), 1, fp);
             }
             else if (isInt()) {
                 jint i;
-                getPrimitive(jenv, 0, 0, 0, &i);
+                getPrimitive(jenv, 0, 0, &i);
                 reliableWrite(&i, sizeof(int), 1, fp);
             }
             else if (isBoolean()) {
                 jboolean z;
-                getPrimitive(jenv, 0, 0, 0, &z);
+                getPrimitive(jenv, 0, 0, &z);
                 reliableWrite(&z, sizeof(z), 1, fp);
             }
             else if (isByte()) {
                 jbyte b;
-                getPrimitive(jenv, 0, 0, 0, &b);
+                getPrimitive(jenv, 0, 0, &b);
                 reliableWrite(&b, sizeof(b), 1, fp);
             }
             else if (isLong()) {
                 jlong l;
-                getPrimitive(jenv, 0, 0, 0, &l);
+                getPrimitive(jenv, 0, 0, &l);
                 reliableWrite(&l, sizeof(l), 1, fp);
             }
             else if (isDouble()) {
                 jdouble d;
-                getPrimitive(jenv, 0, 0, 0, &d);
+                getPrimitive(jenv, 0, 0, &d);
                 reliableWrite(&d, sizeof(d), 1, fp);
             }
         }

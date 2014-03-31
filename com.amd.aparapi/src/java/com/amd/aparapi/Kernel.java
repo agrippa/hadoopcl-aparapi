@@ -258,14 +258,6 @@ public abstract class Kernel implements Cloneable {
       boolean atomic64() default false;
    }
 
-   public abstract class Entry {
-      public abstract void run();
-
-      public Kernel execute(Range _range, final boolean isRelaunch, int taskId, int attemptId, String label) {
-         return (Kernel.this.execute("foo", _range, 1, isRelaunch, false, taskId, attemptId, label));
-      }
-   }
-
    /**
     * The <i>execution mode</i> ENUM enumerates the possible modes of executing a kernel. 
     * One can request a mode of execution using the values below, and query a kernel after it first executes to 
@@ -800,27 +792,9 @@ public abstract class Kernel implements Cloneable {
     */
    @OpenCLDelegate
    protected final int getLocalSize() {
-      return kernelState.getRange().getLocalSize(0);
+      return kernelState.getRange().getLocalSize();
    }
 
-   @OpenCLDelegate
-   protected final int getLocalSize(int _dim) {
-      return kernelState.getRange().getLocalSize(_dim);
-   }
-
-   /*
-      @OpenCLDelegate protected final int getLocalWidth() {
-         return (range.getLocalSize(0));
-      }
-
-      @OpenCLDelegate protected final int getLocalHeight() {
-         return (range.getLocalSize(1));
-      }
-
-      @OpenCLDelegate protected final int getLocalDepth() {
-         return (range.getLocalSize(2));
-      }
-   */
    /**
     * Determine the value that was passed to <code>Kernel.execute(int globalSize)</code> method.
     * 
@@ -833,27 +807,9 @@ public abstract class Kernel implements Cloneable {
     */
    @OpenCLDelegate
    protected final int getGlobalSize() {
-      return kernelState.getRange().getGlobalSize(0);
+      return kernelState.getRange().getGlobalSize();
    }
 
-   @OpenCLDelegate
-   protected final int getGlobalSize(int _dim) {
-      return kernelState.getRange().getGlobalSize(_dim);
-   }
-
-   /*
-      @OpenCLDelegate protected final int getGlobalWidth() {
-         return (range.getGlobalSize(0));
-      }
-
-      @OpenCLDelegate protected final int getGlobalHeight() {
-         return (range.getGlobalSize(1));
-      }
-
-      @OpenCLDelegate protected final int getGlobalDepth() {
-         return (range.getGlobalSize(2));
-      }
-   */
    /**
     * Determine the number of groups that will be used to execute a kernel
     * <p>
@@ -870,27 +826,9 @@ public abstract class Kernel implements Cloneable {
     */
    @OpenCLDelegate
    protected final int getNumGroups() {
-      return kernelState.getRange().getNumGroups(0);
+      return kernelState.getRange().getNumGroups();
    }
 
-   @OpenCLDelegate
-   protected final int getNumGroups(int _dim) {
-      return kernelState.getRange().getNumGroups(_dim);
-   }
-
-   /*
-      @OpenCLDelegate protected final int getNumGroupsWidth() {
-         return (range.getGroups(0));
-      }
-
-      @OpenCLDelegate protected final int getNumGroupsHeight() {
-         return (range.getGroups(1));
-      }
-
-      @OpenCLDelegate protected final int getNumGroupsDepth() {
-         return (range.getGroups(2));
-      }
-   */
    /**
     * The entry point of a kernel. 
     *  
@@ -1912,51 +1850,32 @@ public abstract class Kernel implements Cloneable {
     * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Range _range, int deviceSlot, String label) {
-      return (execute(_range, deviceSlot, 1, false, false, 0, 0, label));
+   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, String label) {
+      return (execute(_range, deviceId, deviceSlot, 1, false, false, 0, 0, label));
    }
 
-   public synchronized Kernel reExecute(Range _range, int deviceSlot, String label) {
-      return (execute(_range, deviceSlot, 1, true, false, 0, 0, label));
+   public synchronized Kernel reExecute(Range _range, int deviceId, int deviceSlot, String label) {
+      return (execute(_range, deviceId, deviceSlot, 1, true, false, 0, 0, label));
    }
 
-   public synchronized int waitFor() {
-       return kernelRunner.waitForOpenCL();
+   public synchronized int readFromOpenCL() {
+       return kernelRunner.readFromOpenCL();
    }
 
    public synchronized int waitForCompletion() {
       return kernelRunner.waitForKernelCompletion();
    }
 
-   public synchronized boolean isComplete() {
-       return kernelRunner.isOpenCLComplete();
-   }
-
-   public synchronized void doEntrypointInit(Device dev, int deviceSlot, int taskId, int attemptId) {
+   public synchronized void doEntrypointInit(Device dev, int deviceId, int deviceSlot, int taskId, int attemptId) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
       }
-      kernelRunner.doEntrypointInit("run", this.enableStrided, dev, deviceSlot, false,
+      kernelRunner.doEntrypointInit("run", this.enableStrided, dev, deviceId, deviceSlot, false,
           taskId, attemptId);
    }
 
-   /**
-    * Start execution of <code>_range</code> kernels.
-    * <p>
-    * When <code>kernel.execute(_range)</code> is invoked, Aparapi will schedule the execution of <code>_range</code> kernels. If the execution mode is GPU then 
-    * the kernels will execute as OpenCL code on the GPU device. Otherwise, if the mode is JTP, the kernels will execute as a pool of Java threads on the CPU. 
-    * <p>
-    * Since adding the new <code>Range class</code> this method offers backward compatibility and merely defers to <code> return (execute(Range.create(_range), 1));</code>.
-    * @param _range The number of Kernels that we would like to initiate.
-    * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
-    * 
-    */
-   public synchronized Kernel execute(int _range, int deviceSlot) {
-      return (execute(Range.create(_range), deviceSlot, 1, false, false, 0, 0, null));
-   }
-
-   public synchronized Kernel execute(Range _range, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label) {
-      return (execute(_range, deviceSlot, 1, false, dryRun, taskId, attemptId, label));
+   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label) {
+      return (execute(_range, deviceId, deviceSlot, 1, false, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -1970,28 +1889,12 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Range _range, int deviceSlot, int _passes,
+   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, int _passes,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
        final int attemptId, String label) {
-      return (execute("run", _range, deviceSlot, _passes, isRelaunch, dryRun, taskId, attemptId, label));
+      return (execute("run", _range, deviceId, deviceSlot, _passes, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
-   /**
-    * Start execution of <code>_passes</code> iterations over the <code>_range</code> of kernels.
-    * <p>
-    * When <code>kernel.execute(_range)</code> is invoked, Aparapi will schedule the execution of <code>_range</code> kernels. If the execution mode is GPU then 
-    * the kernels will execute as OpenCL code on the GPU device. Otherwise, if the mode is JTP, the kernels will execute as a pool of Java threads on the CPU. 
-    * <p>
-    * Since adding the new <code>Range class</code> this method offers backward compatibility and merely defers to <code> return (execute(Range.create(_range), 1));</code>.
-    * @param _range The number of Kernels that we would like to initiate.
-    * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
-    * 
-    */
-   public synchronized Kernel execute(int _range, int deviceSlot, int _passes,
-       final boolean isRelaunch, final boolean dryRun, int taskId,
-       int attemptId, String label) {
-      return (execute(Range.create(_range), deviceSlot, _passes, isRelaunch, dryRun, taskId, attemptId, label));
-   }
 
    /**
     * Start execution of <code>globalSize</code> kernels for the given entrypoint.
@@ -2004,29 +1907,10 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Entry _entry, Range _range, final boolean isRelaunch, int taskId, int attemptId) {
-      if (kernelRunner == null) {
-         kernelRunner = new KernelRunner(this);
-      }
-
-      return (kernelRunner.execute(_entry, _range, 1, isRelaunch));
-   }
-
-   /**
-    * Start execution of <code>globalSize</code> kernels for the given entrypoint.
-    * <p>
-    * When <code>kernel.execute("entrypoint", globalSize)</code> is invoked, Aparapi will schedule the execution of <code>globalSize</code> kernels. If the execution mode is GPU then 
-    * the kernels will execute as OpenCL code on the GPU device. Otherwise, if the mode is JTP, the kernels will execute as a pool of Java threads on the CPU. 
-    * <p>
-    * @param _entrypoint is the name of the method we wish to use as the entrypoint to the kernel
-    * @param _globalSize The number of Kernels that we would like to initiate.
-    * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
-    * 
-    */
-   public synchronized Kernel execute(String _entrypoint, Range _range, int deviceSlot,
+   public synchronized Kernel execute(String _entrypoint, Range _range, int deviceId, int deviceSlot,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
        final int attemptId, String label) {
-      return (execute(_entrypoint, _range, deviceSlot, 1, isRelaunch, dryRun, taskId, attemptId, label));
+      return (execute(_entrypoint, _range, deviceId, deviceSlot, 1, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
    /**
@@ -2040,14 +1924,14 @@ public abstract class Kernel implements Cloneable {
     * @return The Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(String _entrypoint, Range _range, int deviceSlot,
+   public synchronized Kernel execute(String _entrypoint, Range _range, int deviceId, int deviceSlot,
        int _passes, final boolean isRelaunch, final boolean dryRun,
        final int taskId, final int attemptId, String label) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
 
       }
-      return (kernelRunner.execute(_entrypoint, _range, deviceSlot, _passes,
+      return (kernelRunner.execute(_entrypoint, _range, deviceId, deviceSlot, _passes,
             enableStrided, isRelaunch, dryRun, taskId, attemptId, label));
    }
 
@@ -2840,18 +2724,6 @@ public abstract class Kernel implements Cloneable {
       return (this);
    }
 
-   /**
-    * Get the profiling information from the last successful call to Kernel.execute().
-    * @return A list of ProfileInfo records
-    */
-   public List<ProfileInfo> getProfileInfo() {
-      if (kernelRunner == null) {
-         kernelRunner = new KernelRunner(this);
-      }
-
-      return (kernelRunner.getProfileInfo());
-   }
-
    private final LinkedHashSet<EXECUTION_MODE> executionModes = EXECUTION_MODE.getDefaultExecutionModes();
 
    private Iterator<EXECUTION_MODE> currentMode = executionModes.iterator();
@@ -2883,18 +2755,6 @@ public abstract class Kernel implements Cloneable {
       if (currentMode.hasNext()) {
          executionMode = currentMode.next();
       }
-   }
-   private Queue<Integer> launched = new LinkedList<Integer>();
-   public void setID(int val) {
-       this.launched.offer(val);
-   }
-
-   public void waitForLastKernel() {
-       if(launched.isEmpty()) {
-           return;
-           //throw new RuntimeException("Trying to wait for kernel but none pending");
-       }
-       kernelRunner.waitForEvent(launched.poll());
    }
 
    public abstract Map<Device.TYPE, String> getKernelFile();

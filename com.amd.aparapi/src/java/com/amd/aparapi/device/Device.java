@@ -111,21 +111,4 @@ public abstract class Device{
    public Range createRange(int _globalWidth, int _localWidth) {
       return (Range.create(this, _globalWidth, _localWidth));
    }
-
-   public Range createRange2D(int _globalWidth, int _globalHeight) {
-      return (Range.create2D(this, _globalWidth, _globalHeight));
-   }
-
-   public Range createRange2D(int _globalWidth, int _globalHeight, int _localWidth, int _localHeight) {
-      return (Range.create2D(this, _globalWidth, _globalHeight, _localWidth, _localHeight));
-   }
-
-   public Range createRange3D(int _globalWidth, int _globalHeight, int _globalDepth) {
-      return (Range.create3D(this, _globalWidth, _globalHeight, _globalDepth));
-   }
-
-   public Range createRange3D(int _globalWidth, int _globalHeight, int _globalDepth, int _localWidth, int _localHeight,
-         int _localDepth) {
-      return (Range.create3D(this, _globalWidth, _globalHeight, _globalDepth, _localWidth, _localHeight, _localDepth));
-   }
 }

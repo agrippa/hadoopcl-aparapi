@@ -43,7 +43,6 @@
 #include "Common.h"
 #include "com_amd_aparapi_internal_jni_KernelRunnerJNI.h"
 #include "CLException.h"
-#include "Range.h"
 #include "KernelArg.h"
 #include "JNIContext.h"
 
@@ -56,10 +55,6 @@ void idump(const char *str, void *ptr, int size);
 
 void fdump(const char *str, void *ptr, int size);
 */
-
-jint writeProfileInfo(JNIContext* jniContext);
-
-cl_int profile(ProfileInfo *profileInfo, cl_event *event, jint type, char* name, cl_ulong profileBaseTime);
 
 jint updateNonPrimitiveReferences(JNIEnv *jenv, jobject jobj, JNIContext* jniContext);
 
@@ -79,8 +74,6 @@ void processLocalArray(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int
 void processLocalBuffer(JNIEnv* jenv, JNIContext* jniContext, KernelArg* arg, int& argPos, int argIdx);
 
 int processArgs(JNIEnv* jenv, JNIContext* jniContext, int& argPos, int& writeEventCount);
-
-void enqueueKernel(JNIContext* jniContext, Range& range, int passes, int argPos, int writeEventCount);
 
 int getReadEvents(JNIContext* jniContext);
 

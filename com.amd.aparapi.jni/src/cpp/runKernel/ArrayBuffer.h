@@ -39,7 +39,6 @@
 #ifndef ARRAYBUFFER_H
 #define ARRAYBUFFER_H
 #include "Common.h"
-#include "ProfileInfo.h"
 
 class ArrayBuffer{
    public:
@@ -51,9 +50,6 @@ class ArrayBuffer{
       cl_uint memMask;          // the mask used for createBuffer
       jboolean isCopy;
       jboolean isPinned;
-      char memSpec[128];        // The string form of the mask we used for create buffer. for debugging
-      ProfileInfo read;
-      ProfileInfo write;
 
       ArrayBuffer();
       void unpinAbort(JNIEnv *jenv);

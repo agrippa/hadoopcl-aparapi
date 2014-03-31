@@ -37,6 +37,7 @@ under those regulations, please refer to the U.S. Bureau of Industry and Securit
  */
 package com.amd.aparapi.internal.model;
 
+import com.amd.aparapi.Config;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -51,7 +52,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.amd.aparapi.Config;
 import com.amd.aparapi.Kernel;
 import com.amd.aparapi.internal.exception.AparapiException;
 import com.amd.aparapi.internal.exception.ClassParseException;
@@ -112,8 +112,6 @@ import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodReferenceEnt
 import com.amd.aparapi.internal.reader.ByteReader;
 
 public class MethodModel{
-
-   private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private ExpressionList expressionList;
 
@@ -201,16 +199,10 @@ public class MethodModel{
       final boolean setDouble = instruction.getByteCode().usesDouble();
       if (setDouble) {
          usesDoubles = true;
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Found D on =" + instruction + " in " + getName());
-         }
       }
 
       if ((instruction instanceof I_BASTORE) || (instruction instanceof I_CASTORE /* || instruction instanceof I_SASTORE */)) {
          usesByteWrites = true;
-         if (usesByteWrites && logger.isLoggable(Level.FINE)) {
-            logger.fine("Found Byte Addressable Store on =" + instruction + " in " + getName());
-         }
       }
    }
 
@@ -525,42 +517,24 @@ public class MethodModel{
 
          Instruction e = _expressionList.getTail();
 
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Found DUP_X2 prev=" + e.getPrevExpr() + " e=" + e + " curr=" + _instruction);
-         }
-
          // Get the previous instr to write to stack "word1" 
          while (!e.producesStack()) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("DUP_X2 skipping to find write: e=" + e);
-            }
             e = e.getPrevExpr();
          }
 
          // Clone it, this will replace the dup action
          final Instruction clone1 = new CloneInstruction(this, e);
 
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("DUP_X2 cloning: clone1=" + clone1);
-         }
-
          // Skip over 2 earlier writes to stack and capture 3rd one 
          e = e.getPrevExpr();
 
          for (int i = 0; i < 2;) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("DUP_X2 skipping to find insert: e=" + e);
-            }
             if (e.producesStack()) {
                i++;
             }
             if (i < 2) {
                e = e.getPrevExpr();
             }
-         }
-
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("DUP_X2 insert: prev=" + e.getPrevExpr() + " e=" + e + " clone=" + clone1);
          }
 
          // Add our clone in between those two writes
@@ -1285,11 +1259,6 @@ public class MethodModel{
    void applyTransformations(ExpressionList _expressionList, final Instruction _instruction, final Instruction _operandStart)
          throws ClassParseException {
 
-      if (logger.isLoggable(Level.FINE)) {
-
-         System.out.println("We are looking at " + _instruction + " which wants to consume " + _instruction.getStackConsumeCount()
-               + " operands");
-      }
       boolean txformed = false;
 
       /**
@@ -1334,11 +1303,6 @@ public class MethodModel{
       }
 
       if (txformed) {
-         if (logger.isLoggable(Level.FINE)) {
-
-            System.out.println("We are looking at " + _instruction + " which wants to consume "
-                  + _instruction.getStackConsumeCount() + " operands");
-         }
       } else {
          throw new ClassParseException(_instruction, ClassParseException.TYPE.OPERANDCONSUMERPRODUCERMISSMATCH);
       }
@@ -1388,10 +1352,6 @@ public class MethodModel{
                      // Allow isFoo style for boolean fields
                      if ((methodName.startsWith("is") && fieldType.equals("Z")) || (methodName.startsWith("get"))) {
                         if (fieldType.equals(returnType)) {
-                           if (logger.isLoggable(Level.FINE)) {
-                              logger.fine("Found " + methodName + " as a getter for " + varNameCandidateCamelCased.toLowerCase());
-                           }
-
                            methodIsGetter = true;
                            accessorVariableFieldEntry = field;
                            assert methodIsSetter == false : " cannot be both";
@@ -1443,10 +1403,6 @@ public class MethodModel{
                   assert fieldType.length() == 1 : " can only use basic type getters";
 
                   if (fieldType.equals(setterArgType)) {
-                     if (logger.isLoggable(Level.FINE)) {
-                        logger.fine("Found " + methodName + " as a setter for " + varNameCandidateCamelCased.toLowerCase()
-                              + " of type " + fieldType);
-                     }
 
                      methodIsSetter = true;
                      accessorVariableFieldEntry = field;
@@ -1652,9 +1608,6 @@ public class MethodModel{
          // check if we have any exception handlers
          final int exceptionsSize = method.getCodeEntry().getExceptionPoolEntries().size();
          if (exceptionsSize > 0 && !_method.getName().equals("write")) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("exception size for " + method + " = " + exceptionsSize);
-            }
             throw new ClassParseException(ClassParseException.TYPE.EXCEPTION);
          }
 
@@ -1669,10 +1622,6 @@ public class MethodModel{
          if (localVariableTableEntry == null) {
             localVariableTableEntry = new FakeLocalVariableTableEntry(pcMap, method);
             method.setLocalVariableTableEntry(localVariableTableEntry);
-            logger.warning("Method "
-                  + method.getName()
-                  + method.getDescriptor()
-                  + " does not contain a LocalVariableTable entry (source not compiled with -g) aparapi will attempt to create a synthetic table based on bytecode. This is experimental!!");
          }
 
          // pass #2 build branch graph
@@ -1689,9 +1638,6 @@ public class MethodModel{
 
          // Accessor conversion only works on member object arrays
          if ((entrypoint != null) && (_method.getClassModel() != entrypoint.getClassModel())) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("Considering accessor call: " + getName());
-            }
             if(!getMethod().getName().equals("getGlobalIndices") &&
                     !getMethod().getName().equals("getGlobalVals") &&
                     !getMethod().getName().equals("getGlobalFVals")) {
@@ -1705,9 +1651,6 @@ public class MethodModel{
          //   throw new ClassParseException("We don't support putfield instructions beyond simple setters");
          //}
 
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("end \n" + expressionList.dumpDiagram(null));
-         }
          if (Config.instructionListener != null) {
             Config.instructionListener.showAndTell("end", expressionList.getHead(), null);
          }

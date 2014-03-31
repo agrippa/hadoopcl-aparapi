@@ -172,15 +172,6 @@ public abstract class KernelRunnerJNI{
    @UsedByJNICode protected static final int ARG_ARRAYLENGTH = 1 << 14;
 
    /**
-    * TODO:
-    * 
-    * @see com.amd.aparapi.internal.annotation.UsedByJNICode
-    * 
-    * @author gfrost
-    */
-   @UsedByJNICode protected static final int ARG_APARAPI_BUFFER = 1 << 15;
-
-   /**
     * This 'bit' indicates that the arg has been explicitly marked for reading
     * 
     * @see com.amd.aparapi.internal.annotation.UsedByJNICode
@@ -299,28 +290,22 @@ public abstract class KernelRunnerJNI{
    protected native int setArgsJNI(long _jniContextHandle,
        long _programContextHandle, KernelArgJNI[] _args, int argc);
 
-   protected native int runKernelJNI(long _jniContextHandle, Range _range, boolean _needSync, int _passes);
-
    protected native int disposeJNI(long _jniContextHandle);
-
-   protected native int waitForExecute(long _jniContextHandle, int id);
 
    protected native String getExtensionsJNI(long _openclContextHandle);
 
-   protected native synchronized List<ProfileInfo> getProfileInfoJNI(long _jniContextHandle);
-
-   protected native static long buildProgramJNI(long _openclContextHandle, String _source);
-   protected native int hadoopclRunKernelJNI(long _jniContextHandle, Range _range);
+   protected native static long buildProgramJNI(long _openclContextHandle,
+           String _source);
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
-       long _openclContextHandle, long _openclProgramContextHandle, Range _range, int relaunch,
-       String label);
-   protected native int hadoopclReadbackJNI(long _jniContextHandle, long _openclContextHandle);
-   protected native int hadoopclKernelIsDoneJNI(long _jniContextHandle);
-   protected native int hadoopclWaitForKernel(long _jniContextHandle, long _openclContextHandle);
-   protected native static long initOpenCL(OpenCLDevice _device, int _flags, int deviceSlot);
+       long _openclContextHandle, long _openclProgramContextHandle,
+       int globalDim, int localDim, int relaunch, String label);
+   protected native int hadoopclReadbackJNI(long _jniContextHandle,
+           long _openclContextHandle);
+   protected native int hadoopclWaitForKernel(long _jniContextHandle,
+           long _openclContextHandle);
+   protected native static long initOpenCL(int deviceId, int deviceSlot);
    protected native static long initOpenCLProgram();
    protected native static long initOpenCLData();
    protected native int initJNIContextFromOpenCLDataContext(long _jniContextHandle,
        long _openclDataContextHandle);
-   protected native int hadoopclDumpBinary(String filename, long programContext);
 }

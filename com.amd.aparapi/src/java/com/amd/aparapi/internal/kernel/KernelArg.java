@@ -194,16 +194,16 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the array
     */
-   protected Object getArray() {
-      return array;
-   }
+   // protected Object getArray() {
+   //    return array;
+   // }
 
    /**
     * @param array the array to set
     */
-   protected void setArray(Object array) {
-      this.array = array;
-   }
+   // protected void setArray(Object array) {
+   //    this.array = array;
+   // }
 
    /**
     * @return the field
@@ -222,16 +222,16 @@ public class KernelArg extends KernelArgJNI{
    /**
     * @return the buffer
     */
-   protected Object getJavaBuffer() {
-      return javaBuffer;
-   }
+   // protected Object getJavaBuffer() {
+   //    return javaBuffer;
+   // }
 
    /**
     * @param buffer the buffer to set
     */
-   protected void setJavaBuffer(Object buffer) {
-      this.javaBuffer = buffer;
-   }
+   // protected void setJavaBuffer(Object buffer) {
+   //    this.javaBuffer = buffer;
+   // }
 
    /**
     * @return the number of dimensions to buffer

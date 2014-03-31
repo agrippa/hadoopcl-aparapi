@@ -21,8 +21,6 @@ public abstract class OpenCLJNI{
 
    protected native OpenCLKernel createKernelJNI(OpenCLProgram program, String kernelName, OpenCLArgDescriptor[] args);
 
-   protected native void invoke(OpenCLKernel openCLKernel, Object[] args);
-
    protected native void disposeKernel(OpenCLKernel openCLKernel);
 
    protected native void disposeProgram(OpenCLProgram openCLProgram);

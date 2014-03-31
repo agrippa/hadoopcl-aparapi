@@ -52,7 +52,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.amd.aparapi.Config;
 import com.amd.aparapi.Kernel;
 import com.amd.aparapi.internal.exception.AparapiException;
 import com.amd.aparapi.internal.exception.ClassParseException;
@@ -79,8 +78,6 @@ import com.amd.aparapi.internal.model.ClassModel.ConstantPool.MethodReferenceEnt
 import com.amd.aparapi.internal.util.UnsafeWrapper;
 import com.amd.aparapi.internal.kernel.KernelRunner;
 public class Entrypoint{
-
-   private static Logger logger = Logger.getLogger(Config.getLoggerName());
 
    private final Map<String, Boolean> isMappedMethodCache = new HashMap<String, Boolean>();
 
@@ -195,18 +192,11 @@ public class Entrypoint{
 
       assert _name != null : "_name should not be null";
 
-      if (logger.isLoggable(Level.FINE)) {
-         logger.fine("looking for " + _name + " in " + _clazz.getName());
-      }
-
       try {
          field = _clazz.getDeclaredField(_name);
          final Class<?> type = field.getType();
          if (type.isPrimitive() || type.isArray()) {
             return field;
-         }
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("field type is " + type.getName());
          }
          throw new ClassParseException(ClassParseException.TYPE.OBJECTFIELDREFERENCE);
       } catch (final NoSuchFieldException nsfe) {
@@ -216,10 +206,6 @@ public class Entrypoint{
 
       Class<?> mySuper = _clazz.getSuperclass();
 
-      if (logger.isLoggable(Level.FINE)) {
-         logger.fine("looking for " + _name + " in " + mySuper.getName());
-      }
-
       // Find better way to do this check
       while (!mySuper.getName().equals(Kernel.class.getName())) {
          try {
@@ -227,9 +213,6 @@ public class Entrypoint{
             final int modifiers = field.getModifiers();
             if ((Modifier.isStatic(modifiers) == false) && (Modifier.isPrivate(modifiers) == false)) {
                final Class<?> type = field.getType();
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("field type is " + type.getName());
-               }
                if (type.isPrimitive() || type.isArray()) {
                   return field;
                }
@@ -240,9 +223,6 @@ public class Entrypoint{
                return null;
             }
          } catch (final NoSuchFieldException nsfe) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("no " + _name + " in " + mySuper.getName());
-            }
             mySuper = mySuper.getSuperclass();
             assert mySuper != null : "mySuper is null!";
          }
@@ -265,9 +245,6 @@ public class Entrypoint{
 
             // Immediately add this class and all its supers if necessary
             memberClassModel = new ClassModel(memberClass);
-            if (logger.isLoggable(Level.FINEST)) {
-               logger.finest("adding class " + className);
-            }
             allFieldsClasses.put(className, memberClassModel);
             ClassModel superModel = memberClassModel.getSuperClazz();
             while (superModel != null) {
@@ -276,23 +253,14 @@ public class Entrypoint{
                if (oldSuper != null) {
                   if (oldSuper != superModel) {
                      memberClassModel.replaceSuperClazz(oldSuper);
-                     if (logger.isLoggable(Level.FINEST)) {
-                        logger.finest("replaced super " + oldSuper.getClassWeAreModelling().getName() + " for " + className);
-                     }
                   }
                } else {
                   allFieldsClasses.put(superModel.getClassWeAreModelling().getName(), superModel);
-                  if (logger.isLoggable(Level.FINEST)) {
-                     logger.finest("add new super " + superModel.getClassWeAreModelling().getName() + " for " + className);
-                  }
                }
 
                superModel = superModel.getSuperClazz();
             }
          } catch (final Exception e) {
-            if (logger.isLoggable(Level.INFO)) {
-               logger.info("Cannot find: " + className);
-            }
             throw new AparapiException(e);
          }
       }
@@ -311,9 +279,6 @@ public class Entrypoint{
             //if (refAccess instanceof I_GETFIELD) {
 
                // It is a call from a member obj array element
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("Looking for class in accessor call: " + methodsActualClassName);
-               }
                final ClassModel memberClassModel = getOrUpdateAllClassAccesses(methodsActualClassName);
 
                // false = no invokespecial allowed here
@@ -342,10 +307,6 @@ public class Entrypoint{
          throw new ClassParseException(ClassParseException.TYPE.OBJECTARRAYFIELDREFERENCE);
       }
 
-      if (logger.isLoggable(Level.FINEST)) {
-         logger.finest("Updating access: " + className + " field:" + accessedFieldName);
-      }
-
       final ClassModel memberClassModel = getOrUpdateAllClassAccesses(className);
       final Class<?> memberClass = memberClassModel.getClassWeAreModelling();
       ClassModel superCandidate = null;
@@ -355,20 +316,11 @@ public class Entrypoint{
 
       // No exact match, look for a superclass
       for (final ClassModel c : allFieldsClasses.values()) {
-         if (logger.isLoggable(Level.FINEST)) {
-            logger.finest(" super: " + c.getClassWeAreModelling().getName() + " for " + className);
-         }
          if (c.isSuperClass(memberClass)) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("selected super: " + c.getClassWeAreModelling().getName() + " for " + className);
-            }
             superCandidate = c;
             break;
          }
 
-         if (logger.isLoggable(Level.FINEST)) {
-            logger.finest(" no super match for " + memberClass.getName());
-         }
       }
 
       // Look at super's fields for a match
@@ -378,11 +330,6 @@ public class Entrypoint{
             if (f.getNameAndTypeEntry().getNameUTF8Entry().getUTF8().equals(accessedFieldName)
                   && f.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8()
                         .equals(field.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8())) {
-
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("Found match: " + accessedFieldName + " class: " + field.getClassEntry().getNameUTF8Entry().getUTF8()
-                        + " to class: " + f.getClassEntry().getNameUTF8Entry().getUTF8());
-               }
 
                if (!f.getClassEntry().getNameUTF8Entry().getUTF8().equals(field.getClassEntry().getNameUTF8Entry().getUTF8())) {
                   // Look up in class hierarchy to ensure it is the same field
@@ -415,11 +362,6 @@ public class Entrypoint{
          }
          if (!found) {
             structMemberSet.add(field);
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("Adding assigned field " + field.getNameAndTypeEntry().getNameUTF8Entry().getUTF8() + " type: "
-                     + field.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8() + " to "
-                     + memberClassModel.getClassWeAreModelling().getName());
-            }
          }
       }
    }
@@ -431,15 +373,6 @@ public class Entrypoint{
       MethodEntry methodEntry = methodCall.getConstantPoolMethodEntry();
       int thisClassIndex = classModel.getThisClassConstantPoolIndex();//arf
       boolean isMapped = (thisClassIndex != methodEntry.getClassIndex()) && this.isMappedMethod(methodEntry);
-      if (logger.isLoggable(Level.FINE)) {
-         if (methodCall instanceof I_INVOKESPECIAL) {
-            logger.fine("Method call to super: " + methodEntry);
-         } else if (thisClassIndex != methodEntry.getClassIndex()) {
-            logger.fine("Method call to ??: " + methodEntry + ", isMappedMethod=" + isMapped);
-         } else {
-            logger.fine("Method call in kernel class: " + methodEntry);
-         }
-      }
 
       ClassModelMethod m = classModel.getMethod(methodEntry, (methodCall instanceof I_INVOKESPECIAL) ? true : false);
 
@@ -465,15 +398,8 @@ public class Entrypoint{
          String otherClassName = methodEntry.getClassEntry().getNameUTF8Entry().getUTF8().replace('/', '.');
          ClassModel otherClassModel = getOrUpdateAllClassAccesses(otherClassName);
 
-         //if (logger.isLoggable(Level.FINE)) {
-         //   logger.fine("Looking for: " + methodEntry + " in other class " + otherClass.getName());
-         //}
          // false because INVOKESPECIAL not allowed here 
          m = otherClassModel.getMethod(methodEntry, false);
-      }
-
-      if (logger.isLoggable(Level.INFO)) {
-         logger.fine("Selected method for: " + methodEntry + " is " + m);
       }
 
       return m;
@@ -598,16 +524,9 @@ public class Entrypoint{
       // Record which pragmas we need to enable
       if (methodModel.requiresDoublePragma()) {
          usesDoubles = true;
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Enabling doubles on " + methodModel.getName());
-         }
-
       }
       if (methodModel.requiresByteAddressableStorePragma()) {
          usesByteWrites = true;
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Enabling byte addressable on " + methodModel.getName());
-         }
       }
 
       // Collect all methods called directly from kernel's run method
@@ -638,10 +557,6 @@ public class Entrypoint{
                      // then when we reverse the collection (below) we get the method 
                      // declarations in the correct order.  We are trying to avoid creating forward references
                      target = methodMap.remove(m);
-                     if (logger.isLoggable(Level.FINEST)) {
-                        logger.fine("repositioning : " + m.getClassModel().getClassWeAreModelling().getName() + " " + m.getName()
-                              + " " + m.getDescriptor());
-                     }
                   } else {
                      target = new MethodModel(m, this);
                      discovered = true;
@@ -655,10 +570,6 @@ public class Entrypoint{
       }
 
       methodModel.checkForRecursion(new HashSet<MethodModel>());
-
-      if (logger.isLoggable(Level.FINE)) {
-         logger.fine("fallback=" + fallback);
-      }
 
       if (!fallback) {
          calledMethods.addAll(methodMap.values());
@@ -676,16 +587,9 @@ public class Entrypoint{
             // Record which pragmas we need to enable
             if (methodModel.requiresDoublePragma()) {
                usesDoubles = true;
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("Enabling doubles on " + methodModel.getName());
-               }
-
             }
             if (methodModel.requiresByteAddressableStorePragma()) {
                usesByteWrites = true;
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("Enabling byte addressable on " + methodModel.getName());
-               }
             }
 
             for (Instruction instruction = methodModel.getPCHead(); instruction != null; instruction = instruction.getNextPC()) {
@@ -727,9 +631,6 @@ public class Entrypoint{
                   final AccessField childField = (AccessField) child;
                   final String arrayName = childField.getConstantPoolFieldEntry().getNameAndTypeEntry().getNameUTF8Entry().getUTF8();
                   arrayFieldArrayLengthUsed.add(arrayName);
-                  if (logger.isLoggable(Level.FINE)) {
-                     logger.fine("Noted arraylength in " + methodModel.getName() + " on " + arrayName);
-                  }
                } else if (instruction instanceof AccessField) {
                   final AccessField access = (AccessField) instruction;
                   final FieldEntry field = access.getConstantPoolFieldEntry();
@@ -738,9 +639,6 @@ public class Entrypoint{
                   referencedFieldNames.add(accessedFieldName);
 
                   final String signature = field.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8();
-                  if (logger.isLoggable(Level.FINE)) {
-                     logger.fine("AccessField field type= " + signature + " in " + methodModel.getName());
-                  }
 
                   // Add the class model for the referenced obj array
                   if (signature.startsWith("[L")) {
@@ -769,9 +667,6 @@ public class Entrypoint{
                            }
 
                            objectArrayFieldsClasses.put(className, arrayFieldModel);
-                           if (logger.isLoggable(Level.FINE)) {
-                              logger.fine("adding class to objectArrayFields: " + className);
-                           }
                         }
                      }
                   } else {
@@ -799,9 +694,9 @@ public class Entrypoint{
                      updateObjectMemberFieldAccesses(className, field);
                   } else {
 
-                     if ((!Config.enablePUTFIELD) && methodModel.methodUsesPutfield() && !methodModel.isSetter()) {
-                        throw new ClassParseException(ClassParseException.TYPE.ACCESSEDOBJECTONLYSUPPORTSSIMPLEPUTFIELD);
-                     }
+                     // if ((!Config.enablePUTFIELD) && methodModel.methodUsesPutfield() && !methodModel.isSetter()) {
+                     //    throw new ClassParseException(ClassParseException.TYPE.ACCESSEDOBJECTONLYSUPPORTSSIMPLEPUTFIELD);
+                     // }
 
                   }
 
@@ -860,10 +755,6 @@ public class Entrypoint{
                // sorted by size and emitted into the struct
                ClassModel superModel = memberObjClass.getSuperClazz();
                while (superModel != null) {
-                  if (logger.isLoggable(Level.FINEST)) {
-                     logger.finest("adding = " + superModel.getClassWeAreModelling().getName() + " fields into "
-                           + memberObjClass.getClassWeAreModelling().getName());
-                  }
                   memberObjClass.getStructMembers().addAll(superModel.getStructMembers());
                   superModel = superModel.getSuperClazz();
                }
@@ -878,10 +769,6 @@ public class Entrypoint{
                   // Booleans get converted down to bytes
                   final int aSize = InstructionSet.TypeSpec.valueOf(aType.equals("Z") ? "B" : aType).getSize();
                   final int bSize = InstructionSet.TypeSpec.valueOf(bType.equals("Z") ? "B" : bType).getSize();
-
-                  if (logger.isLoggable(Level.FINEST)) {
-                     logger.finest("aType= " + aType + " aSize= " + aSize + " . . bType= " + bType + " bSize= " + bSize);
-                  }
 
                   // Note this is sorting in reverse order so the biggest is first
                   if (aSize > bSize) {
@@ -920,10 +807,6 @@ public class Entrypoint{
                      }
 
                      totalSize += fSize;
-                     if (logger.isLoggable(Level.FINEST)) {
-                        logger.finest("Field = " + f.getNameAndTypeEntry().getNameUTF8Entry().getUTF8() + " size=" + fSize
-                              + " totalSize=" + totalSize);
-                     }
                   }
 
                   // compute total size for OpenCL buffer
@@ -991,21 +874,11 @@ public class Entrypoint{
       ClassModelMethod target = getClassModel().getMethod(_methodEntry, _isSpecial);
       boolean isMapped = this.isMappedMethod(_methodEntry);
 
-      if (logger.isLoggable(Level.FINE) && (target == null)) {
-         logger.fine("Did not find call target: " + _methodEntry + " in " + getClassModel().getClassWeAreModelling().getName()
-               + " isMapped=" + isMapped);
-      }
-
       if (target == null) {
          // Look for member obj accessor calls
          for (final ClassModel memberObjClass : objectArrayFieldsClasses.values()) {
             final String entryClassNameInDotForm = _methodEntry.getClassEntry().getNameUTF8Entry().getUTF8().replace('/', '.');
             if (entryClassNameInDotForm.equals(memberObjClass.getClassWeAreModelling().getName())) {
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("Searching for call target: " + _methodEntry + " in "
-                        + memberObjClass.getClassWeAreModelling().getName());
-               }
-
                target = memberObjClass.getMethod(_methodEntry, false);
                if (target != null) {
                   break;
@@ -1017,9 +890,6 @@ public class Entrypoint{
       if (target != null) {
          for (final MethodModel m : calledMethods) {
             if (m.getMethod() == target) {
-               if (logger.isLoggable(Level.FINE)) {
-                  logger.fine("selected from called methods = " + m.getName());
-               }
                return m;
             }
          }
@@ -1027,15 +897,8 @@ public class Entrypoint{
 
       // Search for static calls to other classes
       for (MethodModel m : calledMethods) {
-         if (logger.isLoggable(Level.FINE)) {
-            logger.fine("Searching for call target: " + _methodEntry + " in " + m.getName());
-         }
          if (m.getMethod().getName().equals(_methodEntry.getNameAndTypeEntry().getNameUTF8Entry().getUTF8())
                && m.getMethod().getDescriptor().equals(_methodEntry.getNameAndTypeEntry().getDescriptorUTF8Entry().getUTF8())) {
-            if (logger.isLoggable(Level.FINE)) {
-               logger.fine("Found " + m.getMethod().getClassModel().getClassWeAreModelling().getName() + "."
-                     + m.getMethod().getName() + " " + m.getMethod().getDescriptor());
-            }
             return m;
          }
       }

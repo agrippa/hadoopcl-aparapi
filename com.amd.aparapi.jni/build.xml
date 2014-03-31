@@ -549,12 +549,8 @@ First consider editing the properties in build.properties
       <delete file="OpenCLJNI.o" />
       <delete file="Config.obj" />
       <delete file="Config.o" />
-      <delete file="ProfileInfo.obj" />
-      <delete file="ProfileInfo.o" />
       <delete file="ArrayBuffer.obj" />
       <delete file="ArrayBuffer.o" />
-      <delete file="AparapiBuffer.obj" />
-      <delete file="AparapiBuffer.o" />
       <delete file="JNIHelper.obj" />
       <delete file="JNIHelper.o" />
       <delete file="CLHelper.obj" />
@@ -578,7 +574,6 @@ First consider editing the properties in build.properties
    <target name="javah">
       <mkdir dir="include" />
       <javah classpath="..\com.amd.aparapi\classes" destdir="include" force="true">
-         <class name="com.amd.aparapi.internal.jni.ConfigJNI" />
          <class name="com.amd.aparapi.internal.jni.KernelArgJNI" />
          <class name="com.amd.aparapi.internal.jni.KernelRunnerJNI" />
          <class name="com.amd.aparapi.internal.jni.OpenCLJNI" />
@@ -616,12 +611,8 @@ First consider editing the properties in build.properties
          <arg value="${basedir}/dist/libaparapi_${x86_or_x86_64}.so" />
          <arg value="src/cpp/runKernel/Aparapi.cpp" />
          <arg value="src/cpp/runKernel/ArrayBuffer.cpp" />
-         <arg value="src/cpp/runKernel/AparapiBuffer.cpp" />
-         <arg value="src/cpp/runKernel/Config.cpp" />
          <arg value="src/cpp/runKernel/JNIContext.cpp" />
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
-         <arg value="src/cpp/runKernel/ProfileInfo.cpp" />
-         <arg value="src/cpp/runKernel/Range.cpp" />
          <arg value="src/cpp/runKernel/OpenCLDataContext.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
@@ -654,12 +645,8 @@ First consider editing the properties in build.properties
          <arg value="${basedir}/dist/libaparapi_${x86_or_x86_64}.dylib" />
          <arg value="src/cpp/runKernel/Aparapi.cpp" />
          <arg value="src/cpp/runKernel/ArrayBuffer.cpp" />
-         <arg value="src/cpp/runKernel/AparapiBuffer.cpp" />
-         <arg value="src/cpp/runKernel/Config.cpp" />
          <arg value="src/cpp/runKernel/JNIContext.cpp" />
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
-         <arg value="src/cpp/runKernel/ProfileInfo.cpp" />
-         <arg value="src/cpp/runKernel/Range.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
          <arg value="src/cpp/invoke/OpenCLMem.cpp" />
@@ -698,12 +685,8 @@ First consider editing the properties in build.properties
          <arg value="/Isrc/cpp/invoke" />
          <arg value="src/cpp/runKernel/Aparapi.cpp" />
          <arg value="src/cpp/runKernel/ArrayBuffer.cpp" />
-         <arg value="src/cpp/runKernel/AparapiBuffer.cpp" />
-         <arg value="src/cpp/runKernel/Config.cpp" />
          <arg value="src/cpp/runKernel/JNIContext.cpp" />
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
-         <arg value="src/cpp/runKernel/ProfileInfo.cpp" />
-         <arg value="src/cpp/runKernel/Range.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
          <arg value="src/cpp/invoke/OpenCLMem.cpp" />
@@ -743,12 +726,8 @@ First consider editing the properties in build.properties
          <arg value="${basedir}\dist\aparapi_${x86_or_x86_64}.dll" />
          <arg value="src/cpp/runKernel/Aparapi.cpp" />
          <arg value="src/cpp/runKernel/ArrayBuffer.cpp" />
-         <arg value="src/cpp/runKernel/AparapiBuffer.cpp" />
-         <arg value="src/cpp/runKernel/Config.cpp" />
          <arg value="src/cpp/runKernel/JNIContext.cpp" />
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
-         <arg value="src/cpp/runKernel/ProfileInfo.cpp" />
-         <arg value="src/cpp/runKernel/Range.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
          <arg value="src/cpp/invoke/OpenCLMem.cpp" />

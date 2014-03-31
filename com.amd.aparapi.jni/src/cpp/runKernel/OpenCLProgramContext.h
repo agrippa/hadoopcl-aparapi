@@ -2,7 +2,6 @@
 #define OPENCL_PROGRAM_CONTEXT_H
 
 #include "Common.h"
-#include "Config.h"
 #include <pthread.h>
 
 typedef struct _OpenCLProgramContext {

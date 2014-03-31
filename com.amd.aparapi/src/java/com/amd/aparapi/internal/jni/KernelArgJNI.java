@@ -84,9 +84,9 @@ public abstract class KernelArgJNI{
    /**
     * Only set for array objs, not used on JNI
     */
-   @UsedByJNICode protected Object array;
+   // @UsedByJNICode protected Object array;
 
-   @UsedByJNICode protected Object buffer;
+   // @UsedByJNICode protected Object buffer;
 
    /**
     * Field in Kernel class corresponding to this arg

@@ -7,9 +7,7 @@
 #include "Common.h"
 #include "JNIHelper.h"
 #include "ArrayBuffer.h"
-#include "AparapiBuffer.h"
 #include "com_amd_aparapi_internal_jni_KernelRunnerJNI.h"
-#include "Config.h"
 #include <iostream>
 
 #ifdef _WIN32
@@ -56,17 +54,11 @@ class KernelArg{
       void getStaticPrimitiveValue(JNIEnv *jenv, jdouble *value);
 
       template<typename T> 
-      void getPrimitive(JNIEnv *jenv, int argIdx, int argPos, bool verbose, T* value) {
+      void getPrimitive(JNIEnv *jenv, int argIdx, int argPos, T* value) {
          if(isStatic()) {
             getStaticPrimitiveValue(jenv, value);
-         }
-         else {
+         } else {
             getPrimitiveValue(jenv, value);
-         }
-         if (verbose) {
-             std::cerr << "clSetKernelArg " << getTypeName() << " '" << name
-                       << " ' index=" << argIdx << " pos=" << argPos 
-                       << " value=" << *value << std::endl;
          }
       }
 
@@ -89,7 +81,6 @@ class KernelArg{
       int zeroBeforeKernel;
 
       ArrayBuffer *arrayBuffer;
-      AparapiBuffer *aparapiBuffer;
 
       // Uses JNIContext so cant inline here see below
       KernelArg(JNIEnv *jenv, JNIContext *jniContext,
@@ -185,14 +176,11 @@ class KernelArg{
       int isConstant(){
          return (type&com_amd_aparapi_internal_jni_KernelRunnerJNI_ARG_CONSTANT);
       }
-      int isAparapiBuffer(){
-         return (type&com_amd_aparapi_internal_jni_KernelRunnerJNI_ARG_APARAPI_BUFFER);
-      }
       int isBackedByArray(){
          return ( (isArray() && (isGlobal() || isConstant())));
       }
       int needToEnqueueRead(){
-         return(((isArray() && isGlobal()) || ((isAparapiBuffer()&&isGlobal()))) && (isImplicit()&&isMutableByKernel()));
+         return(((isArray() && isGlobal())) && (isImplicit()&&isMutableByKernel()));
       }
       int needToEnqueueWrite(){
          return ((isImplicit()&&isReadByKernel())||(isExplicit()&&isExplicitWrite()));
@@ -216,9 +204,8 @@ class KernelArg{
 
       // Uses JNIContext so can't inline here we below.  
       cl_int setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
-      cl_int setLocalAparapiBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       // Uses JNIContext so can't inline here we below.  
-      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose, int useCached);
+      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached);
       void dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext, OpenCLContext *openclContext);
 };
 

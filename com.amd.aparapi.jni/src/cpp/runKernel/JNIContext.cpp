@@ -11,9 +11,7 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
       flags(_flags),
       profileBaseTime(0),
       passes(0),
-      exec(NULL),
-      profileFile(NULL), 
-      valid(JNI_FALSE){
+      profileFile(NULL) {
 
    srand (time(NULL));
    taskId = setTaskId;
@@ -21,15 +19,15 @@ JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
    contextId = setContextId;
    datactx = NULL;
    kernelLaunchCounter = 0;
-   valid = JNI_TRUE;
    dump_filename = (char *)malloc(512);
    currentLabel = NULL;
 }
 
-void JNIContext::dispose(JNIEnv *jenv, Config* config) {
+void JNIContext::dispose(JNIEnv *jenv) {
    cl_int status = CL_SUCCESS;
    jenv->DeleteGlobalRef(kernelObject);
    jenv->DeleteGlobalRef(kernelClass);
+   jenv->DeleteGlobalRef(openCLDeviceObject);
    free(dump_filename);
    if (argc > 0){
       for (int i=0; i< argc; i++){
@@ -57,30 +55,5 @@ void JNIContext::dispose(JNIEnv *jenv, Config* config) {
          delete arg; arg=args[i]=NULL;
       }
       delete[] args; args=NULL;
-
-      // do we need to call clReleaseEvent on any of these that are still retained....
-      delete[] readEvents; readEvents = NULL;
-      delete[] writeEvents; writeEvents = NULL;
-      delete[] executeEvents; executeEvents = NULL;
-
-      if (config->isProfilingEnabled()) {
-         if (config->isProfilingCSVEnabled()) {
-            if (profileFile != NULL && profileFile != stderr) {
-               fclose(profileFile);
-            }
-         }
-         delete[] readEventArgs; readEventArgs=0;
-         delete[] writeEventArgs; writeEventArgs=0;
-      } 
    }
 }
-
-void JNIContext::unpinAll(JNIEnv* jenv) {
-   for (int i=0; i< argc; i++){
-      KernelArg *arg = args[i];
-      if (arg->isBackedByArray()) {
-         arg->unpin(jenv);
-      }
-   }
-}
-

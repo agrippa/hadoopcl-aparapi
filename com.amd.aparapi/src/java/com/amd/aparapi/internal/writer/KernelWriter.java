@@ -119,8 +119,6 @@ public abstract class KernelWriter extends BlockWriter{
 
    private final String cvtShortArrayToShortStar = "short* ";
 
-   // private static Logger logger = Logger.getLogger(Config.getLoggerName());
-
    private Entrypoint entryPoint = null;
 
 
@@ -533,45 +531,6 @@ public abstract class KernelWriter extends BlockWriter{
             }
          }
       }
-
-      if (Config.enableByteWrites || _entryPoint.requiresByteAddressableStorePragma()) {
-         // Starting with OpenCL 1.1 (which is as far back as we support)
-         // this feature is part of the core, so we no longer need this pragma
-         if (false) {
-            writePragma("cl_khr_byte_addressable_store", true);
-            newLine();
-         }
-      }
-
-      boolean usesAtomics = false;
-      if (Config.enableAtomic32 || _entryPoint.requiresAtomic32Pragma()) {
-         usesAtomics = true;
-         writePragma("cl_khr_global_int32_base_atomics", true);
-         writePragma("cl_khr_global_int32_extended_atomics", true);
-         writePragma("cl_khr_local_int32_base_atomics", true);
-         writePragma("cl_khr_local_int32_extended_atomics", true);
-      }
-
-      if (Config.enableAtomic64 || _entryPoint.requiresAtomic64Pragma()) {
-         usesAtomics = true;
-         writePragma("cl_khr_int64_base_atomics", true);
-         writePragma("cl_khr_int64_extended_atomics", true);
-      }
-
-      if (usesAtomics) {
-         write("int atomicAdd(__global int *_arr, int _index, int _delta){");
-         in();
-         {
-            newLine();
-            write("return atomic_add(&_arr[_index], _delta);");
-            out();
-            newLine();
-         }
-         write("}");
-
-         newLine();
-      }
-
 
       /*
        * Comment out because OpenCL 1.2 (?) now includes khr_fp64 as part of core,
