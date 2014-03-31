@@ -9,13 +9,9 @@
 #include "com_amd_aparapi_internal_jni_KernelRunnerJNI.h"
 
 class JNIContext {
-private: 
-   jint flags;
 
 public:
-
    jobject kernelObject;
-   jobject openCLDeviceObject;
    jclass kernelClass;
    jint argc;
    KernelArg** args;
@@ -38,7 +34,7 @@ public:
    unsigned int kernelLaunchCounter;
    char *currentLabel;
 
-   JNIContext(JNIEnv *jenv, jobject _kernelObject, jobject _openCLDeviceObject, jint _flags, jint setTaskId, jint setAttemptId, jint setContextId);
+   JNIContext(JNIEnv *jenv, jobject _kernelObject, jint setTaskId, jint setAttemptId, jint setContextId);
    
    static JNIContext* getJNIContext(jlong jniContextHandle){
       return((JNIContext*)jniContextHandle);

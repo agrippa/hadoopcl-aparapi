@@ -504,17 +504,13 @@ TRACE_LINE
 
 // we return the JNIContext from here 
 JNI_JAVA(jlong, KernelRunnerJNI, initJNI)
-   (JNIEnv *jenv, jobject jobj, jobject kernelObject, jobject openCLDeviceObject,
-    jint flags, jint taskId, jint attemptId, jint contextId) {
+   (JNIEnv *jenv, jobject jobj, jobject kernelObject,
+    jint taskId, jint attemptId, jint contextId) {
 TRACE_LINE
-      if (openCLDeviceObject == NULL){
-         fprintf(stderr, "no device object!\n");
-         exit(1);
-      }
 
       cl_int status = CL_SUCCESS;
       JNIContext* jniContext = new JNIContext(jenv, kernelObject,
-              openCLDeviceObject, flags, taskId, attemptId, contextId);
+              taskId, attemptId, contextId);
       return((jlong)jniContext);
    }
 

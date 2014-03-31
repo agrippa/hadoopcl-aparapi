@@ -282,8 +282,7 @@ public abstract class KernelRunnerJNI{
     * @return
     */
    @DocMe protected native synchronized long initJNI(Kernel _kernel,
-       OpenCLDevice _device, int _flags, int taskId, int attemptId,
-       int contextId);
+       int taskId, int attemptId, int contextId);
 
    protected native int getJNI(long _jniContextHandle, Object _array);
 

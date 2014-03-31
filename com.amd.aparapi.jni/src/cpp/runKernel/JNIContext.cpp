@@ -3,12 +3,10 @@
 #include "List.h"
 
 JNIContext::JNIContext(JNIEnv *jenv, jobject _kernelObject,
-        jobject _openCLDeviceObject, jint _flags, jint setTaskId,
+        jint setTaskId,
         jint setAttemptId, jint setContextId): 
       kernelObject(jenv->NewGlobalRef(_kernelObject)),
       kernelClass((jclass)jenv->NewGlobalRef(jenv->GetObjectClass(_kernelObject))), 
-      openCLDeviceObject(jenv->NewGlobalRef(_openCLDeviceObject)),
-      flags(_flags),
       profileBaseTime(0),
       passes(0),
       profileFile(NULL) {
@@ -27,7 +25,6 @@ void JNIContext::dispose(JNIEnv *jenv) {
    cl_int status = CL_SUCCESS;
    jenv->DeleteGlobalRef(kernelObject);
    jenv->DeleteGlobalRef(kernelClass);
-   jenv->DeleteGlobalRef(openCLDeviceObject);
    free(dump_filename);
    if (argc > 0){
       for (int i=0; i< argc; i++){

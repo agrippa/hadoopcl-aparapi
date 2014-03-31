@@ -576,11 +576,9 @@ public class KernelRunner extends KernelRunnerJNI {
 
             openCLDevice = (OpenCLDevice) device; // still might be null! 
 
-            int jniFlags = 0;
             if (dryRun && openCLDevice == null) {
                 if (kernel.getExecutionMode().equals(EXECUTION_MODE.GPU)) {
                     openCLDevice = (OpenCLDevice) OpenCLDevice.best();
-                    jniFlags |= JNI_FLAG_USE_GPU;
                 } else {
                     openCLDevice = (OpenCLDevice) OpenCLDevice.firstCPU();
                 }
@@ -590,17 +588,12 @@ public class KernelRunner extends KernelRunnerJNI {
               throw new RuntimeException("No HadoopCL device specified");
             }
 
-            if (openCLDevice.getType() == Device.TYPE.GPU) {
-               jniFlags |= JNI_FLAG_USE_GPU; // this flag might be redundant now. 
-            }
-
             if (this.myOpenCLContextHandle == 0) {
                 this.myOpenCLContextHandle = getOpenCLContext(deviceId,
                     deviceSlot, kernel.checkTaskType());
             }
             // openCLDevice will not be null here
-            jniContextHandle = initJNI(kernel, openCLDevice, jniFlags,
-                taskId, attemptId,
+            jniContextHandle = initJNI(kernel, taskId, attemptId,
                 jniContextCounter.getAndIncrement());
          } // end of synchronized! issue 68
 
