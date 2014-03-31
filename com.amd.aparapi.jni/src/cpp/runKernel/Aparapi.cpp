@@ -352,11 +352,13 @@ TRACE_LINE
                  clReleaseEvent(fillEvents[i]);
              }
 
+#ifndef CL_API_SUFFIX__VERSION_1_2
              for (i = 0; i < nZeroBuffers; i++) {
                  free(zeroBuffers[i]);
              }
              free(zeroBuffersLength);
              free(zeroBuffers);
+#endif
          }
          free(fillEvents);
 
