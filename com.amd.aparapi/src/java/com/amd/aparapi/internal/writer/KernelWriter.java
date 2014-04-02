@@ -706,7 +706,6 @@ public abstract class KernelWriter extends BlockWriter{
               write("\n");
           } else if (inputValType.equals("svec") || inputValType.equals("bsvec")) {
               write("__global int *getValIndices(This *this) {\n");
-              //write("   int end = (this->currentValueIndex == this->currentNumValues-1 ? this->currentNumAuxValues : this->inputValLookAsideBuffer[this->currentValueIndex+1]);
               write("   return this->inputValIndices + this->inputValLookAsideBuffer[this->currentValueIndex];\n");
               write("}\n");
               write("\n");
@@ -1350,24 +1349,6 @@ public abstract class KernelWriter extends BlockWriter{
              write("\n{\n");
              write("   return this->globalsVal + this->globalIndices[gid];\n");
              write("}\n");
-         } else if(isGetGlobalFVals) {
-             write("\n{\n");
-             write("   return this->globalsFval + this->globalIndices[gid];\n");
-             write("}\n");
-         // } else if (isReferenceGlobalVal) {
-         //     write("\n{\n");
-         //     write("   int hash = sparseIndex % this->nGlobalBuckets;\n");
-         //     write("   int globalBucketId = gid * this->nGlobalBuckets + hash;\n");
-         //     write("   int bucketStart = this->globalsMap[globalBucketId];\n");
-         //     write("   return 0.0;\n");
-         //     write("}\n");
-         // } else if (isReferenceGlobalFval) {
-         //     write("\n{\n");
-         //     write("   int hash = sparseIndex % this->nGlobalBuckets;\n");
-         //     write("   int globalBucketId = gid * this->nGlobalBuckets + hash;\n");
-         //     write("   int bucketStart = this->globalsMap[globalBucketId];\n");
-         //     write("   return 0.0f;\n");
-         //     write("}\n");
          } else if(isInputVectorLength) {
              write("\n{\n");
              write("   int start = this->inputValLookAsideBuffer[vid];\n");
