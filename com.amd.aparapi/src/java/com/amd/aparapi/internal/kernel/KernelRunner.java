@@ -110,6 +110,11 @@ public class KernelRunner extends KernelRunnerJNI {
    private long myOpenCLDataHandle = 0;
    private long myOpenCLContextHandle = 0;
 
+   static class DataHandlesWrapper {
+       public final List<Long> handles = new LinkedList<Long>();
+       public int allocated = 0;
+   }
+
    /*
     * Stores the cl_device_id, cl_context, cl_command_queue, and prevExecEvent
     * (used to serialize all events for a device) objects for a certain device.
@@ -128,8 +133,8 @@ public class KernelRunner extends KernelRunnerJNI {
     * stores the OpenCL memory necessary to run a kernel. These are created on
     * demand with initOpenCLData but are recycled after dispose() is called.
     */
-   private static Map<Kernel.TaskType, List<Long>> openclDataHandles =
-     new HashMap<Kernel.TaskType, List<Long>>();
+   private static Map<Kernel.TaskType, DataHandlesWrapper> openclDataHandles =
+     new HashMap<Kernel.TaskType, DataHandlesWrapper>();
    /*
     * Stores Entrypoint object for each kernel type. These are recycled.
     */
@@ -149,9 +154,9 @@ public class KernelRunner extends KernelRunnerJNI {
        openclProgramContextHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
        openclProgramContextHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
 
-       openclDataHandles.put(Kernel.TaskType.MAPPER, new LinkedList<Long>());
-       openclDataHandles.put(Kernel.TaskType.COMBINER, new LinkedList<Long>());
-       openclDataHandles.put(Kernel.TaskType.REDUCER, new LinkedList<Long>());
+       openclDataHandles.put(Kernel.TaskType.MAPPER, new DataHandlesWrapper());
+       openclDataHandles.put(Kernel.TaskType.COMBINER, new DataHandlesWrapper());
+       openclDataHandles.put(Kernel.TaskType.REDUCER, new DataHandlesWrapper());
 
        entrypoints.put(Kernel.TaskType.MAPPER, new LinkedList<Entrypoint>());
        entrypoints.put(Kernel.TaskType.COMBINER, new LinkedList<Entrypoint>());
@@ -224,10 +229,11 @@ public class KernelRunner extends KernelRunnerJNI {
       }
 
       if (this.myOpenCLDataHandle != 0) {
-          final List<Long> dataHandlesForType =
+          final DataHandlesWrapper dataHandlesForType =
               openclDataHandles.get(kernel.checkTaskType());
           synchronized (dataHandlesForType) {
-              dataHandlesForType.add(this.myOpenCLDataHandle);
+              dataHandlesForType.handles.add(this.myOpenCLDataHandle);
+              dataHandlesForType.notifyAll();
           }
           this.myOpenCLDataHandle = 0;
       }
@@ -517,7 +523,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
    public synchronized void doEntrypointInit(String _entrypointName,
            boolean enableStrided, Device device, int deviceId, int deviceSlot,
-           boolean dryRun, int taskId, int attemptId) {
+           boolean dryRun, int taskId, int attemptId, int maxDataHandles) {
       if (entryPoint == null &&
             (this.kernel.getKernelFileForDeviceType(device.getType()) == null || dryRun)) {
 
@@ -793,14 +799,24 @@ public class KernelRunner extends KernelRunnerJNI {
          buildOpenCLContext(this.kernel.checkTaskType(), openCL,
                  this.myOpenCLContextHandle);
 
-         List<Long> dataHandlesForType =
+         DataHandlesWrapper dataHandlesForType =
              openclDataHandles.get(kernel.checkTaskType());
          synchronized (dataHandlesForType) {
              long dataHandle;
-             if (dataHandlesForType.isEmpty()) {
-                 dataHandle = initOpenCLData();
+             if (dataHandlesForType.handles.isEmpty()) {
+                  if (dataHandlesForType.allocated < maxDataHandles) {
+                      dataHandle = initOpenCLData();
+                      dataHandlesForType.allocated++;
+                  } else {
+                      while (dataHandlesForType.handles.isEmpty()) {
+                          try {
+                              dataHandlesForType.wait();
+                          } catch (InterruptedException e) { }
+                      }
+                      dataHandle = dataHandlesForType.handles.remove(0);
+                  }
              } else {
-                 dataHandle = dataHandlesForType.remove(0);
+                 dataHandle = dataHandlesForType.handles.remove(0);
              }
              if (dataHandle == 0L) {
                  throw new RuntimeException("Error creating data handle");
@@ -819,7 +835,7 @@ public class KernelRunner extends KernelRunnerJNI {
    public synchronized Kernel execute(String _entrypointName,
            final Range _range, int deviceId, int deviceSlot, final int _passes, final boolean enableStrided,
            final boolean isRelaunch, final boolean dryRun, int taskId,
-           int attemptId, String label) {
+           int attemptId, String label, int maxDataHandles) {
 
       long executeStartTime = System.currentTimeMillis();
       Kernel ret = kernel;
@@ -834,7 +850,7 @@ public class KernelRunner extends KernelRunnerJNI {
       if ((device != null) && (device instanceof OpenCLDevice)) {
             // Should be a no-op except when called by translate.sh script
             doEntrypointInit(_entrypointName, enableStrided, device, deviceId, deviceSlot,
-                dryRun, taskId, attemptId);
+                dryRun, taskId, attemptId, maxDataHandles);
             try {
                ret = executeOpenCL(_entrypointName, _range, _passes,
                        enableStrided, isRelaunch, label);

@@ -1850,12 +1850,12 @@ public abstract class Kernel implements Cloneable {
     * @returnThe Kernel instance (this) so we can chain calls to put(arr).execute(range).get(arr)
     * 
     */
-   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, String label) {
-      return (execute(_range, deviceId, deviceSlot, 1, false, false, 0, 0, label));
+   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, String label, int maxDataHandles) {
+      return (execute(_range, deviceId, deviceSlot, 1, false, false, 0, 0, label, maxDataHandles));
    }
 
-   public synchronized Kernel reExecute(Range _range, int deviceId, int deviceSlot, String label) {
-      return (execute(_range, deviceId, deviceSlot, 1, true, false, 0, 0, label));
+   public synchronized Kernel reExecute(Range _range, int deviceId, int deviceSlot, String label, int maxDataHandles) {
+      return (execute(_range, deviceId, deviceSlot, 1, true, false, 0, 0, label, maxDataHandles));
    }
 
    public synchronized int readFromOpenCL() {
@@ -1866,16 +1866,16 @@ public abstract class Kernel implements Cloneable {
       return kernelRunner.waitForKernelCompletion();
    }
 
-   public synchronized void doEntrypointInit(Device dev, int deviceId, int deviceSlot, int taskId, int attemptId) {
+   public synchronized void doEntrypointInit(Device dev, int deviceId, int deviceSlot, int taskId, int attemptId, int maxDataHandles) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
       }
       kernelRunner.doEntrypointInit("run", this.enableStrided, dev, deviceId, deviceSlot, false,
-          taskId, attemptId);
+          taskId, attemptId, maxDataHandles);
    }
 
-   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label) {
-      return (execute(_range, deviceId, deviceSlot, 1, false, dryRun, taskId, attemptId, label));
+   public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, boolean dryRun, int taskId, int attemptId, String label, int maxDataHandles) {
+      return (execute(_range, deviceId, deviceSlot, 1, false, dryRun, taskId, attemptId, label, maxDataHandles));
    }
 
    /**
@@ -1891,8 +1891,8 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(Range _range, int deviceId, int deviceSlot, int _passes,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
-       final int attemptId, String label) {
-      return (execute("run", _range, deviceId, deviceSlot, _passes, isRelaunch, dryRun, taskId, attemptId, label));
+       final int attemptId, String label, int maxDataHandles) {
+      return (execute("run", _range, deviceId, deviceSlot, _passes, isRelaunch, dryRun, taskId, attemptId, label, maxDataHandles));
    }
 
 
@@ -1909,8 +1909,8 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(String _entrypoint, Range _range, int deviceId, int deviceSlot,
        final boolean isRelaunch, final boolean dryRun, final int taskId,
-       final int attemptId, String label) {
-      return (execute(_entrypoint, _range, deviceId, deviceSlot, 1, isRelaunch, dryRun, taskId, attemptId, label));
+       final int attemptId, String label, int maxDataHandles) {
+      return (execute(_entrypoint, _range, deviceId, deviceSlot, 1, isRelaunch, dryRun, taskId, attemptId, label, maxDataHandles));
    }
 
    /**
@@ -1926,13 +1926,13 @@ public abstract class Kernel implements Cloneable {
     */
    public synchronized Kernel execute(String _entrypoint, Range _range, int deviceId, int deviceSlot,
        int _passes, final boolean isRelaunch, final boolean dryRun,
-       final int taskId, final int attemptId, String label) {
+       final int taskId, final int attemptId, String label, int maxDataHandles) {
       if (kernelRunner == null) {
          kernelRunner = new KernelRunner(this);
 
       }
       return (kernelRunner.execute(_entrypoint, _range, deviceId, deviceSlot, _passes,
-            enableStrided, isRelaunch, dryRun, taskId, attemptId, label));
+            enableStrided, isRelaunch, dryRun, taskId, attemptId, label, maxDataHandles));
    }
 
    /**
