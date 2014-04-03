@@ -149,6 +149,38 @@ static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
     return NULL;
 }
 
+JNI_JAVA(jint, KernelRunnerJNI, hadoopclCopyBackWritables)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jlong writableHandle) {
+        cl_int err;
+        OpenCLDataContext *ctx = ((OpenCLDataContext *)writableHandle);
+
+        for (int argidx = 0; argidx < jniContext->argc; argidx++) {
+             KernelArg *arg = jniContext->args[argidx];
+             if (arg->isArray()) {
+                 if (arg->dir == WRITABLE) {
+                     arg->syncSizeInBytes(jenv);
+                     arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                             arg->javaArg, KernelArg::javaArrayFieldID);
+
+                     hadoopclParameter *param = ctx->findHadoopclParam(arg);
+                     cl_mem mem = param->allocatedMem;
+
+                     arg->pin(jenv);
+                     err = clEnqueueReadBuffer(openclContext->copyCommandQueue,
+                             mem, CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                             arg->arrayBuffer->addr, 0, NULL, NULL);
+                     arg->unpinCommit(jenv);
+                     if (err != CL_SUCCESS) {
+                         fprintf(stderr, "Error copying back writable %s: %d\n",
+                                 arg->name, err);
+                         exit(1);
+                     }
+                 }
+             }
+        }
+        return 0;
+    }
+
 static OpenCLDataContext *dataInitHelper(JNIEnv *jenv, jlong jniContextHandle, jlong openclContextHandle, int dir) {
 
         cl_int err;

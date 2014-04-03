@@ -310,4 +310,6 @@ public abstract class KernelRunnerJNI{
        long _openclDataContextHandle);
    protected native long hadoopclInitGlobalData(long jniContextHandle, long openclContextHandle);
    protected native long hadoopclInitWritableData(long jniContextHandle, long openclContextHandle);
+   protected native int hadoopclCopyBackWritables(long jniContextHandle,
+           long openclContextHandle, long writableHandle);
 }

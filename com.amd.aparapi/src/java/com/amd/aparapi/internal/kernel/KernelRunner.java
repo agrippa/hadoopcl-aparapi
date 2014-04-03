@@ -441,6 +441,11 @@ public class KernelRunner extends KernelRunnerJNI {
      return hadoopclWaitForKernel(jniContextHandle, myOpenCLContextHandle);
    }
 
+   public synchronized int copyBackWritables() {
+       return hadoopclCopyBackWritables(jniContextHandle, myOpenCLContextHandle,
+               writableOpenCLDataHandles.get(kernel.checkTaskType()));
+   }
+
    public synchronized int readFromOpenCL() {
        try {
            updateKernelArrayRefs();

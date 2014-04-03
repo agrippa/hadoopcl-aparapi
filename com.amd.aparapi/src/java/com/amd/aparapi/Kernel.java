@@ -1858,6 +1858,10 @@ public abstract class Kernel implements Cloneable {
       return (execute(_range, deviceId, deviceSlot, 1, true, false, 0, 0, label, maxDataHandles));
    }
 
+   public synchronized int copyBackWritables() {
+       return kernelRunner.copyBackWritables();
+   }
+
    public synchronized int readFromOpenCL() {
        return kernelRunner.readFromOpenCL();
    }
