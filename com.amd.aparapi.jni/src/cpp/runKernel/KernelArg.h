@@ -20,6 +20,7 @@ enum KernelArgDirection {
     IN,
     OUT,
     GLOBAL,
+    WRITABLE,
     INOUT
 };
 

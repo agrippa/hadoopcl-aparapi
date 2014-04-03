@@ -149,8 +149,7 @@ static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
     return NULL;
 }
 
-JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitGlobalData)
-    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
+static OpenCLDataContext *dataInitHelper(JNIEnv *jenv, jlong jniContextHandle, jlong openclContextHandle, int dir) {
 
         cl_int err;
         OpenCLDataContext *ctx = (OpenCLDataContext *)malloc(sizeof(OpenCLDataContext));
@@ -162,7 +161,7 @@ JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitGlobalData)
         for (int argidx = 0; argidx < jniContext->argc; argidx++) {
              KernelArg *arg = jniContext->args[argidx];
              if (arg->isArray()) {
-                 if (arg->dir == GLOBAL) {
+                 if (arg->dir == dir) {
                      arg->syncSizeInBytes(jenv);
                      arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
                              arg->javaArg, KernelArg::javaArrayFieldID);
@@ -175,19 +174,33 @@ JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitGlobalData)
                      arg->unpinAbort(jenv);
                        if (err != CL_SUCCESS) {
                            fprintf(stderr,"Reporting failure of global write: %d\n",err);
-                           return err;
+                           exit(1);
                        }
                  }
              }
         }
 
+        return ctx;
+}
+
+JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitWritableData)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
+        OpenCLDataContext *ctx = dataInitHelper(jenv, jniContextHandle,
+                openclContextHandle, WRITABLE);
+        return ((jlong)ctx);
+    }
+
+JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitGlobalData)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
+        OpenCLDataContext *ctx = dataInitHelper(jenv, jniContextHandle,
+                openclContextHandle, GLOBAL);
         return ((jlong)ctx);
     }
 
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
      jlong openclContextHandle, jlong openclProgramContextHandle,
-     jlong globalDataHandle,
+     jlong globalDataHandle, jlong writableDataHandle,
      jint javaGlobalDim, jint javaLocalDim, jint relaunch, jstring label) {
 TRACE_LINE
 
@@ -211,6 +224,11 @@ TRACE_LINE
       OpenCLDataContext *globalContext = ((OpenCLDataContext *)globalDataHandle);
       if (globalContext == NULL) {
           fprintf(stderr, "Invalid global data context\n");
+          exit(1);
+      }
+      OpenCLDataContext *writableContext = ((OpenCLDataContext *)writableDataHandle);
+      if (writableContext == NULL) {
+          fprintf(stderr, "Invalid writable data context\n");
           exit(1);
       }
 

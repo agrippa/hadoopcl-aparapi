@@ -36,6 +36,8 @@ KernelArg::KernelArg(JNIEnv *jenv, JNIContext *jniContext,
       const char *nameChars = jenv->GetStringUTFChars(nameString, NULL);
       if (strncmp(nameChars, "global", 6) == 0) {
           dir = GLOBAL;
+      } else if (strncmp(nameChars, "writable", 8) == 0) {
+          dir = WRITABLE;
       } else if (strncmp(nameChars, "input", 5) == 0) {
           dir = IN;
       } else if (strncmp(nameChars, "output", 6) == 0) {

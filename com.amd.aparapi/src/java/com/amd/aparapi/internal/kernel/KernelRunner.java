@@ -138,6 +138,9 @@ public class KernelRunner extends KernelRunnerJNI {
 
    private static Map<Kernel.TaskType, Long> globalOpenCLDataHandles =
        new HashMap<Kernel.TaskType, Long>();
+
+   private static Map<Kernel.TaskType, Long> writableOpenCLDataHandles =
+       new HashMap<Kernel.TaskType, Long>();
    /*
     * Stores Entrypoint object for each kernel type. These are recycled.
     */
@@ -164,6 +167,10 @@ public class KernelRunner extends KernelRunnerJNI {
        globalOpenCLDataHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
        globalOpenCLDataHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
        globalOpenCLDataHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
+
+       writableOpenCLDataHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
+       writableOpenCLDataHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
+       writableOpenCLDataHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
 
        entrypoints.put(Kernel.TaskType.MAPPER, new LinkedList<Entrypoint>());
        entrypoints.put(Kernel.TaskType.COMBINER, new LinkedList<Entrypoint>());
@@ -418,6 +425,7 @@ public class KernelRunner extends KernelRunnerJNI {
               myOpenCLContextHandle,
               openclProgramContextHandles.get(kernel.checkTaskType()),
               globalOpenCLDataHandles.get(kernel.checkTaskType()),
+              writableOpenCLDataHandles.get(kernel.checkTaskType()),
               _range.getGlobalSize(), _range.getLocalSize(),
               isRelaunch ? 1 : 0, label)) != 0) {
          return null;
@@ -843,6 +851,14 @@ public class KernelRunner extends KernelRunnerJNI {
                 final long globalHandle = hadoopclInitGlobalData(
                         jniContextHandle, this.myOpenCLContextHandle);
                 globalOpenCLDataHandles.put(kernel.checkTaskType(), globalHandle);
+             }
+         }
+
+         synchronized (writableOpenCLDataHandles) {
+             if (writableOpenCLDataHandles.get(kernel.checkTaskType()).longValue() == 0L) {
+                final long globalHandle = hadoopclInitWritableData(
+                        jniContextHandle, this.myOpenCLContextHandle);
+                writableOpenCLDataHandles.put(kernel.checkTaskType(), globalHandle);
              }
          }
       }
