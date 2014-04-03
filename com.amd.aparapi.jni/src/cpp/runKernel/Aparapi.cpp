@@ -153,6 +153,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclCopyBackWritables)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle, jlong writableHandle) {
         cl_int err;
         OpenCLDataContext *ctx = ((OpenCLDataContext *)writableHandle);
+        OpenCLContext *openclContext = (OpenCLContext *)openclContextHandle;
+        JNIContext *jniContext = JNIContext::getJNIContext(jniContextHandle);
 
         for (int argidx = 0; argidx < jniContext->argc; argidx++) {
              KernelArg *arg = jniContext->args[argidx];
