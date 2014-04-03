@@ -135,6 +135,9 @@ public class KernelRunner extends KernelRunnerJNI {
     */
    private static Map<Kernel.TaskType, DataHandlesWrapper> openclDataHandles =
      new HashMap<Kernel.TaskType, DataHandlesWrapper>();
+
+   private static Map<Kernel.TaskType, Long> globalOpenCLDataHandles =
+       new HashMap<Kernel.TaskType, Long>();
    /*
     * Stores Entrypoint object for each kernel type. These are recycled.
     */
@@ -157,6 +160,10 @@ public class KernelRunner extends KernelRunnerJNI {
        openclDataHandles.put(Kernel.TaskType.MAPPER, new DataHandlesWrapper());
        openclDataHandles.put(Kernel.TaskType.COMBINER, new DataHandlesWrapper());
        openclDataHandles.put(Kernel.TaskType.REDUCER, new DataHandlesWrapper());
+
+       globalOpenCLDataHandles.put(Kernel.TaskType.MAPPER, new Long(0L));
+       globalOpenCLDataHandles.put(Kernel.TaskType.COMBINER, new Long(0L));
+       globalOpenCLDataHandles.put(Kernel.TaskType.REDUCER, new Long(0L));
 
        entrypoints.put(Kernel.TaskType.MAPPER, new LinkedList<Entrypoint>());
        entrypoints.put(Kernel.TaskType.COMBINER, new LinkedList<Entrypoint>());
@@ -410,6 +417,7 @@ public class KernelRunner extends KernelRunnerJNI {
       if ((execID = hadoopclLaunchKernelJNI(jniContextHandle,
               myOpenCLContextHandle,
               openclProgramContextHandles.get(kernel.checkTaskType()),
+              globalOpenCLDataHandles.get(kernel.checkTaskType()),
               _range.getGlobalSize(), _range.getLocalSize(),
               isRelaunch ? 1 : 0, label)) != 0) {
          return null;
@@ -829,6 +837,14 @@ public class KernelRunner extends KernelRunnerJNI {
 
          setArgsJNI(jniContextHandle,
              openclProgramContextHandles.get(kernel.checkTaskType()), args, argc);
+
+         synchronized (globalOpenCLDataHandles) {
+             if (globalOpenCLDataHandles.get(kernel.checkTaskType()).longValue() == 0L) {
+                final long globalHandle = hadoopclInitGlobalData(
+                        jniContextHandle, this.myOpenCLContextHandle);
+                globalOpenCLDataHandles.put(kernel.checkTaskType(), globalHandle);
+             }
+         }
       }
    }
 

@@ -297,7 +297,7 @@ public abstract class KernelRunnerJNI{
            String _source);
    protected native int hadoopclLaunchKernelJNI(long _jniContextHandle,
        long _openclContextHandle, long _openclProgramContextHandle,
-       int globalDim, int localDim, int relaunch, String label);
+       long globalDataHandle, int globalDim, int localDim, int relaunch, String label);
    protected native int hadoopclReadbackJNI(long _jniContextHandle,
            long _openclContextHandle);
    protected native int hadoopclWaitForKernel(long _jniContextHandle,
@@ -307,4 +307,5 @@ public abstract class KernelRunnerJNI{
    protected native static long initOpenCLData();
    protected native int initJNIContextFromOpenCLDataContext(long _jniContextHandle,
        long _openclDataContextHandle);
+   protected native long hadoopclInitGlobalData(long jniContextHandle, long openclContextHandle);
 }

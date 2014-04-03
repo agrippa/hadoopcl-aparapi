@@ -149,9 +149,45 @@ static unsigned char *findWithLengthGreaterThan(unsigned char **zeroBuffers,
     return NULL;
 }
 
+JNI_JAVA(jlong, KernelRunnerJNI, hadoopclInitGlobalData)
+    (JNIEnv *jenv, jobject jobj, jlong jniContextHandle, jlong openclContextHandle) {
+
+        cl_int err;
+        OpenCLDataContext *ctx = (OpenCLDataContext *)malloc(sizeof(OpenCLDataContext));
+        memset(ctx, 0x00, sizeof(OpenCLDataContext));
+
+        OpenCLContext *openclContext = (OpenCLContext *)openclContextHandle;
+        JNIContext *jniContext = JNIContext::getJNIContext(jniContextHandle);
+
+        for (int argidx = 0; argidx < jniContext->argc; argidx++) {
+             KernelArg *arg = jniContext->args[argidx];
+             if (arg->isArray()) {
+                 if (arg->dir == GLOBAL) {
+                     arg->syncSizeInBytes(jenv);
+                     arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                             arg->javaArg, KernelArg::javaArrayFieldID);
+                     cl_mem mem = ctx->hadoopclRefresh(arg, 0, jniContext,
+                             openclContext);
+                     arg->pin(jenv);
+                     err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
+                             CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                             arg->arrayBuffer->addr, 0, NULL, NULL);
+                     arg->unpinAbort(jenv);
+                       if (err != CL_SUCCESS) {
+                           fprintf(stderr,"Reporting failure of global write: %d\n",err);
+                           return err;
+                       }
+                 }
+             }
+        }
+
+        return ((jlong)ctx);
+    }
+
 JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
     (JNIEnv *jenv, jobject jobj, jlong jniContextHandle,
      jlong openclContextHandle, jlong openclProgramContextHandle,
+     jlong globalDataHandle,
      jint javaGlobalDim, jint javaLocalDim, jint relaunch, jstring label) {
 TRACE_LINE
 
@@ -170,6 +206,11 @@ TRACE_LINE
       OpenCLProgramContext *programContext = ((OpenCLProgramContext *)openclProgramContextHandle);
       if (!programContext) {
           fprintf(stderr, "Invalid programContext in hadoopclLaunchKernelJNI\n");
+          exit(1);
+      }
+      OpenCLDataContext *globalContext = ((OpenCLDataContext *)globalDataHandle);
+      if (globalContext == NULL) {
+          fprintf(stderr, "Invalid global data context\n");
           exit(1);
       }
 
@@ -240,8 +281,19 @@ TRACE_LINE
                              arg->javaArg, KernelArg::javaArrayFieldID);
                  }
 
-                 cl_mem mem = jniContext->datactx->hadoopclRefresh(arg,
-                     relaunch, jniContext, openclContext);
+                 cl_mem mem = 0;
+
+                 if (arg->dir != GLOBAL) {
+                     mem = jniContext->datactx->hadoopclRefresh(arg,
+                         relaunch, jniContext, openclContext);
+                 } else {
+                     hadoopclParameter *param = globalContext->findHadoopclParam(arg);
+                     if (param == NULL) {
+                         fprintf(stderr, "Error: unable to find global data structure %s\n", arg->name);
+                         exit(1);
+                     }
+                     mem = param->allocatedMem;
+                 }
 
                  if (arg->zeroBeforeKernel) {
                      // fprintf(stderr, "Filling argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
@@ -274,7 +326,7 @@ TRACE_LINE
                         exit(1);
                      }
                      fillEventsSoFar++;
-                 } else if (arg->dir != OUT) {
+                 } else if (arg->dir != OUT && arg->dir != GLOBAL) {
                    if (relaunch == 0 &&
                            (arg->dir != GLOBAL || jniContext->datactx->writtenAtleastOnce == 0)) {
                        // fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
