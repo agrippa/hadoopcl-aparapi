@@ -201,15 +201,17 @@ static OpenCLDataContext *dataInitHelper(JNIEnv *jenv, jlong jniContextHandle, j
                              arg->javaArg, KernelArg::javaArrayFieldID);
                      cl_mem mem = ctx->hadoopclRefresh(arg, 0, jniContext,
                              openclContext);
-                     arg->pin(jenv);
-                     err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
-                             CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
-                             arg->arrayBuffer->addr, 0, NULL, NULL);
-                     arg->unpinAbort(jenv);
-                       if (err != CL_SUCCESS) {
-                           fprintf(stderr,"Reporting failure of global write: %d\n",err);
-                           exit(1);
-                       }
+                     if (mem) {
+                         arg->pin(jenv);
+                         err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
+                                 CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
+                                 arg->arrayBuffer->addr, 0, NULL, NULL);
+                         arg->unpinAbort(jenv);
+                         if (err != CL_SUCCESS) {
+                             fprintf(stderr,"Reporting failure of global write: %d\n",err);
+                             exit(1);
+                         }
+                     }
                  }
              }
         }
@@ -335,16 +337,23 @@ TRACE_LINE
 
                  cl_mem mem = 0;
 
-                 if (arg->dir != GLOBAL) {
-                     mem = jniContext->datactx->hadoopclRefresh(arg,
-                         relaunch, jniContext, openclContext);
-                 } else {
+                 if (arg->dir == GLOBAL) {
                      hadoopclParameter *param = globalContext->findHadoopclParam(arg);
                      if (param == NULL) {
-                         fprintf(stderr, "Error: unable to find global data structure %s\n", arg->name);
-                         exit(1);
+                         mem = NULL;
+                     } else {
+                         mem = param->allocatedMem;
                      }
-                     mem = param->allocatedMem;
+                 } else if (arg->dir == WRITABLE) {
+                     hadoopclParameter *param = writableContext->findHadoopclParam(arg);
+                     if (param == NULL) {
+                         mem = NULL;
+                     } else {
+                         mem = param->allocatedMem;
+                     }
+                 } else {
+                     mem = jniContext->datactx->hadoopclRefresh(arg,
+                         relaunch, jniContext, openclContext);
                  }
 
                  if (arg->zeroBeforeKernel) {
@@ -378,9 +387,8 @@ TRACE_LINE
                         exit(1);
                      }
                      fillEventsSoFar++;
-                 } else if (arg->dir != OUT && arg->dir != GLOBAL) {
-                   if (relaunch == 0 &&
-                           (arg->dir != GLOBAL || jniContext->datactx->writtenAtleastOnce == 0)) {
+                 } else if (arg->dir != OUT && arg->dir != GLOBAL && arg->dir != WRITABLE) {
+                   if (relaunch == 0) {
                        // fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
                        arg->pin(jenv);
                        err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
@@ -397,8 +405,8 @@ TRACE_LINE
                  err = clSetKernelArg(programContext->kernel, argpos,
                          sizeof(cl_mem), &mem);
                  if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p\n",
-                             argpos, arg->name, err, programContext->kernel);
+                     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p %p\n",
+                             argpos, arg->name, err, programContext->kernel, mem);
                      exit(9);
                  }
 
@@ -538,7 +546,7 @@ TRACE_LINE
 #endif
          for (int argidx = 0; argidx < jniContext->argc; argidx++) {
              KernelArg *arg = jniContext->args[argidx];
-             if (arg->isArray() && arg->dir != IN && arg->dir != GLOBAL) {
+             if (arg->isArray() && arg->dir != IN && arg->dir != GLOBAL && arg->dir != WRITABLE) {
                  arg->syncSizeInBytes(jenv);
                  if (arg->arrayBuffer->javaArray != NULL) {
                     jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);

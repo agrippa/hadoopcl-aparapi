@@ -379,11 +379,11 @@ public class KernelRunner extends KernelRunnerJNI {
 
    private KernelArg[] args = null;
 
-   private void updateKernelArrayRefs() throws AparapiException {
+   private void updateKernelArrayRefs(String filter) throws AparapiException {
       for (int i = 0; i < argc; i++) {
          final KernelArg arg = args[i];
          try {
-            if ((arg.getType() & ARG_ARRAY) != 0) {
+            if ((arg.getType() & ARG_ARRAY) != 0 && (filter == null || arg.getName().indexOf(filter) == 0)) {
                final Object newArrayRef = arg.getField().get(kernel);
 
                // set up JNI fields for normal arrays
@@ -417,7 +417,7 @@ public class KernelRunner extends KernelRunnerJNI {
       // We need to do this as input to computing the localSize
       assert args != null : "args should not be null";
 
-      updateKernelArrayRefs();
+      updateKernelArrayRefs(null);
 
       // native side will reallocate array buffers if necessary
       int execID;
@@ -448,7 +448,7 @@ public class KernelRunner extends KernelRunnerJNI {
 
    public synchronized int readFromOpenCL() {
        try {
-           updateKernelArrayRefs();
+           updateKernelArrayRefs(null);
        } catch (Exception e) {
            throw new RuntimeException(e);
        }
@@ -851,6 +851,12 @@ public class KernelRunner extends KernelRunnerJNI {
          setArgsJNI(jniContextHandle,
              openclProgramContextHandles.get(kernel.checkTaskType()), args, argc);
 
+         try {
+             updateKernelArrayRefs("global");
+             updateKernelArrayRefs("writable");
+         } catch (Exception e) {
+             throw new RuntimeException(e);
+         }
          synchronized (globalOpenCLDataHandles) {
              if (globalOpenCLDataHandles.get(kernel.checkTaskType()).longValue() == 0L) {
                 final long globalHandle = hadoopclInitGlobalData(

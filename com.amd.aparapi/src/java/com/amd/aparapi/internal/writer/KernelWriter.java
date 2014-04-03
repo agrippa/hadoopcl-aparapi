@@ -649,6 +649,22 @@ public abstract class KernelWriter extends BlockWriter{
       write("}");
       newLine();
 
+      write("float fp32_atomic_add(volatile __global float *p, float val) {\n");
+      write("   union {\n");
+      write("      float d;\n");
+      write("      uint l;\n");
+      write("   } newVal;\n");
+      write("   union {\n");
+      write("      float d;\n");
+      write("      uint l;\n");
+      write("   } prevVal;\n");
+      write("   do {\n");
+      write("      prevVal.d = *p;\n");
+      write("      newVal.d = prevVal.d + val;\n");
+      write("   } while (atomic_cmpxchg((volatile __global uint *)p, prevVal.l, newVal.l) != prevVal.l);\n");
+      write("   return prevVal.d;\n");
+      write("}\n");
+
       write("int my_atomic_add(volatile __global int *p, int incr) {\n");
       write("    int oldVal = *p;\n");
       write("    int newVal;\n");
@@ -777,8 +793,6 @@ public abstract class KernelWriter extends BlockWriter{
       final String getGlobalIndicesPost = "__getGlobalIndices";
       final String getGlobalValsPost = "__getGlobalVals";
       final String getGlobalFValsPost = "__getGlobalFVals";
-      // final String referenceGlobalValPost = "__referenceGlobalVal";
-      // final String referenceGlobalFvalPost = "__referenceGlobalFval";
       final String inputVectorLengthPost = "__inputVectorLength";
       final String allocIntPost = "__allocInt";
       final String allocDoublePost = "__allocDouble";
@@ -790,6 +804,7 @@ public abstract class KernelWriter extends BlockWriter{
       final String quickSortPost = "__quickSort";
       final String outOfMemoryPost = "__outOfMemory";
       final String mergePost = "__merge";
+      final String incrementWritablePost = "__incrementWritable";
 
       HADOOPTYPE hadoopType = HADOOPTYPE.UNKNOWN;
 
@@ -819,6 +834,7 @@ public abstract class KernelWriter extends BlockWriter{
          boolean isQuickSort = false;
          boolean isOutOfMemory = false;
          boolean isMerge = false;
+         boolean isIncrementWritable = false;
 
          boolean hasOffsetArg = false;
          final LocalVariableTableEntry<LocalVariableInfo> lvte = mm.getLocalVariableTableEntry();
@@ -861,10 +877,6 @@ public abstract class KernelWriter extends BlockWriter{
                  isGetGlobalVals = true;
              } else if(mm.getName().indexOf(getGlobalFValsPost) != -1) {
                  isGetGlobalFVals = true;
-             // } else if (mm.getName().indexOf(referenceGlobalValPost) != -1) {
-             //    isReferenceGlobalVal = true;
-             // } else if (mm.getName().indexOf(referenceGlobalFvalPost) != -1) {
-             //    isReferenceGlobalFval = true;
              } else if(mm.getName().indexOf(inputVectorLengthPost) != -1) {
                  isInputVectorLength = true;
              } else if(mm.getName().indexOf(allocIntPost) != -1) {
@@ -883,6 +895,8 @@ public abstract class KernelWriter extends BlockWriter{
                  isOutOfMemory = true;
              } else if (mm.getName().indexOf(mergePost) != -1) {
                  isMerge = true;
+             } else if (mm.getName().indexOf(incrementWritablePost) != -1) {
+                 isIncrementWritable = true;
              }
          }
 
@@ -1034,7 +1048,7 @@ public abstract class KernelWriter extends BlockWriter{
                  write("      this->outputValFloatLookAsideBuffer[index] = valVals - this->outputValVals;\n");
                  write("      this->outputValLengthBuffer[index] = len;\n");
                  write("      *(valIndices - 1) = 1;\n");
-                 write("      *(valVals - 1) = 1;\n");
+                 write("      *(((__global int *)valVals) - 1) = 1;\n");
                  for(int i = 1; i < argTokens.length; i++) {
                      if(argTokens[i].indexOf("key") != -1) {
                          write("   ");
@@ -1687,6 +1701,13 @@ public abstract class KernelWriter extends BlockWriter{
            write("  }\n");
            write("\n");
            write("  return outputIndex + sofar[0];\n");
+           write("}\n\n");
+         } else if (isIncrementWritable) {
+           write("\n{\n");
+           write("   int index = org_apache_hadoop_mapreduce_HadoopCLKernel__findSparseIndex(this, gid, sparseIndex, this->writableBucketOffsets, this->writableStartingIndexPerBucket, this->writableIndices, this->writableInd, this->writableInd__javaArrayLength0, this->nWritables);\n");
+           write("   if (index != -1) {\n");
+           write("      fp32_atomic_add(this->writableVal + index, val);\n");
+           write("   }\n");
            write("}\n\n");
          } else {
              writeMethodBody(mm);

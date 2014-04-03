@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/MahoutKMeans.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/MahoutKMeans.jar:${HADOOP_APP_DIR}/TestWritables.jar:${CLASSPATH}
 
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper f c ~/kernels/pairwise.mapper.cpu ./bin
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper t g ~/kernels/pairwise.mapper.gpu ./bin
@@ -16,3 +16,9 @@ export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/Ma
 
 ./translate.sh MahoutKMeans\$MahoutKMeansReducer f c ~/kernels/kmeans.reducer.cpu ./bin
 ./translate.sh MahoutKMeans\$MahoutKMeansReducer t g ~/kernels/kmeans.reducer.gpu ./bin
+
+./translate.sh TestWritables\$TestWritableMapper f c ~/kernels/writable.mapper.cpu ./bin
+./translate.sh TestWritables\$TestWritableMapper t g ~/kernels/writable.mapper.gpu ./bin
+
+./translate.sh TestWritables\$TestWritableReducer f c ~/kernels/writable.reducer.cpu ./bin
+./translate.sh TestWritables\$TestWritableReducer t g ~/kernels/writable.reducer.gpu ./bin

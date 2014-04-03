@@ -463,7 +463,7 @@ public class Entrypoint{
           referencedFieldNames.add("inputValIds");
           referencedFieldNames.add("inputVals1");
           referencedFieldNames.add("inputVals2");
-      } else if (inputValueType.equals("svec") || inputValueType.equals("bsvec")) {
+      } else if (inputValueType.equals("svec") || inputValueType.equals("bsvec") || inputValueType.equals("fsvec")) {
           referencedFieldNames.add("individualInputValsCount");
           referencedFieldNames.add("inputValLookAsideBuffer");
           referencedFieldNames.add("inputValIndices");

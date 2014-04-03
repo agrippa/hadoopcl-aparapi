@@ -42,7 +42,7 @@ hadoopclParameter* OpenCLDataContext::addHadoopclParam(KernelArg *arg, JNIContex
     current->name = (char *)malloc(sizeof(char) * (strlen(arg->name)+1));
     memcpy(current->name, arg->name, sizeof(char) * (strlen(arg->name)+1));
     current->allocatedSize = (size_t)arg->arrayBuffer->lengthInBytes;
-    if (strncmp(current->name, "globals", 7) == 0) {
+    if (strncmp(current->name, "global", 6) == 0) {
         current->createFlags = CL_MEM_READ_ONLY;
     } else {
         current->createFlags = CL_MEM_READ_WRITE;
@@ -108,8 +108,11 @@ void OpenCLDataContext::refreshHadoopclParam(KernelArg *arg,
     hadoopclParam->allocatedSize = arg->arrayBuffer->lengthInBytes;
 }
 
-cl_mem OpenCLDataContext::hadoopclRefresh(KernelArg *arg, int relaunch, JNIContext *jniContext, OpenCLContext *openclContext) {
-    if (!arg->isArray()) return 0x0;
+cl_mem OpenCLDataContext::hadoopclRefresh(KernelArg *arg, int relaunch,
+        JNIContext *jniContext, OpenCLContext *openclContext) {
+    if (!arg->isArray() || arg->arrayBuffer->lengthInBytes == 0) {
+        return 0x0;
+    }
 
     hadoopclParameter *param = findHadoopclParam(arg);
 
