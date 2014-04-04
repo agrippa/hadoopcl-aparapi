@@ -1617,6 +1617,7 @@ public abstract class KernelWriter extends BlockWriter{
             write("}\n\n");
          } else if (isMerge) {
            String declaration = removePreviousLine();
+           final boolean isDoubleMerge = declaration.contains("double");
 
            int index = declaration.indexOf("int totalNElements");
            declaration = declaration.substring(0, index) + "const " + declaration.substring(index);
@@ -1638,7 +1639,11 @@ public abstract class KernelWriter extends BlockWriter{
            write("  int j;\n");
            write("  int nvals = nValues(this);\n");
            write("  __global int * __global * const ptrs = (__global int * __global * const )preallocDouble;\n");
-           write("  __global double * __global * const valPtrs = (__global double * __global * const)(preallocDouble + nvals);\n");
+           if (isDoubleMerge) {
+               write("  __global double * __global * const valPtrs = (__global double * __global * const)(preallocDouble + nvals);\n");
+           } else {
+               write("  __global float * __global * const valPtrs = (__global float * __global * const)(preallocDouble + (nvals * 2));\n");
+           }
            write("  __global int * const sofar = preallocInt;\n");
            write("  __global int * const currentMins = preallocInt + nvals;\n");
            write("\n");

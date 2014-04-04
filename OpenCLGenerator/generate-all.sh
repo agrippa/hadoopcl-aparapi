@@ -22,3 +22,12 @@ export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/Ma
 
 ./translate.sh TestWritables\$TestWritableReducer f c ~/kernels/writable.reducer.cpu ./bin
 ./translate.sh TestWritables\$TestWritableReducer t g ~/kernels/writable.reducer.gpu ./bin
+
+./translate.sh NaiveBayes\$NaiveBayesMapper f c ~/kernels/bayes.mapper.cpu ./bin
+./translate.sh NaiveBayes\$NaiveBayesMapper t g ~/kernels/bayes.mapper.gpu ./bin
+
+./translate.sh NaiveBayes\$NaiveBayesCombiner f c ~/kernels/bayes.combiner.cpu ./bin
+./translate.sh NaiveBayes\$NaiveBayesCombiner t g ~/kernels/bayes.combiner.gpu ./bin
+
+./translate.sh NaiveBayes\$NaiveBayesReducer f c ~/kernels/bayes.reducer.cpu ./bin
+./translate.sh NaiveBayes\$NaiveBayesReducer t g ~/kernels/bayes.reducer.gpu ./bin
