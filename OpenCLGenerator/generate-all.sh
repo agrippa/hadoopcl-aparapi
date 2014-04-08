@@ -1,6 +1,11 @@
 #!/bin/sh
 
-export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/MahoutKMeans.jar:${HADOOP_APP_DIR}/TestWritables.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/MahoutKMeans.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/TestWritables.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/FuzzyKMeans.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/NaiveBayes.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/Dirichlet.jar:${CLASSPATH}
 
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper f c ~/kernels/pairwise.mapper.cpu ./bin
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper t g ~/kernels/pairwise.mapper.gpu ./bin
@@ -31,3 +36,15 @@ export CLASSPATH=${HADOOP_APP_DIR}/PairwiseSimilarity64.jar:${HADOOP_APP_DIR}/Ma
 
 ./translate.sh NaiveBayes\$NaiveBayesReducer f c ~/kernels/bayes.reducer.cpu ./bin
 ./translate.sh NaiveBayes\$NaiveBayesReducer t g ~/kernels/bayes.reducer.gpu ./bin
+
+./translate.sh FuzzyKMeans\$FuzzyKMeansMapper f c ~/kernels/fuzzy.mapper.cpu ./bin
+./translate.sh FuzzyKMeans\$FuzzyKMeansMapper t g ~/kernels/fuzzy.mapper.gpu ./bin
+
+./translate.sh FuzzyKMeans\$FuzzyKMeansCombiner f c ~/kernels/fuzzy.combiner.cpu ./bin
+./translate.sh FuzzyKMeans\$FuzzyKMeansCombiner t g ~/kernels/fuzzy.combiner.gpu ./bin
+
+./translate.sh FuzzyKMeans\$FuzzyKMeansReducer f c ~/kernels/fuzzy.reducer.cpu ./bin
+./translate.sh FuzzyKMeans\$FuzzyKMeansReducer t g ~/kernels/fuzzy.reducer.gpu ./bin
+
+./translate.sh Dirichlet\$DirichletMapper f c ~/kernels/dirichlet.mapper.cpu ./bin
+./translate.sh Dirichlet\$DirichletMapper t g ~/kernels/dirichlet.mapper.gpu ./bin
