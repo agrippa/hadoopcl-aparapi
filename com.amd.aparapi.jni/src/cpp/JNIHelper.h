@@ -157,8 +157,8 @@ class JNIHelper {
 
    public:
       static void callVoid(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...);
-      static jlong callLong(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...);
-      static jobject callObject(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...);
+      // static jlong callLong(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...);
+      // static jobject callObject(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...);
 
       static jobject createInstance(JNIEnv *jenv, const char *className, const char *signature, ... );
 

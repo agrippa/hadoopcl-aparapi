@@ -567,8 +567,6 @@ First consider editing the properties in build.properties
       <delete file="agent.o" />
       <delete file="classtools.obj" />
       <delete file="classtools.o" />
-      <delete file="OpenCLMem.obj" />
-      <delete file="OpenCLMem.o" />
    </target>
 
    <target name="javah">
@@ -616,7 +614,6 @@ First consider editing the properties in build.properties
          <arg value="src/cpp/runKernel/OpenCLDataContext.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
-         <arg value="src/cpp/invoke/OpenCLMem.cpp" />
          <arg value="src/cpp/CLHelper.cpp" />
          <arg value="src/cpp/classtools.cpp" />
          <arg value="src/cpp/JNIHelper.cpp" />
@@ -649,7 +646,6 @@ First consider editing the properties in build.properties
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
-         <arg value="src/cpp/invoke/OpenCLMem.cpp" />
          <arg value="src/cpp/CLHelper.cpp" />
          <arg value="src/cpp/classtools.cpp" />
          <arg value="src/cpp/JNIHelper.cpp" />
@@ -689,7 +685,6 @@ First consider editing the properties in build.properties
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
-         <arg value="src/cpp/invoke/OpenCLMem.cpp" />
          <arg value="src/cpp/CLHelper.cpp" />
          <arg value="src/cpp/classtools.cpp" />
          <arg value="src/cpp/JNIHelper.cpp" />
@@ -730,7 +725,6 @@ First consider editing the properties in build.properties
          <arg value="src/cpp/runKernel/KernelArg.cpp" />
          <arg value="src/cpp/invoke/OpenCLJNI.cpp" />
          <arg value="src/cpp/invoke/OpenCLArgDescriptor.cpp" />
-         <arg value="src/cpp/invoke/OpenCLMem.cpp" />
          <arg value="src/cpp/CLHelper.cpp" />
          <arg value="src/cpp/classtools.cpp" />
          <arg value="src/cpp/JNIHelper.cpp" />
