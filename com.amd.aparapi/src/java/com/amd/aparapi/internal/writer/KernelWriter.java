@@ -761,7 +761,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("   return vectorLength(this, this->currentValueIndex);\n");
               write("}\n");
               write("\n");
-              write("__global double getProb(This *this) {\n");
+              write("double getProb(This *this) {\n");
               write("   return this->inputValProbs[this->currentValueIndex];\n");
               write("}\n");
               write("\n");

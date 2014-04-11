@@ -22,11 +22,11 @@ export CLASSPATH=${HADOOP_APP_DIR}/Dirichlet.jar:${CLASSPATH}
 ./translate.sh MahoutKMeans\$MahoutKMeansReducer f c ~/kernels/kmeans.reducer.cpu ./bin
 ./translate.sh MahoutKMeans\$MahoutKMeansReducer t g ~/kernels/kmeans.reducer.gpu ./bin
 
-./translate.sh TestWritables\$TestWritableMapper f c ~/kernels/writable.mapper.cpu ./bin
-./translate.sh TestWritables\$TestWritableMapper t g ~/kernels/writable.mapper.gpu ./bin
-
-./translate.sh TestWritables\$TestWritableReducer f c ~/kernels/writable.reducer.cpu ./bin
-./translate.sh TestWritables\$TestWritableReducer t g ~/kernels/writable.reducer.gpu ./bin
+# ./translate.sh TestWritables\$TestWritableMapper f c ~/kernels/writable.mapper.cpu ./bin
+# ./translate.sh TestWritables\$TestWritableMapper t g ~/kernels/writable.mapper.gpu ./bin
+# 
+# ./translate.sh TestWritables\$TestWritableReducer f c ~/kernels/writable.reducer.cpu ./bin
+# ./translate.sh TestWritables\$TestWritableReducer t g ~/kernels/writable.reducer.gpu ./bin
 
 ./translate.sh NaiveBayes\$NaiveBayesMapper f c ~/kernels/bayes.mapper.cpu ./bin
 ./translate.sh NaiveBayes\$NaiveBayesMapper t g ~/kernels/bayes.mapper.gpu ./bin
