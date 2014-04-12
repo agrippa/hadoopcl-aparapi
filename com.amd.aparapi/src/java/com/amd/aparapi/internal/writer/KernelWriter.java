@@ -1737,7 +1737,7 @@ public abstract class KernelWriter extends BlockWriter{
            }
            write("      int sf = --sofar[i];\n");
            write("\n");
-           write("      if (sf) {\n");
+           write("      if (sf > 0) {\n");
            write("        ptrs[i]++;\n");
            write("        valPtrs[i]++;\n");
            write("      } else {\n");
