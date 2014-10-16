@@ -6,6 +6,10 @@ export CLASSPATH=${HADOOP_APP_DIR}/TestWritables.jar:${CLASSPATH}
 export CLASSPATH=${HADOOP_APP_DIR}/FuzzyKMeans.jar:${CLASSPATH}
 export CLASSPATH=${HADOOP_APP_DIR}/NaiveBayes.jar:${CLASSPATH}
 export CLASSPATH=${HADOOP_APP_DIR}/Dirichlet.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/PiHCL2.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/SortHCL2.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/BlackscholesHCL2.jar:${CLASSPATH}
+export CLASSPATH=${HADOOP_APP_DIR}/KMeansHCL2.jar:${CLASSPATH}
 
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper f c ~/kernels/pairwise.mapper.cpu ./bin
 ./translate.sh PairwiseSimilarity64\$PairwiseMapper t g ~/kernels/pairwise.mapper.gpu ./bin
@@ -48,3 +52,28 @@ export CLASSPATH=${HADOOP_APP_DIR}/Dirichlet.jar:${CLASSPATH}
 
 ./translate.sh Dirichlet\$DirichletMapper f c ~/kernels/dirichlet.mapper.cpu ./bin
 ./translate.sh Dirichlet\$DirichletMapper t g ~/kernels/dirichlet.mapper.gpu ./bin
+
+# Old kernels
+./translate.sh PiHCL2\$PiHCL2Mapper f c ~/kernels/pi.mapper.cpu ./bin
+./translate.sh PiHCL2\$PiHCL2Mapper t g ~/kernels/pi.mapper.gpu ./bin
+
+./translate.sh PiHCL2\$PiHCL2Reducer f c ~/kernels/pi.reducer.cpu ./bin
+./translate.sh PiHCL2\$PiHCL2Reducer t g ~/kernels/pi.reducer.gpu ./bin
+
+./translate.sh BlackscholesHCL2\$BlackscholesHCL2Mapper f c ~/kernels/blackscholes.mapper.cpu ./bin
+./translate.sh BlackscholesHCL2\$BlackscholesHCL2Mapper t g ~/kernels/blackscholes.mapper.gpu ./bin
+
+./translate.sh BlackscholesHCL2\$BlackscholesHCL2Reducer f c ~/kernels/blackscholes.reducer.cpu ./bin
+./translate.sh BlackscholesHCL2\$BlackscholesHCL2Reducer t g ~/kernels/blackscholes.reducer.gpu ./bin
+
+./translate.sh SortHCL2\$SortHCL2Mapper f c ~/kernels/sort.mapper.cpu ./bin
+./translate.sh SortHCL2\$SortHCL2Mapper t g ~/kernels/sort.mapper.gpu ./bin
+
+./translate.sh SortHCL2\$SortHCL2Reducer f c ~/kernels/sort.reducer.cpu ./bin
+./translate.sh SortHCL2\$SortHCL2Reducer t g ~/kernels/sort.reducer.gpu ./bin
+
+./translate.sh KMeansHCL2\$KMeansHCL2Mapper f c ~/kernels/old_kmeans.mapper.cpu ./bin
+./translate.sh KMeansHCL2\$KMeansHCL2Mapper t g ~/kernels/old_kmeans.mapper.gpu ./bin
+
+./translate.sh KMeansHCL2\$KMeansHCL2Reducer f c ~/kernels/old_kmeans.reducer.cpu ./bin
+./translate.sh KMeansHCL2\$KMeansHCL2Reducer t g ~/kernels/old_kmeans.reducer.gpu ./bin

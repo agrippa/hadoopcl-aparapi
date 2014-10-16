@@ -1090,29 +1090,14 @@ public abstract class KernelWriter extends BlockWriter{
              } else {
                  write("   int index;\n");
                  write("   int pastWrites = this->nWrites[this->iter]++;\n");
-                 write("   if (this->outputsPerInput == -2) {\n");
                  if (useCustomAtomicAdd) {
                      write("   index = my_atomic_add(this->memIncr, 1);\n");
                  } else {
                      write("   index = atomic_add(this->memIncr, 1);\n");
                  }
-                 write("      if (index >= this->outputLength) {\n");
-                 write("         this->nWrites[this->iter] = -1;\n");
-                 write("         return 0;\n");
-                 write("      }\n");
-                 write("   } else {\n");
-                 if(isMapWrite) {
-                     write("      index = (this->nPairs * pastWrites) + (this->iter);\n");
-                     write("      if(this->isGPU == 0) {\n");
-                     write("         index = this->iter + pastWrites;\n");
-                    write("      }\n");
-                 } else {
-                     write("      if(this->isGPU > 0) {\n");
-                     write("         index = (this->nKeys * pastWrites) + (this->iter);\n");
-                     write("      } else {\n");
-                     write("         index = this->iter + pastWrites;\n");
-                     write("      }\n");
-                 }
+                 write("   if (index >= this->outputLength) {\n");
+                 write("      this->nWrites[this->iter] = -1;\n");
+                 write("      return 0;\n");
                  write("   }\n");
 
                  for(int i = 1; i < argTokens.length; i++) {

@@ -494,7 +494,6 @@ public class Entrypoint{
 
       referencedFieldNames.add("outputIterMarkers");
       referencedFieldNames.add("outputLength");
-      referencedFieldNames.add("outputsPerInput");
       if(outputValueType.equals("pair")) {
           referencedFieldNames.add("outputVals1");
           referencedFieldNames.add("outputVals2");
