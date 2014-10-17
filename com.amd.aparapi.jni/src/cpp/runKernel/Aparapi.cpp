@@ -250,6 +250,8 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
      jint javaGlobalDim, jint javaLocalDim, jint relaunch, jstring label) {
 TRACE_LINE
 
+      long startLaunch = read_timer();
+
       size_t globalDim = (size_t)javaGlobalDim;
       size_t localDim = (size_t)javaLocalDim;
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
@@ -370,6 +372,7 @@ TRACE_LINE
                      // fprintf(stderr, "Filling argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
 #ifdef CL_API_SUFFIX__VERSION_1_2
                      int zero = 0;
+                     fprintf(stderr, "Filling buffer %s with size %llu with zeroes, using clEnqueueFillBuffer\n", arg->name, arg->arrayBuffer->lengthInBytes);
                      err = clEnqueueFillBuffer(openclContext->copyCommandQueue, mem,
                              &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
                              0, NULL, fillEvents + fillEventsSoFar);
@@ -388,6 +391,7 @@ TRACE_LINE
                          zeroBuffersLength[nZeroBuffers] = arg->arrayBuffer->lengthInBytes;
                          nZeroBuffers++;
                      }
+                     fprintf(stderr, "Filling buffer %s with size %llu with zeroes, using clEnqueueWriteBuffer\n", arg->name, arg->arrayBuffer->lengthInBytes);
                      err = clEnqueueWriteBuffer(openclContext->copyCommandQueue,
                              mem, CL_FALSE, 0, arg->arrayBuffer->lengthInBytes,
                              zeroBuf, 0, NULL, fillEvents + fillEventsSoFar);
@@ -399,7 +403,7 @@ TRACE_LINE
                      fillEventsSoFar++;
                  } else if (arg->dir != OUT && arg->dir != GLOBAL && arg->dir != WRITABLE) {
                    if (relaunch == 0) {
-                       // fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
+                       fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
                        arg->pin(jenv);
                        err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
                                CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
@@ -520,6 +524,8 @@ TRACE_LINE
 
          clFlush(openclContext->execCommandQueue);
 TRACE_LINE
+      long finishLaunch = read_timer();
+fprintf(stderr, "From OpenCL's perspective, launch took %ld ms\n", finishLaunch - startLaunch);
       return err;
 }
 
