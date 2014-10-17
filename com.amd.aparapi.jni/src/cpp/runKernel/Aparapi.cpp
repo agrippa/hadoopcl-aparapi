@@ -61,6 +61,12 @@
 #include <sys/timeb.h>
 #include <pthread.h>
 
+union kernel_arg {
+    cl_mem mem;
+    jint ji;
+    int i;
+};
+
 unsigned long read_timer() {
   struct timeb tm;
   ftime(&tm);
@@ -310,7 +316,9 @@ TRACE_LINE
          jniContext->startWrite = read_timer();
 #endif
 
-         pthread_mutex_lock(&programContext->lock);
+         kernel_arg *kernelArgs = (kernel_arg *)malloc(sizeof(kernel_arg) * nArgs);
+         int *kernelArgsSize = (int *)malloc(sizeof(int) * nArgs);
+
          int argpos = 0;
          for (int argidx = 0; argidx < jniContext->argc; argidx++, argpos++) {
              KernelArg *arg = jniContext->args[argidx];
@@ -402,26 +410,30 @@ TRACE_LINE
                    }
                  }
 
-                 err = clSetKernelArg(programContext->kernel, argpos,
-                         sizeof(cl_mem), &mem);
-                 if (err != CL_SUCCESS) {
-                     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p %p\n",
-                             argpos, arg->name, err, programContext->kernel, mem);
-                     exit(9);
-                 }
+                 kernelArgs[argpos].mem = mem;
+                 kernelArgsSize[argpos] = sizeof(cl_mem);
+                 // err = clSetKernelArg(programContext->kernel, argpos,
+                 //         sizeof(cl_mem), &mem);
+                 // if (err != CL_SUCCESS) {
+                 //     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p %p\n",
+                 //             argpos, arg->name, err, programContext->kernel, mem);
+                 //     exit(9);
+                 // }
 
                  if (arg->usesArrayLength()) {
                      argpos++;
                      if (relaunch == 0) {
                          arg->syncJavaArrayLength(jenv);
                      }
-                     err = clSetKernelArg(programContext->kernel, argpos,
-                             sizeof(jint), &(arg->arrayBuffer->length));
-                     if (err != CL_SUCCESS) {
-                         fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                                 argpos, arg->name, err);
-                         exit(10);
-                     }
+                     kernelArgs[argpos].ji = arg->arrayBuffer->length;
+                     kernelArgsSize[argpos] = sizeof(jint);
+                     // err = clSetKernelArg(programContext->kernel, argpos,
+                     //         sizeof(jint), &(arg->arrayBuffer->length));
+                     // if (err != CL_SUCCESS) {
+                     //     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
+                     //             argpos, arg->name, err);
+                     //     exit(10);
+                     // }
                  }
              }
          }
@@ -442,12 +454,14 @@ TRACE_LINE
          reliableWrite(&willWriteData, sizeof(int), 1, dump);
          reliableWrite(&dummy_pass, dummy_pass_len, 1, dump);
 #endif
-         err = clSetKernelArg(programContext->kernel, argpos, sizeof(int),
-                 &dummy_pass);
-         if (err != CL_SUCCESS) {
-             fprintf(stderr,"Error setting kernel arg for dummy pass\n");
-             exit(11);
-         }
+         kernelArgs[argpos].i = dummy_pass;
+         kernelArgsSize[argpos] = sizeof(int);
+         // err = clSetKernelArg(programContext->kernel, argpos, sizeof(int),
+         //         &dummy_pass);
+         // if (err != CL_SUCCESS) {
+         //     fprintf(stderr,"Error setting kernel arg for dummy pass\n");
+         //     exit(11);
+         // }
 
 #ifdef DUMP_DEBUG
          int sourceLength = strlen(programContext->source);
@@ -488,6 +502,18 @@ TRACE_LINE
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
 #endif
+         // TODO lock, set all kernel args, run, and then we already unlock below
+         // and free the kernelArgs memory
+         pthread_mutex_lock(&programContext->lock);
+         for (int i = 0; i < nArgs; i++) {
+             err = clSetKernelArg(programContext->kernel, i, kernelArgsSize[i],
+                     kernelArgs + i);
+             if (err != CL_SUCCESS) {
+                 fprintf(stderr, "Error setting kernel arg %d @ %s:%d\n", i,
+                         __FILE__, __LINE__);
+                 exit(1);
+             }
+         }
          err = clEnqueueNDRangeKernel(
                openclContext->execCommandQueue,
                programContext->kernel,
@@ -508,6 +534,8 @@ TRACE_LINE
          clWaitForEvents(1, &jniContext->exec_event);
 #endif
 
+         free(kernelArgsSize);
+         free(kernelArgs);
          clFlush(openclContext->execCommandQueue);
 TRACE_LINE
       return err;
