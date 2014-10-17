@@ -89,6 +89,7 @@ TRACE_LINE
          delete jniContext;
          jniContext = NULL;
       }
+TRACE_LINE
       return 0;
    }
 
@@ -167,8 +168,17 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclCopyBackWritables)
              if (arg->isArray()) {
                  if (arg->dir == WRITABLE) {
                      arg->syncSizeInBytes(jenv);
-                     arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+                     jarray newRef = (jarray)jenv->GetObjectField(
                              arg->javaArg, KernelArg::javaArrayFieldID);
+TRACE_LINE
+                     if (arg->arrayBuffer->javaArray != NULL) {
+TRACE_LINE
+                         jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
+TRACE_LINE
+                     }
+TRACE_LINE
+                     arg->arrayBuffer->javaArray = (jarray)jenv->NewWeakGlobalRef((jarray)newRef);
+TRACE_LINE
 
                      hadoopclParameter *param = ctx->findHadoopclParam(arg);
                      cl_mem mem = param->allocatedMem;
@@ -576,11 +586,18 @@ TRACE_LINE
              KernelArg *arg = jniContext->args[argidx];
              if (arg->isArray() && arg->dir != IN && arg->dir != GLOBAL && arg->dir != WRITABLE) {
                  arg->syncSizeInBytes(jenv);
-                 if (arg->arrayBuffer->javaArray != NULL) {
-                    jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
-                 }
-                 arg->arrayBuffer->javaArray = (jarray)jenv->GetObjectField(
+TRACE_LINE
+                 jarray newRef = (jarray)jenv->GetObjectField(
                          arg->javaArg, KernelArg::javaArrayFieldID);
+TRACE_LINE
+                 if (arg->arrayBuffer->javaArray != NULL) {
+TRACE_LINE
+                     jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
+TRACE_LINE
+                 }
+TRACE_LINE
+                 arg->arrayBuffer->javaArray = (jarray)jenv->NewWeakGlobalRef((jarray)newRef);
+TRACE_LINE
 
                  cl_mem mem = jniContext->datactx->findHadoopclParam(arg)->allocatedMem;
                  // fprintf(stderr, "Reading back argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes, );

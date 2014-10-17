@@ -37,7 +37,8 @@ void JNIContext::dispose(JNIEnv *jenv) {
                   arg->arrayBuffer->mem = (cl_mem)0;
                }
                if (arg->arrayBuffer->javaArray != NULL)  {
-                  jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray);
+                  jenv->DeleteWeakGlobalRef((jweak)arg->arrayBuffer->javaArray); // HERE
+                  arg->arrayBuffer->javaArray = NULL;
                }
                delete arg->arrayBuffer;
                arg->arrayBuffer = NULL;

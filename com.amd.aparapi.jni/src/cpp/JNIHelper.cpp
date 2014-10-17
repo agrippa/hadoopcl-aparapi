@@ -40,6 +40,7 @@
 #define JNI_SOURCE
 #include "JNIHelper.h"
 
+
 void JNIHelper::callVoid(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...){
    try {
       jclass theClass = jenv->GetObjectClass(instance);
@@ -59,12 +60,13 @@ void JNIHelper::callVoid(JNIEnv *jenv, jobject instance, const char *methodName,
          throw std::string("bummer calling '") + methodName + "' '" + methodSignature;
 
    } catch(std::string& s) {
-      jenv->ExceptionDescribe(); /* write to console */
+      jenv->ExceptionDescribe();
       jenv->ExceptionClear();
       fprintf(stderr, "%s\n", s.c_str());
    }
 }
 
+/*
 jobject JNIHelper::callObject(JNIEnv *jenv, jobject instance, const char *methodName, const char *methodSignature, ...){
    jobject value = NULL;
    try {
@@ -85,7 +87,7 @@ jobject JNIHelper::callObject(JNIEnv *jenv, jobject instance, const char *method
          throw std::string("bummer calling '") + methodName + "' '" + methodSignature;
 
    } catch(std::string& s) {
-      jenv->ExceptionDescribe(); /* write to console */
+      jenv->ExceptionDescribe();
       jenv->ExceptionClear();
       fprintf(stderr, "%s\n", s.c_str());
       return 0L;
@@ -114,13 +116,14 @@ jlong JNIHelper::callLong(JNIEnv *jenv, jobject instance, const char *methodName
          throw std::string("bummer calling '") + methodName + "' '" + methodSignature;
 
    } catch(std::string& s) {
-      jenv->ExceptionDescribe(); /* write to console */
+      jenv->ExceptionDescribe();
       jenv->ExceptionClear();
       fprintf(stderr, "%s\n", s.c_str());
       return 0L;
    }
    return value;
 }
+*/
 
 jobject JNIHelper::getStaticFieldObject(JNIEnv *jenv, const char *className, const char *fieldName, const char *signature){
    jobject value = NULL;
@@ -146,6 +149,7 @@ jobject JNIHelper::getStaticFieldObject(JNIEnv *jenv, const char *className, con
 
    return(value);
 }
+
 
 jobject JNIHelper::createInstance(JNIEnv *jenv, const char* className, const char *signature, ... ){
    jobject instance;
@@ -173,4 +177,5 @@ jobject JNIHelper::createInstance(JNIEnv *jenv, const char* className, const cha
       return(NULL);
    }
    return(instance);
-} 
+}
+

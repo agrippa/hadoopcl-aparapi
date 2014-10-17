@@ -468,6 +468,12 @@ public class Entrypoint{
           referencedFieldNames.add("inputValLookAsideBuffer");
           referencedFieldNames.add("inputValIndices");
           referencedFieldNames.add("inputValVals");
+      } else if (inputValueType.equals("psvec")) {
+          referencedFieldNames.add("individualInputValsCount");
+          referencedFieldNames.add("inputValLookAsideBuffer");
+          referencedFieldNames.add("inputValIndices");
+          referencedFieldNames.add("inputValVals");
+          referencedFieldNames.add("inputValProbs");
       } else {
           referencedFieldNames.add("inputVals");
       }
@@ -488,7 +494,6 @@ public class Entrypoint{
 
       referencedFieldNames.add("outputIterMarkers");
       referencedFieldNames.add("outputLength");
-      referencedFieldNames.add("outputsPerInput");
       if(outputValueType.equals("pair")) {
           referencedFieldNames.add("outputVals1");
           referencedFieldNames.add("outputVals2");
@@ -500,6 +505,17 @@ public class Entrypoint{
           referencedFieldNames.add("outputValIntLookAsideBuffer");
           referencedFieldNames.add("outputValDoubleLookAsideBuffer");
           referencedFieldNames.add("outputValLengthBuffer");
+          referencedFieldNames.add("outputValIndices");
+          referencedFieldNames.add("outputValVals");
+          referencedFieldNames.add("memAuxIntIncr");
+          referencedFieldNames.add("memAuxDoubleIncr");
+          referencedFieldNames.add("outputAuxIntLength");
+          referencedFieldNames.add("outputAuxDoubleLength");
+      } else if (outputValueType.equals("psvec")) {
+          referencedFieldNames.add("outputValIntLookAsideBuffer");
+          referencedFieldNames.add("outputValDoubleLookAsideBuffer");
+          referencedFieldNames.add("outputValLengthBuffer");
+          referencedFieldNames.add("outputValProbs");
           referencedFieldNames.add("outputValIndices");
           referencedFieldNames.add("outputValVals");
           referencedFieldNames.add("memAuxIntIncr");

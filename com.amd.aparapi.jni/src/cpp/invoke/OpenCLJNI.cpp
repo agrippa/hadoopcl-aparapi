@@ -41,9 +41,6 @@
 #define OPENCLJNI_SOURCE
 #include "OpenCLJNI.h"
 #include "OpenCLArgDescriptor.h"
-#include "OpenCLKernel.h"
-#include "OpenCLMem.h"
-#include "OpenCLProgram.h"
 #include "JavaArgs.h"
 #include <iostream>
 
@@ -135,63 +132,6 @@ void OpenCLRange::fill(JNIEnv *jenv, jobject rangeInstance, jint dims, size_t* o
    }
 }
 
-JNI_JAVA(jobject, OpenCLJNI, createProgram)
-   (JNIEnv *jenv, jobject jobj, jobject deviceInstance, jstring source) {
-
-      jobject platformInstance = OpenCLDevice::getPlatformInstance(jenv, deviceInstance);
-      cl_platform_id platformId = OpenCLPlatform::getPlatformId(jenv, platformInstance);
-      cl_device_id deviceId = OpenCLDevice::getDeviceId(jenv, deviceInstance, -1);
-      cl_int status = CL_SUCCESS;
-      cl_device_type deviceType;
-      clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,  sizeof(deviceType), &deviceType, NULL);
-      if(0)fprintf(stderr, "device[%ld] CL_DEVICE_TYPE = %lx\n", (unsigned long)deviceId, (unsigned long)deviceType);
-
-
-      cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM, (cl_context_properties)platformId, 0 };
-      cl_context_properties* cprops = (NULL == platformId) ? NULL : cps;
-      cl_context context = clCreateContextFromType( cprops, deviceType, NULL, NULL, &status);
-
-
-      jstring log=NULL;
-      cl_program program = CLHelper::compile(jenv, context, 1, &deviceId, source, &log, &status, NULL);
-      cl_command_queue queue = NULL;
-      if(status == CL_SUCCESS) {
-         cl_command_queue_properties queue_props = CL_QUEUE_PROFILING_ENABLE;
-         queue = clCreateCommandQueue(context, deviceId, queue_props, &status);
-      }else{
-         fprintf(stderr, "queue creation seems to have failed\n");
-
-      }
-      jobject programInstance = OpenCLProgram::create(jenv, program, queue, context, deviceInstance, source, log);
-
-      return(programInstance);
-   }
-
-JNI_JAVA(jobject, OpenCLJNI, createKernelJNI)
-   (JNIEnv *jenv, jobject jobj, jobject programInstance, jstring name, jobjectArray args) {
-      cl_context context = OpenCLProgram::getContext(jenv, programInstance);
-      cl_program program = OpenCLProgram::getProgram(jenv, programInstance); 
-      cl_int status = CL_SUCCESS;
-      const char *nameChars = jenv->GetStringUTFChars(name, NULL);
-      if(0)fprintf(stderr, "tring to extract kernel '%s'\n", nameChars);
-      cl_kernel kernel = clCreateKernel(program, nameChars, &status);
-      jenv->ReleaseStringUTFChars(name, nameChars);
-
-      if (kernel == NULL){
-         fprintf(stderr, "kernel is null!\n");
-      }
-
-      jobject kernelInstance = NULL;
-      if (status == CL_SUCCESS){
-         kernelInstance = OpenCLKernel::create(jenv, kernel, programInstance, name, args);
-      }else{
-         fprintf(stderr, "kernel creation seems to have failed\n");
-      }
-      return(kernelInstance);
-
-   }
-
-
 template<typename jT, typename cl_T>
 void putPrimative(JNIEnv* jenv, cl_kernel kernel, jobject arg, jint argIndex) {
    cl_T value = JNIHelper::getInstanceField<jT>(jenv, arg, "value");
@@ -201,142 +141,6 @@ void putPrimative(JNIEnv* jenv, cl_kernel kernel, jobject arg, jint argIndex) {
                 << " " <<  value << " " << CLHelper::errString(status) << "!\n";
    }
 }
-
-void putArg(JNIEnv *jenv, cl_context context, cl_kernel kernel, cl_command_queue commandQueue, cl_event *events, jint *eventc, jint argIndex, jobject argDef, jobject arg){
-   cl_int status = CL_SUCCESS;
-   jlong argBits = OpenCLArgDescriptor::getBits(jenv, argDef);
-   if (argisset(argBits, ARRAY) && argisset(argBits, GLOBAL)){ 
-      jobject memInstance = OpenCLArgDescriptor::getMemInstance(jenv, argDef);
-      if (memInstance == NULL){
-         // first call?
-         memInstance = OpenCLMem::create(jenv, context, argBits, (jarray)arg);
-         OpenCLArgDescriptor::setMemInstance(jenv, argDef, memInstance);
-      } else {
-         // check of argBits == memInstance.argBits
-         // we need to pin it
-         // jboolean isCopy;
-         void *ptr  =  OpenCLMem::pin(jenv, (jarray)arg, &argBits); 
-         void *oldPtr = OpenCLMem::getAddress(jenv, memInstance);
-         //ptr moved
-         if (ptr != oldPtr){
-            cl_mem mem = OpenCLMem::getMem(jenv, memInstance);
-            status = clReleaseMemObject(mem); 
-            memInstance = OpenCLMem::create(jenv, context, argBits, (jarray)arg);
-            OpenCLArgDescriptor::setMemInstance(jenv, argDef, memInstance);
-         }
-         OpenCLArgDescriptor::setBits(jenv, argDef, argBits);
-      }
-      cl_mem mem = OpenCLMem::getMem(jenv, memInstance);
-      cl_int status = CL_SUCCESS;
-      if (argisset(argBits, READONLY) | argisset(argBits, READWRITE)) {
-         // kernel reads this so enqueue a write
-         void *ptr = OpenCLMem::getAddress(jenv, memInstance);
-         size_t sizeInBytes = OpenCLMem::getSizeInBytes(jenv, memInstance);
-         jlong memBits = OpenCLMem::getBits(jenv, memInstance);
-         memadd(memBits, ENQUEUED);
-         OpenCLMem::setBits(jenv, memInstance, memBits);
-         // fprintf(stderr, "enqueuing write of arg ");
-         // OpenCLArgDescriptor::describe(jenv, argDef, argIndex);
-         status = clEnqueueWriteBuffer(commandQueue, mem, CL_FALSE, 0, sizeInBytes, ptr, *eventc, (*eventc)==0?NULL:events, &events[*eventc]);
-         if (status != CL_SUCCESS) {
-            fprintf(stderr, "error enqueuing write %s!\n",  CLHelper::errString(status));
-         }
-         (*eventc)++;
-      }
-      status = clSetKernelArg(kernel, argIndex, sizeof(cl_mem), (void *)&(mem));          
-      if (status != CL_SUCCESS) {
-         fprintf(stderr, "error setting arg %d %s!\n",  argIndex, CLHelper::errString(status));
-      }
-   } else if (argisset(argBits, ARRAY) && argisset(argBits, LOCAL)){ 
-
-      jsize sizeInBytes = OpenCLMem::getArraySizeInBytes(jenv, (jarray)arg, argBits);
-      cl_int status = CL_SUCCESS;
-      status = clSetKernelArg(kernel, argIndex, (size_t)sizeInBytes, (void *)NULL);          
-      if (status != CL_SUCCESS) {
-         fprintf(stderr, "error setting arg %d %s!\n",  argIndex, CLHelper::errString(status));
-      }
-   } else if (argisset(argBits, PRIMITIVE)){
-      if (argisset(argBits, INT)) {
-         putPrimative<jint, cl_int>(jenv, kernel, arg, argIndex);
-      } else if (argisset(argBits, FLOAT)) {
-         putPrimative<jfloat, cl_float>(jenv, kernel, arg, argIndex);
-      } else if (argisset(argBits, LONG)) {
-         putPrimative<jlong, cl_long>(jenv, kernel, arg, argIndex);
-      } else if (argisset(argBits, DOUBLE)) {
-         putPrimative<jdouble, cl_double>(jenv, kernel, arg, argIndex);
-      }
-   }
-}
-
-void getArg(JNIEnv *jenv, cl_context context, cl_command_queue commandQueue, cl_event *events, jint *eventc, jint argIndex, jobject argDef, jobject arg){
-   jlong argBits = OpenCLArgDescriptor::getBits(jenv, argDef);
-   if (argisset(argBits, ARRAY) && argisset(argBits, GLOBAL)){
-      jobject memInstance = OpenCLArgDescriptor::getMemInstance(jenv, argDef);
-      if (memInstance == NULL){
-         fprintf(stderr, "mem instance not set\n");
-      }
-      void *ptr = OpenCLMem::getAddress(jenv, memInstance);
-      if (argisset(argBits, WRITEONLY)|argisset(argBits, READWRITE)){
-
-         cl_mem mem = OpenCLMem::getMem(jenv, memInstance);
-
-         cl_event* anyEvents = (*eventc)==0 ? NULL : events;
-         size_t sizeInBytes = OpenCLMem::getSizeInBytes(jenv, memInstance);
-         cl_int status = clEnqueueReadBuffer(commandQueue, mem, CL_FALSE, 0, sizeInBytes, ptr ,*eventc, anyEvents, &events[*eventc]);
-         if (status != CL_SUCCESS) {
-            fprintf(stderr, "error enqueuing read %s!\n",  CLHelper::errString(status));
-         }
-         (*eventc)++;
-      }
-
-      jobject arrayInstance = OpenCLMem::getInstance(jenv, memInstance);
-      jlong memBits = OpenCLMem::getBits(jenv, memInstance);
-      OpenCLMem::unpin(jenv, (jarray)arrayInstance, ptr, &memBits);
-      memreset(memBits, ENQUEUED); 
-      memreset(memBits, COPY); 
-      OpenCLMem::setBits(jenv, memInstance, memBits);
-   }
-}
-
-JNI_JAVA(void, OpenCLJNI, disposeProgram)
-   (JNIEnv *jenv, jobject jobj, jobject programInstance) {
-      //fprintf(stderr, "dispose program \n");
-      cl_program program = OpenCLProgram::getProgram(jenv, programInstance);
-      clReleaseProgram(program);
-      cl_command_queue commandQueue = OpenCLProgram::getCommandQueue(jenv, programInstance);
-      clReleaseCommandQueue(commandQueue);
-      cl_context context = OpenCLProgram::getContext(jenv, programInstance);
-      clReleaseContext(context);
-}
-
-JNI_JAVA(void, OpenCLJNI, disposeKernel)
-   (JNIEnv *jenv, jobject jobj, jobject kernelInstance) {
-      cl_kernel kernel = OpenCLKernel::getKernel(jenv, kernelInstance);
-      jobject programInstance = OpenCLKernel::getProgramInstance(jenv, kernelInstance);
-      jobjectArray argDefsArray = OpenCLKernel::getArgsArray(jenv, kernelInstance);
-
-
-      cl_context context = OpenCLProgram::getContext(jenv, programInstance);
-      cl_command_queue commandQueue = OpenCLProgram::getCommandQueue(jenv, programInstance);
-      jsize argc = jenv->GetArrayLength(argDefsArray);
-      //fprintf(stderr, "dispose! argc = %d\n", argc);
-      for (jsize argIndex = 0; argIndex < argc; argIndex++){
-         jobject argDef = jenv->GetObjectArrayElement(argDefsArray, argIndex);
-         jlong argBits = OpenCLArgDescriptor::getBits(jenv, argDef);
-         if (argisset(argBits, ARRAY) && argisset(argBits, GLOBAL)){
-            jobject memInstance = OpenCLArgDescriptor::getMemInstance(jenv, argDef);
-            if (memInstance == NULL){
-               fprintf(stderr, "mem instance not set\n");
-            }else{
-               cl_mem mem = OpenCLMem::getMem(jenv, memInstance);
-               size_t sizeInBytes = OpenCLMem::getSizeInBytes(jenv, memInstance);
-               cl_int status = clReleaseMemObject(mem); 
-               //fprintf(stderr, "mem instance %d released!\n", sizeInBytes);
-            }
-         }
-      }
-      clReleaseKernel(kernel);
-   }
 
 JNI_JAVA(jobject, OpenCLJNI, getPlatforms)
    (JNIEnv *jenv, jobject jobj) {
@@ -367,13 +171,19 @@ JNI_JAVA(jobject, OpenCLJNI, getPlatforms)
                status = clGetPlatformInfo(platformIds[platformIdx], CL_PLATFORM_NAME, sizeof(platformName), platformName, NULL);
                //fprintf(stderr, "platform vendor    %d %s\n", platformIdx, platformVendorName); 
                //fprintf(stderr, "platform version %d %s\n", platformIdx, platformVersionName); 
-               jobject platformInstance = JNIHelper::createInstance(jenv, OpenCLPlatformClass , ArgsVoidReturn(LongArg StringClassArg StringClassArg StringClassArg ), 
+               jobject platformInstance = JNIHelper::createInstance(jenv,
+                       OpenCLPlatformClass, ArgsVoidReturn(LongArg StringClassArg StringClassArg StringClassArg ), 
                      (jlong)platformIds[platformIdx],
                      jenv->NewStringUTF(platformVersionName), 
                      jenv->NewStringUTF(platformVendorName),
                      jenv->NewStringUTF(platformName)
                      );
-               JNIHelper::callVoid(jenv, platformListInstance, "add", ArgsBooleanReturn(ObjectClassArg), platformInstance);
+               if (!platformInstance) {
+                   fprintf(stderr, "Constructed invalid platform instance\n");
+                   exit(1);
+               }
+               JNIHelper::callVoid(jenv, platformListInstance, "add",
+                       ArgsBooleanReturn(ObjectClassArg), platformInstance);
 
                cl_uint deviceIdc;
                cl_device_type requestedDeviceType =CL_DEVICE_TYPE_CPU |CL_DEVICE_TYPE_GPU ;
@@ -404,7 +214,6 @@ JNI_JAVA(jobject, OpenCLJNI, getPlatforms)
                         }
                         if (deviceType & CL_DEVICE_TYPE_ACCELERATOR) {
                            deviceType &= ~CL_DEVICE_TYPE_ACCELERATOR;
-                           fprintf(stderr, "Accelerator ");
                         }
                         //fprintf(stderr, "(0x%llx) ", deviceType);
                         //fprintf(stderr, "\n");
@@ -415,6 +224,10 @@ JNI_JAVA(jobject, OpenCLJNI, getPlatforms)
                               platformInstance, 
                               (jlong)deviceIds[deviceIdx],
                               deviceTypeEnumInstance);
+                        if (!deviceInstance) {
+                            fprintf(stderr, "Constructed invalid device instance\n");
+                            exit(1);
+                        }
                         JNIHelper::callVoid(jenv, platformInstance, "addOpenCLDevice", ArgsVoidReturn( OpenCLDeviceClassArg ), deviceInstance);
 
 
