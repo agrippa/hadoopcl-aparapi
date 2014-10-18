@@ -719,7 +719,7 @@ public abstract class KernelWriter extends BlockWriter{
               write("   return this->inputVals1[this->currentValueIndex];\n");
               write("}\n");
               write("\n");
-              write("double getVal2() {\n");
+              write("double getVal2(This *this) {\n");
               write("   return this->inputVals2[this->currentValueIndex];\n");
               write("}\n");
               write("\n");

@@ -24,6 +24,18 @@ enum KernelArgDirection {
     INOUT
 };
 
+union kernel_arg {
+    cl_mem mem;
+    jint ji;
+    jfloat jf;
+    jboolean jbool;
+    jbyte jb;
+    jlong jl;
+    jdouble jd;
+
+    int i;
+};
+
 class KernelArg{
    private:
       static jclass argClazz;
@@ -206,7 +218,8 @@ class KernelArg{
       // Uses JNIContext so can't inline here we below.  
       cl_int setLocalBufferArg(JNIEnv *jenv, int argIdx, int argPos, bool verbose);
       // Uses JNIContext so can't inline here we below.  
-      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached);
+      cl_int setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached,
+              kernel_arg *arg, int *size);
       void dumpToFile(FILE *fp, int relaunch, JNIEnv *jenv, JNIContext *jniContext, OpenCLContext *openclContext);
 };
 

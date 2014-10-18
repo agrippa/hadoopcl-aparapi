@@ -61,12 +61,6 @@
 #include <sys/timeb.h>
 #include <pthread.h>
 
-union kernel_arg {
-    cl_mem mem;
-    jint ji;
-    int i;
-};
-
 unsigned long read_timer() {
   struct timeb tm;
   ftime(&tm);
@@ -127,11 +121,6 @@ TRACE_LINE
     if (err != CL_SUCCESS) {
         fprintf(stderr,"Error waiting on exec event: %d\n",err);
         exit(69);
-    }
-    err = clReleaseEvent(jniContext->exec_event);
-    if (err != CL_SUCCESS) {
-        fprintf(stderr, "Error releasing exec_event\n");
-        exit(1);
     }
 TRACE_LINE
     err = clEnqueueReadBuffer(openclContext->copyCommandQueue,
@@ -256,8 +245,9 @@ JNI_JAVA(jint, KernelRunnerJNI, hadoopclLaunchKernelJNI)
      jint javaGlobalDim, jint javaLocalDim, jint relaunch, jstring label) {
 TRACE_LINE
 
-      long startLaunch = read_timer();
-
+#ifdef FULLY_PROFILE_HADOOPCL
+      cl_event write_event;
+#endif
       size_t globalDim = (size_t)javaGlobalDim;
       size_t localDim = (size_t)javaLocalDim;
       JNIContext* jniContext = JNIContext::getJNIContext(jniContextHandle);
@@ -288,8 +278,12 @@ TRACE_LINE
 
       cl_int err = CL_SUCCESS;
       cl_event *fillEvents = (cl_event *)malloc(sizeof(cl_event) * jniContext->argc);
+      char **fillNames = (char **)malloc(sizeof(char *) * jniContext->argc);
       if (!fillEvents) {
           fprintf(stderr, "Error allocating fillEvents\n"); exit(1);
+      }
+      if (!fillNames) {
+          fprintf(stderr, "Error allocating fillNames\n"); exit(1);
       }
       int fillEventsSoFar = 0;
 
@@ -299,21 +293,21 @@ TRACE_LINE
       int nZeroBuffers = 0;
 #endif
 
+      int nArgs = jniContext->argc + 1;
+      int nArgsUsingLength = 0;
+      for (int argidx = 0; argidx < jniContext->argc; argidx++) {
+          KernelArg *arg = jniContext->args[argidx];
+          if (arg->usesArrayLength()) {
+              nArgsUsingLength++;
+          }
+      }
+      nArgs += nArgsUsingLength;
+
 #ifdef DUMP_DEBUG
 
          int thisLaunchId = jniContext->kernelLaunchCounter;
          jniContext->kernelLaunchCounter = jniContext->kernelLaunchCounter + 1;
-         int nArgs = jniContext->argc + 1;
-         int nArgsUsingLength = 0;
-         for (int argidx = 0; argidx < jniContext->argc; argidx++) {
-             KernelArg *arg = jniContext->args[argidx];
-             if (arg->usesArrayLength()) {
-                nArgsUsingLength++;
-             }
-         }
-         nArgs += nArgsUsingLength;
 
-         // char dump_filename[512];
          struct timeb current_time;
          ftime(&current_time);
 
@@ -339,7 +333,7 @@ TRACE_LINE
 #endif
              if (!arg->isArray()) {
                  err = arg->setPrimitiveArg(jenv, argidx, argpos,
-                         relaunch);
+                         relaunch, kernelArgs + argpos, kernelArgsSize + argpos);
                  if (err != CL_SUCCESS) {
                      fprintf(stderr,"Error setting kernel primitive arg for %d,%s: %d\n",
                              argpos, arg->name, err);
@@ -377,16 +371,16 @@ TRACE_LINE
                  }
 
                  if (arg->zeroBeforeKernel) {
-                     // fprintf(stderr, "Filling argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
+                     fillNames[fillEventsSoFar] = arg->name;
 #ifdef CL_API_SUFFIX__VERSION_1_2
                      int zero = 0;
-                     fprintf(stderr, "Filling buffer %s with size %llu with zeroes, using clEnqueueFillBuffer\n", arg->name, arg->arrayBuffer->lengthInBytes);
-                     err = clEnqueueFillBuffer(openclContext->copyCommandQueue, mem,
-                             &zero, sizeof(zero), 0, arg->arrayBuffer->lengthInBytes,
-                             0, NULL, fillEvents + fillEventsSoFar);
+                     err = clEnqueueFillBuffer(openclContext->copyCommandQueue,
+                             mem, &zero, sizeof(zero), 0,
+                             arg->arrayBuffer->lengthInBytes, 0, NULL,
+                             fillEvents + fillEventsSoFar);
 #else
-                     unsigned char *zeroBuf = findWithLengthGreaterThan(zeroBuffers,
-                             zeroBuffersLength, nZeroBuffers,
+                     unsigned char *zeroBuf = findWithLengthGreaterThan(
+                             zeroBuffers, zeroBuffersLength, nZeroBuffers,
                              arg->arrayBuffer->lengthInBytes);
                      if (zeroBuf == NULL) {
                          zeroBuf = (unsigned char *)malloc(arg->arrayBuffer->lengthInBytes);
@@ -399,7 +393,6 @@ TRACE_LINE
                          zeroBuffersLength[nZeroBuffers] = arg->arrayBuffer->lengthInBytes;
                          nZeroBuffers++;
                      }
-                     fprintf(stderr, "Filling buffer %s with size %llu with zeroes, using clEnqueueWriteBuffer\n", arg->name, arg->arrayBuffer->lengthInBytes);
                      err = clEnqueueWriteBuffer(openclContext->copyCommandQueue,
                              mem, CL_FALSE, 0, arg->arrayBuffer->lengthInBytes,
                              zeroBuf, 0, NULL, fillEvents + fillEventsSoFar);
@@ -411,28 +404,43 @@ TRACE_LINE
                      fillEventsSoFar++;
                  } else if (arg->dir != OUT && arg->dir != GLOBAL && arg->dir != WRITABLE) {
                    if (relaunch == 0) {
-                       fprintf(stderr, "Writing argument %s with size %llu\n", arg->name, arg->arrayBuffer->lengthInBytes);
+#ifdef FULLY_PROFILE_HADOOPCL
+                       cl_event *this_write_event = &write_event;
+#else
+                       cl_event *this_write_event = NULL;
+#endif
                        arg->pin(jenv);
                        err = clEnqueueWriteBuffer(openclContext->copyCommandQueue, mem,
                                CL_TRUE, 0, arg->arrayBuffer->lengthInBytes,
-                               arg->arrayBuffer->addr, 0, NULL, NULL);
+                               arg->arrayBuffer->addr, 0, NULL, this_write_event);
                        arg->unpinAbort(jenv);
                        if (err != CL_SUCCESS) {
                            fprintf(stderr,"Reporting failure of write: %d\n",err);
                            return err;
                        }
+
+#ifdef FULLY_PROFILE_HADOOPCL
+                      cl_ulong end, queued, start, submit;
+                      clGetEventProfilingInfo(write_event,
+                              CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+                      clGetEventProfilingInfo(write_event,
+                              CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
+                      clGetEventProfilingInfo(write_event,
+                              CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+                      clGetEventProfilingInfo(write_event,
+                              CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+                      fprintf(stderr, "TIMING | OpenCL Write Profile (%s): "
+                              "write queued %lu ns, write submitted %lu ns, "
+                              "write running %lu ns, total %lu ms\n", arg->name,
+                              (submit - queued),
+                              (start - submit),
+                              (end - start), (end - queued) / 1000000);
+#endif
                    }
                  }
 
                  kernelArgs[argpos].mem = mem;
                  kernelArgsSize[argpos] = sizeof(cl_mem);
-                 // err = clSetKernelArg(programContext->kernel, argpos,
-                 //         sizeof(cl_mem), &mem);
-                 // if (err != CL_SUCCESS) {
-                 //     fprintf(stderr,"Error setting kernel array arg for %d,%s: %d %p %p\n",
-                 //             argpos, arg->name, err, programContext->kernel, mem);
-                 //     exit(9);
-                 // }
 
                  if (arg->usesArrayLength()) {
                      argpos++;
@@ -441,13 +449,6 @@ TRACE_LINE
                      }
                      kernelArgs[argpos].ji = arg->arrayBuffer->length;
                      kernelArgsSize[argpos] = sizeof(jint);
-                     // err = clSetKernelArg(programContext->kernel, argpos,
-                     //         sizeof(jint), &(arg->arrayBuffer->length));
-                     // if (err != CL_SUCCESS) {
-                     //     fprintf(stderr,"Error setting kernel arg for %d,%s: %d\n",
-                     //             argpos, arg->name, err);
-                     //     exit(10);
-                     // }
                  }
              }
          }
@@ -470,12 +471,6 @@ TRACE_LINE
 #endif
          kernelArgs[argpos].i = dummy_pass;
          kernelArgsSize[argpos] = sizeof(int);
-         // err = clSetKernelArg(programContext->kernel, argpos, sizeof(int),
-         //         &dummy_pass);
-         // if (err != CL_SUCCESS) {
-         //     fprintf(stderr,"Error setting kernel arg for dummy pass\n");
-         //     exit(11);
-         // }
 
 #ifdef DUMP_DEBUG
          int sourceLength = strlen(programContext->source);
@@ -489,6 +484,25 @@ TRACE_LINE
              int i;
              clWaitForEvents(fillEventsSoFar, fillEvents);
              for (i = 0; i < fillEventsSoFar; i++) {
+
+#ifdef FULLY_PROFILE_HADOOPCL
+                  cl_ulong end, queued, start, submit;
+                  clGetEventProfilingInfo(fillEvents[i],
+                          CL_PROFILING_COMMAND_QUEUED, sizeof(queued), &queued, NULL);
+                  clGetEventProfilingInfo(fillEvents[i],
+                          CL_PROFILING_COMMAND_SUBMIT, sizeof(submit), &submit, NULL);
+                  clGetEventProfilingInfo(fillEvents[i],
+                          CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+                  clGetEventProfilingInfo(fillEvents[i],
+                          CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+                  fprintf(stderr, "TIMING | OpenCL Fill Profile (%s): "
+                          "write queued %lu ns, write submitted %lu ns, "
+                          "write running %lu ns, total %lu ms\n", fillNames[i],
+                          (submit - queued),
+                          (start - submit),
+                          (end - start), (end - queued) / 1000000);
+#endif
+
                  clReleaseEvent(fillEvents[i]);
              }
 
@@ -501,6 +515,7 @@ TRACE_LINE
 #endif
          }
          free(fillEvents);
+         free(fillNames);
 
          jniContext->datactx->writtenAtleastOnce = 1;
 
@@ -516,15 +531,13 @@ TRACE_LINE
 #ifdef PROFILE_HADOOPCL
          jniContext->startKernel = read_timer();
 #endif
-         // TODO lock, set all kernel args, run, and then we already unlock below
-         // and free the kernelArgs memory
          pthread_mutex_lock(&programContext->lock);
          for (int i = 0; i < nArgs; i++) {
              err = clSetKernelArg(programContext->kernel, i, kernelArgsSize[i],
                      kernelArgs + i);
              if (err != CL_SUCCESS) {
-                 fprintf(stderr, "Error setting kernel arg %d @ %s:%d\n", i,
-                         __FILE__, __LINE__);
+                 fprintf(stderr, "Error setting kernel arg %d @ %s:%d, err=%d, size=%d\n", i,
+                         __FILE__, __LINE__, err, kernelArgsSize[i]);
                  exit(1);
              }
          }
@@ -552,8 +565,6 @@ TRACE_LINE
          free(kernelArgs);
          clFlush(openclContext->execCommandQueue);
 TRACE_LINE
-      long finishLaunch = read_timer();
-fprintf(stderr, "From OpenCL's perspective, launch took %ld ms\n", finishLaunch - startLaunch);
       return err;
 }
 
@@ -648,20 +659,20 @@ TRACE_LINE
       snprintf(profile_filename, 512, "%s.prof", jniContext->dump_filename);
       FILE *fp = fopen(profile_filename, "w");
       fprintf(fp, "OpenCL Profile: kernel queued %llu ms, kernel submitted %llu ms, kernel running %llu ms, label %s\n",
-          (submit - queued),
-          (start - submit),
-          (end - start),
+          submit - queued, start - submit, end - start,
           jniContext->currentLabel);
       fclose(fp);
 #endif
 #endif
-      fprintf(stderr, "  TIMING | OpenCL Profile: kernel queued %lu ms, kernel submitted %lu ms, kernel running %lu ms, label %s\n",
-          (submit - queued) / 1000000,
-          (start - submit) / 1000000,
-          (end - start) / 1000000,
-          jniContext->currentLabel);
+      fprintf(stderr, "TIMING | OpenCL Profile: kernel queued %lu ms, kernel submitted %lu ms, kernel running %lu ms, label %s\n",
+          (submit - queued) / 1000000, (start - submit) / 1000000,
+          (end - start) / 1000000, jniContext->currentLabel);
 #endif
-
+    err = clReleaseEvent(jniContext->exec_event);
+    if (err != CL_SUCCESS) {
+        fprintf(stderr, "Error releasing exec_event\n");
+        exit(1);
+    }
 
 TRACE_LINE
       return err;

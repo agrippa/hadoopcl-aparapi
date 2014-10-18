@@ -143,12 +143,14 @@ void KernelArg::getStaticPrimitiveValue(JNIEnv *jenv, jdouble* value) {
    *value = jenv->GetStaticDoubleField(jniContext->kernelClass, fieldID);
 }
 
-cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached){
+cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useCached,
+        kernel_arg *arg, int *size){
    cl_int status = CL_SUCCESS;
 
    if (useCached) {
-       status = clSetKernelArg(programContext->kernel, argPos,
-           cachedValueLength, cachedValue);
+       memcpy(arg, cachedValue, cachedValueLength);
+       // status = clSetKernelArg(programContext->kernel, argPos,
+       //     cachedValueLength, cachedValue);
    } else {
        if (isFloat()) {
            jfloat f;
@@ -158,7 +160,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(f);
            memcpy(cachedValue, &f, sizeof(f));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(f), &f);
+           arg->jf = f;
+           *size = sizeof(f);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(f), &f);
        }
        else if (isInt()) {
            jint i;
@@ -168,7 +172,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(i);
            memcpy(cachedValue, &i, sizeof(i));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(i), &i);
+           arg->ji = i;
+           *size = sizeof(i);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(i), &i);
        }
        else if (isBoolean()) {
            jboolean z;
@@ -178,7 +184,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(z);
            memcpy(cachedValue, &z, sizeof(z));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(z), &z);
+           arg->jbool = z;
+           *size = sizeof(z);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(z), &z);
        }
        else if (isByte()) {
            jbyte b;
@@ -188,7 +196,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(b);
            memcpy(cachedValue, &b, sizeof(b));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(b), &b);
+           arg->jb = b;
+           *size = sizeof(b);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(b), &b);
        }
        else if (isLong()) {
            jlong l;
@@ -198,7 +208,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(l);
            memcpy(cachedValue, &l, sizeof(l));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(l), &l);
+           arg->jl = l;
+           *size = sizeof(l);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(l), &l);
        }
        else if (isDouble()) {
            jdouble d;
@@ -208,7 +220,9 @@ cl_int KernelArg::setPrimitiveArg(JNIEnv *jenv, int argIdx, int argPos, int useC
            cachedValueLength = sizeof(d);
            memcpy(cachedValue, &d, sizeof(d));
 
-           status = clSetKernelArg(programContext->kernel, argPos, sizeof(d), &d);
+           arg->jd = d;
+           *size = sizeof(d);
+           // status = clSetKernelArg(programContext->kernel, argPos, sizeof(d), &d);
        }
    }
    return status;
